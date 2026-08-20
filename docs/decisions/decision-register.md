@@ -15,12 +15,14 @@
 
 Approvals are collected as **one consolidated packet per human role**, not as a scatter of individual signatures. A packet may approve many line items at once while each line item retains its own `APPROVE` / `AMEND` / `REJECT` status.
 
-| Packet | Holder | State |
-|---|---|---|
-| **CTO approval packet** | Yeoh Ming Zhe (`mingzheYeoh`) | **COMPLETE** |
-| **CEO approval packet** | **PENDING** — role unassigned | **NOT RECEIVED** |
-| **COO approval packet** | **PENDING** — role unassigned | **NOT RECEIVED** |
-| **Ground-Truth approval packet** | **PENDING** — role unassigned | **NOT RECEIVED** |
+| Packet | Holder | Decisions | Recorded | State |
+|---|---|---|---|---|
+| **CTO approval packet** | Yeoh Ming Zhe (`mingzheYeoh`) | — | — | **COMPLETE** |
+| **CEO approval packet** | **PENDING** — role unassigned, workstream not started | 31 (`CEO-D01`…`CEO-D31`) | **0** | **NOT RECEIVED** |
+| **COO approval packet** | **PENDING** — role unassigned, workstream not started | 27 (`COO-D01`…`COO-D27`) | **0** | **NOT RECEIVED** |
+| **Ground-Truth approval packet** | **PENDING** — role unassigned | 4 at Gate P0 | **0** | **NOT RECEIVED** |
+
+Full packets: [`../handoffs/CEO-handoff.md`](../handoffs/CEO-handoff.md) · [`../handoffs/COO-handoff.md`](../handoffs/COO-handoff.md). **Every decision in both is marked `PENDING`.** None has been inferred, simulated, or recorded on a role owner's behalf.
 
 Each outstanding decision is listed in **exactly one** packet, under the role that owns it. Co-approvals are noted on the line but never counted twice.
 
