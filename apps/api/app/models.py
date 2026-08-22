@@ -230,9 +230,21 @@ class Answer(Base):
     # Never set from AI output directly — see AGENTS.md §3.2.
     evidence_status: Mapped[str] = mapped_column(String(30), default="MISSING")
     status_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # SPEC-AMD-005 step 3: every detected condition (not just the winning
+    # one under the frozen CONFLICTING > OUTDATED > PARTIAL > VERIFIED
+    # precedence) is preserved here as a JSON-encoded list of finding dicts.
+    # AGENTS.md §3.2 lists `status_findings` alongside `evidence_status` as a
+    # field the rule engine computes and AI output may never set directly.
+    status_findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_status: Mapped[str] = mapped_column(String(30), default="UNREVIEWED")
     reviewer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # RULING-02 "NOT_APPLICABLE" step: human-controlled only, requires a
+    # reason and a reviewer identity (reviewer_name/reviewed_at above serve
+    # as the reviewer identity). The rule engine (app/services/rules.py)
+    # never sets or clears evidence_status == "NOT_APPLICABLE" or this
+    # reason field — only a human-facing endpoint may.
+    not_applicable_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # SPEC-AMD-006 / RULING-03: draft provenance dimension, independent of
     # evidence_status. Invariant enforced by ck_answers_provenance_ai_run
     # below: AI_GENERATED/AI_ASSISTED_EDIT -> ai_run_id IS NOT NULL
@@ -284,6 +296,19 @@ class EvidenceLink(Base):
     period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     scope_description: Mapped[str | None] = mapped_column(String(500), nullable=True)
     unit: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Added for SPEC-AMD-005: the reported numeric/text value this evidence
+    # carries (mirrors ai_pipeline.CandidateEvidence.value), needed to detect
+    # CONFLICTING (two records, same scope/period, different values) and to
+    # check VERIFIED condition 5 (a numerical value has an explainable unit).
+    value: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Added for SPEC-AMD-005 step 2: whether extraction of THIS specific
+    # evidence candidate was valid/readable. Independent of the parent
+    # Document's processing_status — a document can be INDEXED overall while
+    # one extracted candidate is OCR-garbled. Extraction-invalid evidence is
+    # excluded entirely from the evidence-quality computation but must never
+    # itself manufacture or suppress a conflict (AMENDMENTS.md SPEC-AMD-005,
+    # "two rules that constrain step 2").
+    extraction_valid: Mapped[bool] = mapped_column(default=True)
     link_status: Mapped[str] = mapped_column(String(30), default="CANDIDATE")
     created_by: Mapped[str] = mapped_column(String(20), default="SYSTEM")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
