@@ -82,6 +82,10 @@ class DocumentRecord(BaseModel):
     period_start: date | None = None
     period_end: date | None = None
     error: str | None = None
+    # SPEC-AMD-001: lets a refreshed client reach GET /api/v1/jobs/{job_id}
+    # without any other lookup. Null only for a Document created before this
+    # column existed (pre-migration data).
+    latest_job_id: str | None = None
     created_at: datetime
 
     @classmethod
@@ -99,6 +103,7 @@ class DocumentRecord(BaseModel):
             period_start=doc.period_start,
             period_end=doc.period_end,
             error=doc.error_message,
+            latest_job_id=doc.latest_job_id,
             created_at=doc.created_at,
         )
 

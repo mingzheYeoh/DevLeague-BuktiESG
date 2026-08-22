@@ -112,7 +112,11 @@ export interface DocumentRecord {
   source_date: string | null;
   period_start: string | null;
   period_end: string | null;
-  error: ApiErrorBody["error"] | null;
+  /** apps/api's DocumentRecord.error is a plain message string, not the
+   * shared error envelope shape. */
+  error: string | null;
+  /** SPEC-AMD-001: the most recent processing_jobs row for this Document. */
+  latest_job_id: string | null;
   created_at: string;
 }
 

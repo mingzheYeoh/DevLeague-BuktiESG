@@ -77,6 +77,14 @@ ACTION_TYPE = ("SUBMISSION", "IMPROVEMENT")
 
 ACTION_STATUS = ("TODO", "IN_PROGRESS", "BLOCKED", "NEEDS_REVIEW", "COMPLETED")
 
+# JobType / JobStatus — SPEC-AMD-001, CTO-RULINGS.md RULING-01 (amended).
+JOB_TYPE = ("DOCUMENT_PARSE", "DOCUMENT_INDEX", "QUESTION_ANALYZE", "EXPORT_RENDER")
+
+# Terminal states per RULING-01: SUCCEEDED, FAILED, CANCELLED. Valid
+# transitions: QUEUED -> RUNNING -> {SUCCEEDED, FAILED}; QUEUED -> CANCELLED;
+# RUNNING -> CANCELLED.
+JOB_STATUS = ("QUEUED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED")
+
 
 def check_in(column: str, values: tuple[str, ...]) -> str:
     """Render a SQL CHECK-constraint expression for an allow-list column."""

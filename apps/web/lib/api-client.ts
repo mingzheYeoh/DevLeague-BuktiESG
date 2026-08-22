@@ -104,6 +104,21 @@ export const api = {
     );
   },
 
+  /** GET /api/v1/cases/{case_id}/documents */
+  getDocuments(caseId: string): Promise<DocumentRecord[]> {
+    return request<DocumentRecord[]>(
+      `/api/v1/cases/${encodeURIComponent(caseId)}/documents`,
+    );
+  },
+
+  /** POST /api/v1/cases/{case_id}/documents/{document_id}/retry */
+  retryDocument(caseId: string, documentId: string): Promise<DocumentRecord> {
+    return request<DocumentRecord>(
+      `/api/v1/cases/${encodeURIComponent(caseId)}/documents/${encodeURIComponent(documentId)}/retry`,
+      { method: "POST" },
+    );
+  },
+
   /** GET /api/v1/cases/{case_id}/questions */
   getQuestions(caseId: string): Promise<QuestionListItem[]> {
     return request<QuestionListItem[]>(

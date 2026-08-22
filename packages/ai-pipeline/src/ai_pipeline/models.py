@@ -51,6 +51,33 @@ class ParsedQuestionnaire(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Evidence-document parsers output (parse_pdf_evidence / parse_docx_evidence /
+# parse_xlsx_evidence / parse_plain_text_evidence)
+# --------------------------------------------------------------------------- #
+
+
+class ExtractedChunk(BaseModel):
+    """One chunk of extracted evidence-document text plus its source
+    location fields, mirroring `document_chunks` (Main Spec §10.1).
+
+    Distinct from `DocumentChunk` above (which is the `analyze_question()`
+    input shape, id-only): this is parser *output*, before the server has
+    assigned a persisted `document_chunks.id`. The server (never this
+    package) is the only thing that turns this into a `document_chunks` row
+    and resolves it to a citation (AGENTS.md §3.3).
+    """
+
+    model_config = _STRICT
+
+    sequence_no: int = Field(ge=0)
+    text: str
+    page_number: Optional[int] = None
+    sheet_name: Optional[str] = None
+    cell_range: Optional[str] = None
+    heading_path: list[str] = Field(default_factory=list)
+
+
+# --------------------------------------------------------------------------- #
 # analyze_question() input
 # --------------------------------------------------------------------------- #
 

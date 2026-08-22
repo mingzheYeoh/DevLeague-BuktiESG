@@ -48,6 +48,8 @@ from app.enums import (
     EVIDENCE_CREATED_BY,
     EVIDENCE_LINK_STATUS,
     EVIDENCE_STATUS,
+    JOB_STATUS,
+    JOB_TYPE,
     PILLAR,
     REVIEW_STATUS,
     check_in,
@@ -124,11 +126,22 @@ class Document(Base):
     period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # SPEC-AMD-001: lets a refreshed client reach the Job resource without
+    # any other lookup. Nullable FK, set by the server after it creates the
+    # processing_jobs row (never by the job/worker itself before it exists).
+    latest_job_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("processing_jobs.id", use_alter=True, name="fk_documents_latest_job_id"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
     case: Mapped[Case] = relationship(back_populates="documents")
     chunks: Mapped[list["DocumentChunk"]] = relationship(
         back_populates="document", cascade="all, delete-orphan"
+    )
+    latest_job: Mapped["ProcessingJob | None"] = relationship(
+        foreign_keys=[latest_job_id], post_update=True
     )
 
     __table_args__ = (
@@ -159,6 +172,49 @@ class DocumentChunk(Base):
     # (no evidence-matching pipeline is implemented here).
 
     document: Mapped[Document] = relationship(back_populates="chunks")
+
+
+class ProcessingJob(Base):
+    """SPEC-AMD-001 — the Job resource the Shared Integration Contract
+    already declared `GET /api/v1/jobs/{job_id}` for, but never defined.
+
+    Backs a simple polling worker using ``SELECT ... FOR UPDATE SKIP
+    LOCKED`` (decision-register.md §4 item 017; RULING-01) rather than
+    Celery/Kafka/Redis, which the Main Spec explicitly excludes from the
+    MVP. See app/services/jobs.py for the claim/lease logic and its
+    documented SQLite-dev-only limitation (SQLite has no `FOR UPDATE SKIP
+    LOCKED`).
+    """
+
+    __tablename__ = "processing_jobs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    case_id: Mapped[str] = mapped_column(String(36), ForeignKey("cases.id"), nullable=False)
+    job_type: Mapped[str] = mapped_column(String(30))
+    status: Mapped[str] = mapped_column(String(20), default="QUEUED")
+    document_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("documents.id"), nullable=True
+    )
+    question_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("questions.id"), nullable=True
+    )
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    document: Mapped["Document | None"] = relationship(foreign_keys=[document_id])
+
+    __table_args__ = (
+        CheckConstraint(check_in("job_type", JOB_TYPE), name="ck_processing_jobs_job_type"),
+        CheckConstraint(check_in("status", JOB_STATUS), name="ck_processing_jobs_status"),
+    )
 
 
 class Questionnaire(Base):
