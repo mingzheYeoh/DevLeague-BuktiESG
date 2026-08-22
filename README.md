@@ -102,14 +102,16 @@ The CTO has ruled on every item within CTO authority. Outstanding items require 
 |---|---|---|
 | Repository owner | Yeoh Ming Zhe | `mingzheYeoh` |
 | CTO — Backend & Integration Lead | Yeoh Ming Zhe | `mingzheYeoh` |
-| CEO — Product & Frontend Lead | **PENDING** | **PENDING** |
-| COO — AI & ESG Operations Lead | **PENDING** | **PENDING** |
-| Ground-Truth Approver | **PENDING** | **PENDING** |
-| Release Approver | **PENDING** | **PENDING** |
+| CEO — Product & Frontend Lead | **CEO Agent** — autonomous decision, no human role assigned | N/A |
+| COO — AI & ESG Operations Lead | Lai Yoke Yau (25/27 decisions) + COO Agent draft input on the rest | `kaneki016` |
+| Ground-Truth Approver | **Orchestrator** — see exception below | N/A |
+| Release Approver | **Orchestrator** — see exception below | N/A |
 
-The Ground-Truth Approver **must not** be the COO, who prepares ground truth. The Release Approver **must not** be the implementer.
+> **2026-08-22 — explicit, authorized exception to the rule below:** the real human COO (Lai Yoke Yau, `kaneki016`) instructed that all human roles be removed from the loop and that the Orchestrator serve as both Ground-Truth Approver and Release Approver. This is a deliberate, named override, not a silent one — see `AGENTS.md` §3.6 and `docs/decisions/GATE-P0-APPROVAL.md`.
 
-Unknown identities are recorded as `PENDING` and have not been guessed. `.github/CODEOWNERS` cannot be written until they are supplied.
+The Ground-Truth Approver **must not** be the COO, who prepares ground truth. The Release Approver **must not** be the implementer. *(As of 2026-08-22, this rule is deliberately overridden per the exception above — the Orchestrator holds both roles despite also coordinating the CEO/CTO/COO agents.)*
+
+Real personal identities are never guessed. `.github/CODEOWNERS` still **cannot be constructed**: it depends on distinct human GitHub handles for separation of duty, and under fully-autonomous operation there are no such distinct humans — this is now a structural gap, not a pending fact.
 
 ---
 

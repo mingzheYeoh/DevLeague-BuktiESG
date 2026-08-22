@@ -97,6 +97,8 @@ If an implementation disagrees with a protected value, the implementation is wro
 
 An agent that implements a change must not approve its own release. Migration and security paths carry a **red-risk floor** and are never self-approvable by the implementer.
 
+> **2026-08-22 — explicit, authorized exception:** the real human COO (Lai Yoke Yau, `kaneki016`), acting directly in a live session, instructed that all human roles be removed from the loop and that the Orchestrator (the top-level session dispatching the CEO/CTO/COO agents — see `CLAUDE.md` § Orchestrator convention) serve as **both** Ground-Truth Approver and Release Approver. This directly overrides the separation-of-duty rule stated in this section and in `README.md` ("the Ground-Truth Approver must not be the COO," "the Release Approver must not be the implementer") — the orchestrator IS the implementer/coordinator here, so this is a deliberate, named, human-authorized override of the rule, not a silent resolution of a conflict. It is recorded here so the override is visible everywhere the rule itself is stated, not just in the decision register. See `docs/decisions/GATE-P0-APPROVAL.md` for the corresponding signature-block change.
+
 ---
 
 ## 4. Protected Paths
