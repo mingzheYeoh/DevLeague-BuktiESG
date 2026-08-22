@@ -1,70 +1,33 @@
-# BuktiESG — Phase 0 baseline .gitignore
-#
-# Purpose: close the secret-commit window BEFORE any secret can exist.
-# A .env committed once lives in git history forever; retroactive removal
-# requires a history rewrite, which this project has explicitly forbidden.
-# This file is therefore intentionally present in the first commit.
-
-# ---- Secrets and local configuration ----
-.env
-.env.*
-!.env.example
-*.pem
-*.key
-*.p12
-*.pfx
-credentials.json
-service-account*.json
-secrets/
-
-# ---- Uploaded evidence and generated artefacts (synthetic only, never committed) ----
-.data/
-storage/
-uploads/
-exports/
-tmp/
-*.sqlite
-*.sqlite3
-*.db
-
-# ---- Python ----
+# Python
 __pycache__/
-*.py[cod]
-*.egg-info/
+*.pyc
 .venv/
-venv/
+*.egg-info/
 .pytest_cache/
-.mypy_cache/
 .ruff_cache/
-htmlcov/
-.coverage
-.coverage.*
 
-# ---- Node / Next.js ----
+# Node / Next.js
 node_modules/
 .next/
 out/
 .turbo/
-dist/
-build/
-*.tsbuildinfo
-.pnpm-store/
 
-# ---- Test and tooling output ----
-playwright-report/
-test-results/
-blob-report/
-.playwright/
+# Env
+.env
+.env.*
+!.env.example
 
-# ---- Editor and OS ----
-.vscode/
-.idea/
-*.swp
+# OS
 .DS_Store
 Thumbs.db
-desktop.ini
 
-# ---- Explicitly NOT ignored ----
-# Lockfiles are protected files and must be committed once they exist:
-#   !uv.lock
-#   !pnpm-lock.yaml
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Local DB files (SQLite test substitution)
+*.db
+*.sqlite
+*.sqlite3
+apps/api/var/

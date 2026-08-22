@@ -1,0 +1,25 @@
+[project]
+name = "buktiesg-ai-pipeline"
+version = "0.1.0"
+description = "BuktiESG AI pipeline core (COO-owned) — First Vertical Slice (Phase 1). Pure functions only: parse_document() and analyze_question(). No DB session, no HTTP persistence client, no credentials. See AGENTS.md §3.2/3.3 and docs/decisions/CTO-RULINGS.md BLOCKER-04."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "pydantic>=2.9.0",
+    "openpyxl>=3.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_pipeline"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
