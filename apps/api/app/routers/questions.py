@@ -27,7 +27,7 @@ def list_questions(case_id: str, db: Session = Depends(get_db)) -> list[Question
     stmt = (
         select(Question)
         .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
-        .options(joinedload(Question.answer))
+        .options(joinedload(Question.answer), joinedload(Question.evidence_links))
         .where(Questionnaire.case_id == case_id)
         .order_by(Question.question_order.asc(), Question.id.asc())
     )

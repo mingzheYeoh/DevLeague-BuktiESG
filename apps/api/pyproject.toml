@@ -13,6 +13,7 @@ dependencies = [
     "alembic>=1.14.0",
     "psycopg[binary]>=3.2.3",
     "python-multipart>=0.0.12",
+    "buktiesg-ai-pipeline",
 ]
 
 [dependency-groups]
@@ -31,3 +32,6 @@ packages = ["app"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv.sources]
+buktiesg-ai-pipeline = { path = "../../packages/ai-pipeline", editable = true }

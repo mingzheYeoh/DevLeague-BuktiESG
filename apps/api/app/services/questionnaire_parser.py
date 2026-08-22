@@ -1,29 +1,32 @@
-"""Questionnaire question-identification — STUB for this slice.
+"""Questionnaire question-identification — backed by the real AI pipeline.
 
-Scope boundary: real document parsing/extraction (Docling, OCR, sheet
-traversal, chunking into document_chunks with embeddings) is the COO's
-document-processing pipeline (Main Spec §6/§12), not backend/CTO scope, and
-is not implemented here. This module implements only the minimum "identify
-questions" step the First Vertical Slice needs, synchronously, with no job
-queue (the Job/processing_jobs resource is SPEC-AMD-001 / decision 012, out
-of scope for this slice).
+Real parsing (`ai_pipeline.parse_document()`, COO-owned, packages/ai-pipeline)
+replaces the earlier JSON/plain-text stub. That package is a pure function:
+bytes in, structured `ParsedQuestionnaire` out — no DB session, no HTTP
+client, no persistence (AGENTS.md §3.2/3.3). This module is the thin,
+backend-owned adapter that converts its output into the shape
+`app/routers/documents.py` persists.
 
-Supported input formats, deliberately simple:
+Supported input for this slice: a single `.xlsx` workbook, header row 1:
+`external_question_id | question_text | section | is_required` (see
+packages/ai-pipeline/src/ai_pipeline/parse.py for the exact traversal rules).
 
-1. JSON: a top-level array of objects, each with at least
-   ``question_text``, and optionally ``external_question_id``, ``section``,
-   ``is_required``, ``pillar``.
-2. Plain text: one question per non-blank line.
+`question_order` is assigned by `ai_pipeline.parse_document()` from workbook
+traversal order — sheet order, then row order (SPEC-AMD-007) — and is passed
+through unchanged here. It is never re-derived from `external_question_id`,
+`section`, or any other display string.
 
-Row order in the source (JSON array order / line order) becomes
-``question_order`` directly (SPEC-AMD-007 / RULING-04) — captured once, at
-traversal time, never re-derived from external_question_id or section later.
+Pillar/SEDG mapping is out of scope for this slice's parser (the pipeline
+does not return one either — see `ai_pipeline.models.ParsedQuestion`); every
+question is imported as `UNCATEGORIZED` and mapped later by a human or a
+later slice.
 """
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
+
+from ai_pipeline import parse_document
 
 
 @dataclass
@@ -38,73 +41,49 @@ class ParsedQuestion:
 
 
 class QuestionnaireParseError(ValueError):
-    pass
+    """Raised when `ai_pipeline.parse_document()` cannot parse the upload.
+
+    Wraps the pipeline's `ValueError` so callers in this app only ever catch
+    one app-owned exception type, without hiding the underlying message.
+    """
 
 
-_VALID_PILLARS = {"E", "S", "G", "UNCATEGORIZED"}
+def _location_dict(raw_location: str) -> dict:
+    """Convert the pipeline's display-only `"Sheet!Cell"` string into a
+    Contract §4 `sheet_cell` location object.
+
+    This describes where in the *questionnaire workbook* the question text
+    was found. It is unrelated to evidence source locations, which are
+    resolved separately by `app/routers/documents.py` from persisted
+    `document_chunks` — never from anything the pipeline returns.
+    """
+    if "!" in raw_location:
+        sheet_name, cell_range = raw_location.split("!", 1)
+    else:
+        sheet_name, cell_range = None, raw_location
+    return {"type": "sheet_cell", "sheet_name": sheet_name, "cell_range": cell_range}
 
 
 def parse_questionnaire(raw: bytes, filename: str) -> list[ParsedQuestion]:
-    text = raw.decode("utf-8", errors="replace").strip()
-    if not text:
-        raise QuestionnaireParseError("Questionnaire file is empty.")
+    """Parse an uploaded questionnaire via the real AI pipeline.
 
-    if text.startswith("["):
-        return _parse_json(text)
-    return _parse_plain_text(text)
-
-
-def _parse_json(text: str) -> list[ParsedQuestion]:
+    Raises `QuestionnaireParseError` on anything `ai_pipeline.parse_document()`
+    rejects (missing headers, empty file, unsupported format).
+    """
     try:
-        rows = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise QuestionnaireParseError(f"Invalid JSON questionnaire: {exc}") from exc
+        parsed = parse_document(raw, filename)
+    except ValueError as exc:
+        raise QuestionnaireParseError(str(exc)) from exc
 
-    if not isinstance(rows, list):
-        raise QuestionnaireParseError("JSON questionnaire must be a top-level array.")
-
-    parsed: list[ParsedQuestion] = []
-    for order, row in enumerate(rows):
-        if not isinstance(row, dict) or not row.get("question_text"):
-            raise QuestionnaireParseError(
-                f"Row {order} is missing required field 'question_text'."
-            )
-        pillar = row.get("pillar", "UNCATEGORIZED") or "UNCATEGORIZED"
-        if pillar not in _VALID_PILLARS:
-            pillar = "UNCATEGORIZED"
-        parsed.append(
-            ParsedQuestion(
-                question_text=row["question_text"],
-                question_order=order,
-                external_question_id=row.get("external_question_id"),
-                section=row.get("section"),
-                is_required=bool(row.get("is_required", True)),
-                pillar=pillar,
-                source_location={
-                    "type": "paragraph",
-                    "heading_path": [row["section"]] if row.get("section") else [],
-                    "paragraph_index": order,
-                },
-            )
-        )
-    if not parsed:
-        raise QuestionnaireParseError("Questionnaire contains no questions.")
-    return parsed
-
-
-def _parse_plain_text(text: str) -> list[ParsedQuestion]:
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if not lines:
-        raise QuestionnaireParseError("Questionnaire contains no questions.")
     return [
         ParsedQuestion(
-            question_text=line,
-            question_order=order,
-            source_location={
-                "type": "paragraph",
-                "heading_path": [],
-                "paragraph_index": order,
-            },
+            question_text=q.question_text,
+            question_order=q.question_order,
+            external_question_id=q.external_question_id or None,
+            section=q.section,
+            is_required=q.is_required,
+            pillar="UNCATEGORIZED",
+            source_location=_location_dict(q.source_location),
         )
-        for order, line in enumerate(lines)
+        for q in parsed.questions
     ]

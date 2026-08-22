@@ -129,18 +129,38 @@ class QuestionListItem(BaseModel):
     priority_score: int | None = None
     owner_name: str | None = None
     source_location: SourceLocation | None = None
+    status_reason: str | None = None
+    # Additive, slice-scope field: the SERVER-resolved location of the most
+    # recent evidence_links candidate for this question, resolved from
+    # persisted document_chunks (never a location the AI pipeline supplied —
+    # AGENTS.md §3.3). Distinct from `source_location` above, which is where
+    # the QUESTION itself was found in the questionnaire, not where its
+    # evidence was found.
+    evidence_location: SourceLocation | None = None
 
     @classmethod
     def from_model(cls, question) -> "QuestionListItem":
+        import json
+
         answer = question.answer
         loc = None
         if question.source_location:
-            import json
-
             try:
                 loc = SourceLocation.model_validate(json.loads(question.source_location))
             except (ValueError, TypeError):
                 loc = None
+
+        evidence_loc = None
+        links = list(question.evidence_links or [])
+        if links:
+            latest_link = max(links, key=lambda link: link.created_at)
+            try:
+                evidence_loc = SourceLocation.model_validate(
+                    json.loads(latest_link.location_json)
+                )
+            except (ValueError, TypeError):
+                evidence_loc = None
+
         return cls(
             id=question.id,
             external_question_id=question.external_question_id,
@@ -154,6 +174,8 @@ class QuestionListItem(BaseModel):
             priority_score=None,
             owner_name=None,
             source_location=loc,
+            status_reason=answer.status_reason if answer else None,
+            evidence_location=evidence_loc,
         )
 
 

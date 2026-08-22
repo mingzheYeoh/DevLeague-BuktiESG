@@ -118,7 +118,7 @@ export interface DocumentRecord {
 
 export interface QuestionListItem {
   id: string;
-  external_question_id: string;
+  external_question_id: string | null;
   question_text: string;
   is_required: boolean;
   pillar: string | null;
@@ -129,6 +129,14 @@ export interface QuestionListItem {
   priority_score: number | null;
   owner_name: string | null;
   source_location: SourceLocation | null;
+  /** Human-readable reason behind the current evidence_status (e.g. how a
+   * candidate match was found). Null until the backend has a reason to give. */
+  status_reason: string | null;
+  /** Server-resolved location of the most recent evidence candidate for this
+   * question -- distinct from `source_location`, which is where the
+   * QUESTION itself was found in the questionnaire, not where its evidence
+   * was found. Never fabricated client-side. */
+  evidence_location: SourceLocation | null;
 }
 
 export interface ActionRecord {

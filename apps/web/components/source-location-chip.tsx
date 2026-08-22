@@ -38,7 +38,9 @@ export function SourceLocationChip({
       text = `Sheet ${location.sheet_name} · ${location.cell_range}`;
       break;
     case "paragraph":
-      text = `${location.heading_path.join(" › ")} · Paragraph ${location.paragraph_index}`;
+      text = location.heading_path.length
+        ? `${location.heading_path.join(" › ")} · Paragraph ${location.paragraph_index}`
+        : `Paragraph ${location.paragraph_index}`;
       break;
     case "manual":
       text = `Manual statement · ${location.description}`;

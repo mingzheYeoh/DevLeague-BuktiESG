@@ -58,11 +58,18 @@ export function QuestionsList({
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <EvidenceStatusBadge status={q.evidence_status} />
-                <SourceLocationChip location={q.source_location} />
+                {q.evidence_location ? (
+                  <SourceLocationChip location={q.evidence_location} />
+                ) : (
+                  <SourceLocationChip location={q.source_location} />
+                )}
                 {q.evidence_status === "AI_SUGGESTED" ? (
                   <AiSuggestionLabel />
                 ) : null}
               </div>
+              {q.status_reason ? (
+                <p className="mt-1.5 text-xs text-[#667085]">{q.status_reason}</p>
+              ) : null}
             </div>
             <Button
               variant="secondary"
