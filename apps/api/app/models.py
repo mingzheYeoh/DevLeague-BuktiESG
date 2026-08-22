@@ -301,6 +301,10 @@ class Answer(Base):
     # never sets or clears evidence_status == "NOT_APPLICABLE" or this
     # reason field — only a human-facing endpoint may.
     not_applicable_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Phase 5 (Main Spec §17): human-supplied reason for a REJECT review
+    # action. Distinct from not_applicable_reason above (that one is only
+    # ever set by the NOT_APPLICABLE review action, never REJECT).
+    review_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     # SPEC-AMD-006 / RULING-03: draft provenance dimension, independent of
     # evidence_status. Invariant enforced by ck_answers_provenance_ai_run
     # below: AI_GENERATED/AI_ASSISTED_EDIT -> ai_run_id IS NOT NULL
@@ -397,6 +401,18 @@ class Action(Base):
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="TODO")
     completion_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Phase 5: an Action addressing MISSING/CONFLICTING evidence must supply
+    # closure evidence before it can be marked COMPLETED (Gate P5). Set at
+    # creation time (auto-derived from the question's evidence_status, or
+    # explicit override) — never flipped true/false implicitly afterward.
+    requires_closure_evidence: Mapped[bool] = mapped_column(default=False)
+    # The evidence_links row an Action's closure depended on. Distinct from
+    # closure_evidence_document_id below (kept for backward compatibility,
+    # unused by new code): this is what app/routers/evidence.py's invalidate
+    # endpoint checks to decide whether to reopen a COMPLETED Action.
+    closure_evidence_link_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("evidence_links.id"), nullable=True
+    )
     closure_evidence_document_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("documents.id"), nullable=True
     )

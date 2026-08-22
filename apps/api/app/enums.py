@@ -73,6 +73,12 @@ EVIDENCE_LINK_STATUS = ("CANDIDATE", "ACCEPTED", "REJECTED", "INVALIDATED")
 
 EVIDENCE_CREATED_BY = ("SYSTEM", "USER")
 
+# Human Review actions (Main Spec §17 Phase 5). Not a DB-column allow-list
+# (no table column stores the action verb itself — it drives which
+# Answer fields get written), so this is a plain tuple, not a CHECK
+# constraint source.
+REVIEW_ACTION = ("ACCEPT", "EDIT", "REJECT", "NOT_APPLICABLE")
+
 ACTION_TYPE = ("SUBMISSION", "IMPROVEMENT")
 
 ACTION_STATUS = ("TODO", "IN_PROGRESS", "BLOCKED", "NEEDS_REVIEW", "COMPLETED")

@@ -219,10 +219,24 @@ class ActionCreate(BaseModel):
     question_id: str | None = None
     type: str = "SUBMISSION"
     title: str
+    # Optional at the Pydantic layer on purpose: the API layer
+    # (app/routers/actions.py) enforces "owner, next_step, and deadline
+    # required" per Gate P5, and returns the project's custom
+    # VALIDATION_ERROR envelope rather than FastAPI's default 422 shape.
     owner_name: str | None = None
     owner_role: str | None = None
     next_step: str | None = None
     deadline_at: datetime | None = None
+    # Optional override. When omitted, the server auto-derives this from
+    # the linked question's current evidence_status (MISSING/CONFLICTING
+    # -> True) at creation time — see app/routers/actions.py.
+    requires_closure_evidence: bool | None = None
+
+
+class ActionStatusUpdate(BaseModel):
+    status: str
+    completion_note: str | None = None
+    closure_evidence_link_id: str | None = None
 
 
 class ActionRecord(BaseModel):
@@ -239,9 +253,12 @@ class ActionRecord(BaseModel):
     deadline_at: datetime | None
     status: str
     completion_note: str | None
+    requires_closure_evidence: bool
+    closure_evidence_link_id: str | None
     closure_evidence_document_id: str | None
     created_at: datetime
     updated_at: datetime
+    completed_at: datetime | None
 
     @classmethod
     def from_model(cls, action) -> "ActionRecord":
@@ -257,7 +274,79 @@ class ActionRecord(BaseModel):
             deadline_at=action.deadline_at,
             status=action.status,
             completion_note=action.completion_note,
+            requires_closure_evidence=action.requires_closure_evidence,
+            closure_evidence_link_id=action.closure_evidence_link_id,
             closure_evidence_document_id=action.closure_evidence_document_id,
             created_at=action.created_at,
             updated_at=action.updated_at,
+            completed_at=action.completed_at,
+        )
+
+
+class QuestionReviewRequest(BaseModel):
+    action: str
+    reviewer_name: str | None = None
+    edited_answer: str | None = None
+    reason: str | None = None
+
+
+class AnswerRecord(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    question_id: str
+    draft_answer: str | None
+    confirmed_answer: str | None
+    evidence_status: str
+    status_reason: str | None
+    review_status: str
+    review_reason: str | None
+    reviewer_name: str | None
+    reviewed_at: datetime | None
+    not_applicable_reason: str | None
+    draft_provenance: str
+    updated_at: datetime
+
+    @classmethod
+    def from_model(cls, answer) -> "AnswerRecord":
+        return cls(
+            id=answer.id,
+            question_id=answer.question_id,
+            draft_answer=answer.draft_answer,
+            confirmed_answer=answer.confirmed_answer,
+            evidence_status=answer.evidence_status,
+            status_reason=answer.status_reason,
+            review_status=answer.review_status,
+            review_reason=answer.review_reason,
+            reviewer_name=answer.reviewer_name,
+            reviewed_at=answer.reviewed_at,
+            not_applicable_reason=answer.not_applicable_reason,
+            draft_provenance=answer.draft_provenance,
+            updated_at=answer.updated_at,
+        )
+
+
+class EvidenceLinkRecord(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    question_id: str
+    document_id: str
+    link_status: str
+    value: str | None
+    scope_description: str | None
+    period_start: date | None
+    period_end: date | None
+
+    @classmethod
+    def from_model(cls, link) -> "EvidenceLinkRecord":
+        return cls(
+            id=link.id,
+            question_id=link.question_id,
+            document_id=link.document_id,
+            link_status=link.link_status,
+            value=link.value,
+            scope_description=link.scope_description,
+            period_start=link.period_start,
+            period_end=link.period_end,
         )

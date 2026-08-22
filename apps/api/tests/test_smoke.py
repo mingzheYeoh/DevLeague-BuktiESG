@@ -168,6 +168,7 @@ def test_first_vertical_slice(client):
             "owner_name": "Finance Manager",
             "owner_role": "Finance",
             "next_step": "Download the remaining monthly bills.",
+            "deadline_at": "2026-09-30T00:00:00Z",
         },
     )
     assert resp.status_code == 201, resp.text

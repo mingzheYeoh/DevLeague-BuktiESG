@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import actions, cases, documents, questions
+from app.routers import actions, cases, documents, evidence, questions
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
@@ -28,6 +28,7 @@ app.include_router(cases.router)
 app.include_router(documents.router)
 app.include_router(questions.router)
 app.include_router(actions.router)
+app.include_router(evidence.router)
 
 
 @app.get("/health")
