@@ -118,6 +118,13 @@ export interface DocumentRecord {
   /** SPEC-AMD-001: the most recent processing_jobs row for this Document. */
   latest_job_id: string | null;
   created_at: string;
+  /** Main Spec §17 Phase 3 "column-mapping confirmation UI": header name ->
+   * spreadsheet column letter, as detected while parsing a QUESTIONNAIRE
+   * document. Only present on the response to the upload/retry request
+   * that actually parsed the file (server-side it is a transient,
+   * non-persisted value) -- null on a later GET /documents, and always
+   * null for a non-QUESTIONNAIRE document. */
+  detected_columns: Record<string, string> | null;
 }
 
 export interface QuestionListItem {
@@ -141,6 +148,16 @@ export interface QuestionListItem {
    * QUESTION itself was found in the questionnaire, not where its evidence
    * was found. Never fabricated client-side. */
   evidence_location: SourceLocation | null;
+  /** Draft rationale from ai_pipeline.map_question_to_sedg() for this
+   * question's pillar/SEDG mapping -- a human-reviewable recommendation,
+   * never a verdict. Must never be treated as equivalent to
+   * evidence_status or review_status. */
+  mapping_rationale: string | null;
+  /** Quoted excerpt text and claim from the most recent evidence_links
+   * candidate for this question -- the actual excerpt, not just its
+   * location chip. Same AI-suggestion status as evidence_location. */
+  evidence_excerpt: string | null;
+  evidence_claim_supported: string | null;
 }
 
 export interface ActionRecord {

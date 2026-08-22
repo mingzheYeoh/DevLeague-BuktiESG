@@ -1,13 +1,51 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EvidenceStatusBadge } from "@/components/evidence-status-badge";
 import { SourceLocationChip } from "@/components/source-location-chip";
-import { AiSuggestionLabel } from "@/components/ai-suggestion-label";
+import { AiSuggestionLabel, AiSuggestionPanel } from "@/components/ai-suggestion-label";
 import { EmptyState } from "@/components/empty-state";
 import { CreateActionForm } from "@/components/create-action-form";
+import { cn } from "@/lib/utils";
 import type { QuestionListItem } from "@/lib/types";
+
+const PILLAR_LABELS: Record<string, string> = {
+  E: "Environmental",
+  S: "Social",
+  G: "Governance",
+  UNCATEGORIZED: "Uncategorized",
+};
+
+const PILLAR_STYLES: Record<string, string> = {
+  E: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  S: "border-blue-200 bg-blue-50 text-blue-700",
+  G: "border-amber-200 bg-amber-50 text-amber-700",
+  UNCATEGORIZED: "border-[#DCE4EC] bg-[#F7F9FC] text-[#667085]",
+};
+
+/**
+ * SEDG pillar/topic badge -- a draft, AI-suggested mapping (never a
+ * verdict; see ai_pipeline.map_question_to_sedg() and its taxonomy's
+ * honesty caveat). Distinct from EvidenceStatusBadge, which reflects the
+ * deterministic rule engine.
+ */
+function SedgPillarBadge({ pillar, topicCode }: { pillar: string; topicCode: string | null }) {
+  const style = PILLAR_STYLES[pillar] ?? PILLAR_STYLES.UNCATEGORIZED;
+  const label = PILLAR_LABELS[pillar] ?? pillar;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium",
+        style,
+      )}
+    >
+      {label}
+      {topicCode ? ` · ${topicCode}` : ""}
+    </span>
+  );
+}
 
 /**
  * Questions list for the vertical slice. Displays only what the contract's
@@ -25,6 +63,9 @@ export function QuestionsList({
   const [actionFormQuestionId, setActionFormQuestionId] = useState<
     string | null
   >(null);
+  const [expandedQuestionId, setExpandedQuestionId] = useState<string | null>(
+    null,
+  );
 
   if (questions.length === 0) {
     return (
@@ -58,6 +99,10 @@ export function QuestionsList({
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <EvidenceStatusBadge status={q.evidence_status} />
+                <SedgPillarBadge
+                  pillar={q.pillar ?? "UNCATEGORIZED"}
+                  topicCode={q.sedg_topic_code}
+                />
                 {q.evidence_location ? (
                   <SourceLocationChip location={q.evidence_location} />
                 ) : (
@@ -69,6 +114,28 @@ export function QuestionsList({
               </div>
               {q.status_reason ? (
                 <p className="mt-1.5 text-xs text-[#667085]">{q.status_reason}</p>
+              ) : null}
+              {q.mapping_rationale || q.evidence_excerpt ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1.5 h-auto p-0 text-xs font-medium text-[#173F68]"
+                  onClick={() =>
+                    setExpandedQuestionId(
+                      expandedQuestionId === q.id ? null : q.id,
+                    )
+                  }
+                  data-testid="toggle-question-detail"
+                >
+                  <span className="flex items-center gap-1">
+                    {expandedQuestionId === q.id ? (
+                      <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                    {expandedQuestionId === q.id ? "Hide detail" : "Show detail"}
+                  </span>
+                </Button>
               ) : null}
             </div>
             <Button
@@ -84,6 +151,37 @@ export function QuestionsList({
               Create SUBMISSION action
             </Button>
           </div>
+
+          {expandedQuestionId === q.id ? (
+            <div
+              className="mt-3 flex flex-col gap-3 border-t border-[#DCE4EC] pt-3"
+              data-testid="question-detail"
+            >
+              {q.mapping_rationale ? (
+                <AiSuggestionPanel>
+                  <p className="font-medium text-[#17212B]">
+                    SEDG mapping suggestion
+                  </p>
+                  <p className="mt-1">{q.mapping_rationale}</p>
+                </AiSuggestionPanel>
+              ) : null}
+              {q.evidence_excerpt ? (
+                <AiSuggestionPanel>
+                  <p className="font-medium text-[#17212B]">
+                    Candidate evidence excerpt
+                  </p>
+                  {q.evidence_claim_supported ? (
+                    <p className="mt-1 text-[#667085]">
+                      {q.evidence_claim_supported}
+                    </p>
+                  ) : null}
+                  <blockquote className="mt-1 border-l-2 border-purple-300 pl-2 italic text-[#17212B]">
+                    &ldquo;{q.evidence_excerpt}&rdquo;
+                  </blockquote>
+                </AiSuggestionPanel>
+              ) : null}
+            </div>
+          ) : null}
 
           {actionFormQuestionId === q.id ? (
             <div className="mt-4 border-t border-[#DCE4EC] pt-4">

@@ -48,6 +48,12 @@ class ParsedQuestionnaire(BaseModel):
 
     filename: str
     questions: list[ParsedQuestion]
+    # Additive (Main Spec §17 Phase 3 "column-mapping confirmation UI"):
+    # header name -> spreadsheet column letter, as detected on the first
+    # worksheet that satisfied the required headers. Display/UI-confirmation
+    # only -- never re-derives question_order or any parsed value, and
+    # carries no DB pointer.
+    column_mapping: dict[str, str] = Field(default_factory=dict)
 
 
 # --------------------------------------------------------------------------- #
@@ -119,6 +125,12 @@ class MappingResult(BaseModel):
     sedg_topic_code: Optional[str] = None
     sedg_disclosure_code: Optional[str] = None
     rationale: Optional[str] = None
+    # Additive (Main Spec §17 Phase 3 / SPEC-AMD-003 "compatible superset,
+    # nothing removed"): a simple keyword-match-count heuristic, not a
+    # calibrated probability. Never conflated with evidence_status or any
+    # other verdict field (AGENTS.md §3.2) -- purely a triage signal for a
+    # human reviewer.
+    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 class PriorityRecommendationRationale(BaseModel):

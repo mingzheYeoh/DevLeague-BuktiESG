@@ -8,6 +8,7 @@ from .models import (
     CandidateEvidence,
     DocumentChunk,
     ExtractedChunk,
+    MappingResult,
     ParsedQuestion,
     ParsedQuestionnaire,
     RunMetadata,
@@ -20,6 +21,8 @@ from .evidence_parse import (
     parse_xlsx_evidence,
 )
 from .analyze import AnalysisQuestion, analyze_question
+from .mapping import map_question_to_sedg
+from .sedg_taxonomy import SEDG_TAXONOMY, SedgDisclosure, SedgTopic
 from .provider import FixtureProvider, LLMProvider
 
 __all__ = [
@@ -28,6 +31,7 @@ __all__ = [
     "CandidateEvidence",
     "DocumentChunk",
     "ExtractedChunk",
+    "MappingResult",
     "ParsedQuestion",
     "ParsedQuestionnaire",
     "RunMetadata",
@@ -37,6 +41,10 @@ __all__ = [
     "parse_xlsx_evidence",
     "parse_plain_text_evidence",
     "analyze_question",
+    "map_question_to_sedg",
+    "SEDG_TAXONOMY",
+    "SedgDisclosure",
+    "SedgTopic",
     "FixtureProvider",
     "LLMProvider",
 ]

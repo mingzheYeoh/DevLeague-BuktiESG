@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ColumnMappingConfirmation } from "@/components/column-mapping-confirmation";
 import { api, ApiError } from "@/lib/api-client";
 import type { DocumentRecord } from "@/lib/types";
 
@@ -84,6 +85,12 @@ export function UploadPanel({
             Uploaded: {lastUploaded.original_filename} ·{" "}
             {lastUploaded.processing_status}
           </p>
+        ) : null}
+        {lastUploaded?.detected_columns ? (
+          <ColumnMappingConfirmation
+            className="w-full"
+            columnMapping={lastUploaded.detected_columns}
+          />
         ) : null}
         {error ? (
           <p role="alert" className="text-xs text-red-700">

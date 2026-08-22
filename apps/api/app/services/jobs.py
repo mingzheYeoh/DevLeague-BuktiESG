@@ -258,7 +258,7 @@ def _load_document_bytes(document: Document) -> bytes:
 
 
 def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: bytes) -> None:
-    parsed_questions = parse_questionnaire(data, document.original_filename)
+    parse_result = parse_questionnaire(data, document.original_filename)
 
     questionnaire = Questionnaire(
         case_id=case.id,
@@ -269,7 +269,7 @@ def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: 
     db.add(questionnaire)
     db.flush()
 
-    for pq in parsed_questions:
+    for pq in parse_result.questions:
         question = Question(
             questionnaire_id=questionnaire.id,
             external_question_id=pq.external_question_id,
@@ -278,6 +278,9 @@ def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: 
             question_text=pq.question_text,
             is_required=pq.is_required,
             pillar=pq.pillar,
+            sedg_topic_code=pq.sedg_topic_code,
+            sedg_disclosure_code=pq.sedg_disclosure_code,
+            mapping_rationale=pq.mapping_rationale,
             question_order=pq.question_order,
         )
         db.add(question)
@@ -287,6 +290,14 @@ def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: 
     document.processing_status = "INDEXED"
     document.error_code = None
     document.error_message = None
+
+    # Column-mapping confirmation UI (Main Spec §17 Phase 3): a transient,
+    # non-persisted Python attribute for THIS request/response cycle only --
+    # not a mapped column, never flushed to the DB. The router reads it off
+    # this same `document` instance before the response is built. See
+    # app/services/questionnaire_parser.py's ParsedQuestionnaireResult
+    # docstring for why this stays display-only rather than a new migration.
+    document._detected_columns = parse_result.column_mapping  # type: ignore[attr-defined]
 
 
 def _create_default_answer(db: Session, question: Question) -> None:

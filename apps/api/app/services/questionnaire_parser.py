@@ -16,17 +16,22 @@ traversal order — sheet order, then row order (SPEC-AMD-007) — and is passed
 through unchanged here. It is never re-derived from `external_question_id`,
 `section`, or any other display string.
 
-Pillar/SEDG mapping is out of scope for this slice's parser (the pipeline
-does not return one either — see `ai_pipeline.models.ParsedQuestion`); every
-question is imported as `UNCATEGORIZED` and mapped later by a human or a
-later slice.
+Pillar/SEDG mapping (Main Spec §17 Phase 3): every parsed question is now
+run through `ai_pipeline.map_question_to_sedg()`, a pure, keyword-based
+function against a representative SEDG taxonomy (see
+packages/ai-pipeline/src/ai_pipeline/sedg_taxonomy.py's honesty caveat --
+it is not a verified transcription of the real published standard). The
+result is a **recommendation** for human review: it is stored in
+`questions.pillar` / `sedg_topic_code` / `sedg_disclosure_code` /
+`mapping_rationale`, and must never be conflated with `evidence_status` or
+`review_status` (AGENTS.md §3.2) -- nothing here sets either of those.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ai_pipeline import parse_document
+from ai_pipeline import ParsedQuestionnaire, map_question_to_sedg, parse_document
 
 
 @dataclass
@@ -37,7 +42,24 @@ class ParsedQuestion:
     section: str | None = None
     is_required: bool = True
     pillar: str = "UNCATEGORIZED"
+    sedg_topic_code: str | None = None
+    sedg_disclosure_code: str | None = None
+    mapping_rationale: str | None = None
     source_location: dict = field(default_factory=dict)
+
+
+@dataclass
+class ParsedQuestionnaireResult:
+    """Adapter-shaped output of `parse_questionnaire()`.
+
+    `column_mapping` (header name -> spreadsheet column letter) is display
+    metadata only, for a column-mapping confirmation UI (Main Spec §17
+    Phase 3) -- it is never persisted to a DB column and never re-derives
+    any parsed value.
+    """
+
+    questions: list[ParsedQuestion]
+    column_mapping: dict[str, str] = field(default_factory=dict)
 
 
 class QuestionnaireParseError(ValueError):
@@ -64,26 +86,39 @@ def _location_dict(raw_location: str) -> dict:
     return {"type": "sheet_cell", "sheet_name": sheet_name, "cell_range": cell_range}
 
 
-def parse_questionnaire(raw: bytes, filename: str) -> list[ParsedQuestion]:
+def parse_questionnaire(raw: bytes, filename: str) -> ParsedQuestionnaireResult:
     """Parse an uploaded questionnaire via the real AI pipeline.
 
     Raises `QuestionnaireParseError` on anything `ai_pipeline.parse_document()`
     rejects (missing headers, empty file, unsupported format).
+
+    Each question is additionally run through `ai_pipeline.map_question_to_sedg()`
+    (pure, keyword-based) to produce a draft pillar/topic/disclosure
+    recommendation -- never a verdict, always human-reviewable.
     """
     try:
-        parsed = parse_document(raw, filename)
+        parsed: ParsedQuestionnaire = parse_document(raw, filename)
     except ValueError as exc:
         raise QuestionnaireParseError(str(exc)) from exc
 
-    return [
-        ParsedQuestion(
-            question_text=q.question_text,
-            question_order=q.question_order,
-            external_question_id=q.external_question_id or None,
-            section=q.section,
-            is_required=q.is_required,
-            pillar="UNCATEGORIZED",
-            source_location=_location_dict(q.source_location),
+    questions = []
+    for q in parsed.questions:
+        mapping = map_question_to_sedg(q.question_text)
+        questions.append(
+            ParsedQuestion(
+                question_text=q.question_text,
+                question_order=q.question_order,
+                external_question_id=q.external_question_id or None,
+                section=q.section,
+                is_required=q.is_required,
+                pillar=mapping.pillar or "UNCATEGORIZED",
+                sedg_topic_code=mapping.sedg_topic_code,
+                sedg_disclosure_code=mapping.sedg_disclosure_code,
+                mapping_rationale=mapping.rationale,
+                source_location=_location_dict(q.source_location),
+            )
         )
-        for q in parsed.questions
-    ]
+
+    return ParsedQuestionnaireResult(
+        questions=questions, column_mapping=dict(parsed.column_mapping)
+    )

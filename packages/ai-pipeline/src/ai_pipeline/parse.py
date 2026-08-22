@@ -58,6 +58,7 @@ def parse_document(file_bytes: bytes, filename: str) -> ParsedQuestionnaire:
 
     questions: list[ParsedQuestion] = []
     order = 0
+    column_mapping: dict[str, str] = {}
 
     for sheet in workbook.worksheets:
         rows_iter = sheet.iter_rows(values_only=False)
@@ -87,6 +88,14 @@ def parse_document(file_bytes: bytes, filename: str) -> ParsedQuestionnaire:
         text_idx = header_index["question_text"]
         section_idx = header_index.get("section")
         required_idx = header_index.get("is_required")
+
+        if not column_mapping:
+            # Capture the detected header->column mapping from the first
+            # worksheet that satisfies the required headers, for a
+            # column-mapping confirmation UI (Main Spec §17 Phase 3). Not
+            # re-used for anything parsing-related below.
+            for header_name, idx in header_index.items():
+                column_mapping[header_name] = _col_letter(idx + 1)
 
         for row in rows_iter:
             qid_cell = row[qid_idx] if qid_idx < len(row) else None
@@ -126,4 +135,6 @@ def parse_document(file_bytes: bytes, filename: str) -> ParsedQuestionnaire:
     if not questions:
         raise ValueError(f"{filename}: no question rows found")
 
-    return ParsedQuestionnaire(filename=filename, questions=questions)
+    return ParsedQuestionnaire(
+        filename=filename, questions=questions, column_mapping=column_mapping
+    )

@@ -87,6 +87,16 @@ class DocumentRecord(BaseModel):
     # column existed (pre-migration data).
     latest_job_id: str | None = None
     created_at: datetime
+    # Additive, display-only (Main Spec §17 Phase 3 "column-mapping
+    # confirmation UI"): header name -> spreadsheet column letter, as
+    # detected for a QUESTIONNAIRE document on this same upload/retry
+    # response. Not persisted anywhere -- read off a transient attribute set
+    # during this request's job run (app/services/jobs.py
+    # `_run_questionnaire_parse`) -- so it is only present on the response
+    # to the request that actually parsed the file, never on a later
+    # GET /documents. Null for any non-QUESTIONNAIRE document, or if the
+    # attribute wasn't set (e.g. parse failed before reaching that point).
+    detected_columns: dict[str, str] | None = None
 
     @classmethod
     def from_model(cls, doc) -> "DocumentRecord":
@@ -105,6 +115,7 @@ class DocumentRecord(BaseModel):
             error=doc.error_message,
             latest_job_id=doc.latest_job_id,
             created_at=doc.created_at,
+            detected_columns=getattr(doc, "_detected_columns", None) or None,
         )
 
 
@@ -142,6 +153,19 @@ class QuestionListItem(BaseModel):
     # the QUESTION itself was found in the questionnaire, not where its
     # evidence was found.
     evidence_location: SourceLocation | None = None
+    # Additive (Main Spec §17 Phase 3): draft rationale from
+    # ai_pipeline.map_question_to_sedg() for this question's pillar/SEDG
+    # mapping. A human-reviewable recommendation, never a verdict — must
+    # never be read as equivalent to evidence_status or review_status
+    # (AGENTS.md §3.2).
+    mapping_rationale: str | None = None
+    # Additive (Main Spec §17 Phase 3 "Question Detail source viewer"): the
+    # excerpt text and claim from the most recent evidence_links candidate
+    # for this question — the actual quoted text, not just its location
+    # chip. Same AI-suggestion status as evidence_location: unconfirmed
+    # until a human reviews it.
+    evidence_excerpt: str | None = None
+    evidence_claim_supported: str | None = None
 
     @classmethod
     def from_model(cls, question) -> "QuestionListItem":
@@ -156,6 +180,8 @@ class QuestionListItem(BaseModel):
                 loc = None
 
         evidence_loc = None
+        evidence_excerpt = None
+        evidence_claim_supported = None
         links = list(question.evidence_links or [])
         if links:
             latest_link = max(links, key=lambda link: link.created_at)
@@ -165,6 +191,8 @@ class QuestionListItem(BaseModel):
                 )
             except (ValueError, TypeError):
                 evidence_loc = None
+            evidence_excerpt = latest_link.quoted_excerpt
+            evidence_claim_supported = latest_link.claim_supported
 
         return cls(
             id=question.id,
@@ -181,6 +209,9 @@ class QuestionListItem(BaseModel):
             source_location=loc,
             status_reason=answer.status_reason if answer else None,
             evidence_location=evidence_loc,
+            mapping_rationale=question.mapping_rationale,
+            evidence_excerpt=evidence_excerpt,
+            evidence_claim_supported=evidence_claim_supported,
         )
 
 
