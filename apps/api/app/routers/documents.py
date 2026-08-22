@@ -40,7 +40,13 @@ from app.models import Case, Document, DocumentChunk, EvidenceLink, Question, Qu
 from app.schemas import DocumentRecord
 from app.services import storage
 from app.services.questionnaire_parser import QuestionnaireParseError, parse_questionnaire
-from app.services.rules import compute_evidence_status
+from app.services.rules import (
+    EvidenceCandidate,
+    EvidenceRequirement,
+    UnreadableDocument,
+    compute_evidence_status,
+    normalize_tokens,
+)
 
 router = APIRouter(prefix="/api/v1/cases", tags=["documents"])
 
@@ -157,9 +163,15 @@ def _identify_questions(db: Session, case: Case, document: Document, data: bytes
 def _create_default_answer(db: Session, question: Question) -> None:
     from app.models import Answer
 
+    # No evidence_links exist yet -> step 3 has nothing to evaluate and there
+    # are no unreadable documents on record yet either -> step 4 falls
+    # through to MISSING (app/services/rules.py).
+    result = compute_evidence_status(candidates=[])
     answer = Answer(
         question_id=question.id,
-        evidence_status=compute_evidence_status(evidence_link_count=0),
+        evidence_status=result.status,
+        status_reason=result.status_reason,
+        status_findings_json=json.dumps(result.status_findings),
         review_status="UNREVIEWED",
         draft_provenance="NONE",
     )
@@ -262,20 +274,148 @@ def _analyze_question_against_evidence(
         location_json=json.dumps(location),
         quoted_excerpt=candidate.quoted_excerpt,
         claim_supported=candidate.claim_supported,
+        period_start=_parse_iso_date(candidate.period_start),
+        period_end=_parse_iso_date(candidate.period_end),
+        scope_description=candidate.scope_description,
+        unit=candidate.unit,
+        value=candidate.value,
+        extraction_valid=True,
         link_status="CANDIDATE",
         created_by="SYSTEM",
     )
     db.add(evidence_link)
     db.flush()
 
-    link_count = db.query(EvidenceLink).filter(EvidenceLink.question_id == question.id).count()
-    new_status = compute_evidence_status(evidence_link_count=link_count)
-
     answer = question.answer
-    if answer is not None:
-        answer.evidence_status = new_status
-        answer.status_reason = (
-            "Candidate evidence located by automated keyword match against "
-            f"'{document.original_filename}'; coverage is not yet verified by "
-            "a human reviewer."
+    if answer is None:
+        return
+
+    evidence_candidates = _load_evidence_candidates(db, question.id)
+    requirement = _build_evidence_requirement(question)
+    unreadable_documents = _build_unreadable_documents(db, question.questionnaire.case_id)
+
+    result = compute_evidence_status(
+        candidates=evidence_candidates,
+        requirement=requirement,
+        unreadable_documents=unreadable_documents,
+        current_status=answer.evidence_status,
+        not_applicable_reason=answer.not_applicable_reason,
+        reviewer_name=answer.reviewer_name,
+    )
+    answer.evidence_status = result.status
+    answer.status_findings_json = json.dumps(result.status_findings)
+    if result.status == "NOT_APPLICABLE":
+        # Step 1: the engine returned the human-set status unchanged; leave
+        # the human-authored status_reason alone rather than overwriting it.
+        return
+    answer.status_reason = (
+        "Candidate evidence located by automated keyword match against "
+        f"'{document.original_filename}'; coverage is not yet verified by "
+        "a human reviewer. " + result.status_reason
+    )
+
+
+def _parse_iso_date(value: str | None):
+    """`ai_pipeline.CandidateEvidence.period_start`/`period_end` are plain
+    ISO-8601 strings (the package returns no DB types — BLOCKER-04). Return
+    `None` rather than raising on anything that doesn't parse; a malformed
+    date from the pipeline is untrusted data, not a crash (AGENTS.md §3.4).
+    """
+    if not value:
+        return None
+    try:
+        from datetime import date as _date
+
+        return _date.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _load_evidence_candidates(db: Session, question_id: str) -> list[EvidenceCandidate]:
+    """Build the rule engine's plain-data candidates from persisted
+    `evidence_links` (+ the linked Document's `source_date`, for the
+    no-explicit-period OUTDATED fallback). Never includes anything an AI
+    pipeline claimed directly — only what the server persisted.
+    """
+    rows = (
+        db.query(EvidenceLink, Document)
+        .join(Document, EvidenceLink.document_id == Document.id)
+        .filter(EvidenceLink.question_id == question_id)
+        .all()
+    )
+    candidates: list[EvidenceCandidate] = []
+    for link, doc in rows:
+        candidates.append(
+            EvidenceCandidate(
+                link_id=link.id,
+                link_status=link.link_status,
+                extraction_valid=link.extraction_valid,
+                claim_supported=link.claim_supported,
+                quoted_excerpt=link.quoted_excerpt,
+                period_start=link.period_start,
+                period_end=link.period_end,
+                scope_description=link.scope_description,
+                unit=link.unit,
+                value=link.value,
+                source_date=doc.source_date,
+                source_location=link.location_json,
+            )
         )
+    return candidates
+
+
+def _build_evidence_requirement(question: Question) -> EvidenceRequirement:
+    """Parse `questions.evidence_requirement_json` into the engine's
+    `EvidenceRequirement`. Expected (all-optional) shape:
+
+        {
+          "required_period_start": "YYYY-MM-DD",
+          "required_period_end": "YYYY-MM-DD",
+          "required_scope": "...",
+          "accepted_document_types": ["POLICY", ...],
+          "keywords": ["waste", "electricity", ...]
+        }
+
+    This slice does not yet populate `evidence_requirement_json` at import
+    time (out of this task's scope — that is COO-owned mapping work per
+    C-15's "Dependencies" note), so an absent/empty value yields an empty
+    requirement and the corresponding checks are simply skipped, never
+    invented.
+    """
+    if not question.evidence_requirement_json:
+        return EvidenceRequirement()
+    try:
+        data = json.loads(question.evidence_requirement_json)
+    except ValueError:
+        return EvidenceRequirement()
+    return EvidenceRequirement(
+        required_period_start=_parse_iso_date(data.get("required_period_start")),
+        required_period_end=_parse_iso_date(data.get("required_period_end")),
+        required_scope=data.get("required_scope"),
+        accepted_document_types=tuple(data.get("accepted_document_types") or ()),
+        keywords=tuple(data.get("keywords") or ()),
+    )
+
+
+def _build_unreadable_documents(db: Session, case_id: str) -> list[UnreadableDocument]:
+    """Documents on this Case the engine could not read, for the C-15 step-4
+    relevance test. `extracted_tokens` only ever comes from the filename here
+    (this slice creates no document_chunks for a document that failed to
+    parse) — still enough for C-15, which is deliberately designed to work
+    from signals that survive extraction failure.
+    """
+    docs = (
+        db.query(Document)
+        .filter(Document.case_id == case_id, Document.processing_status == "NEEDS_MANUAL_REVIEW")
+        .all()
+    )
+    return [
+        UnreadableDocument(
+            document_id=doc.id,
+            document_type=doc.document_type,
+            processing_status=doc.processing_status,
+            original_filename=doc.original_filename,
+            extracted_tokens=tuple(normalize_tokens(doc.original_filename)),
+        )
+        for doc in docs
+    ]
