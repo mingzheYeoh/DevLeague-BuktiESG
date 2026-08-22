@@ -8,8 +8,9 @@ import { SourceLocationChip } from "@/components/source-location-chip";
 import { AiSuggestionLabel, AiSuggestionPanel } from "@/components/ai-suggestion-label";
 import { EmptyState } from "@/components/empty-state";
 import { CreateActionForm } from "@/components/create-action-form";
+import { ReviewControls } from "@/components/review-controls";
 import { cn } from "@/lib/utils";
-import type { QuestionListItem } from "@/lib/types";
+import type { AnswerRecord, QuestionListItem } from "@/lib/types";
 
 const PILLAR_LABELS: Record<string, string> = {
   E: "Environmental",
@@ -56,9 +57,16 @@ function SedgPillarBadge({ pillar, topicCode }: { pillar: string; topicCode: str
 export function QuestionsList({
   caseId,
   questions,
+  onQuestionUpdated,
 }: {
   caseId: string;
   questions: QuestionListItem[];
+  /** Called with the server's AnswerRecord after a Human Review action
+   * (Accept/Edit/Reject/Not Applicable) succeeds, so the parent can merge
+   * review_status/evidence_status/status_reason into its list state
+   * without a full reload. Optional so existing callers that haven't
+   * wired this up yet keep working. */
+  onQuestionUpdated?: (answer: AnswerRecord) => void;
 }) {
   const [actionFormQuestionId, setActionFormQuestionId] = useState<
     string | null
@@ -115,28 +123,28 @@ export function QuestionsList({
               {q.status_reason ? (
                 <p className="mt-1.5 text-xs text-[#667085]">{q.status_reason}</p>
               ) : null}
-              {q.mapping_rationale || q.evidence_excerpt ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mt-1.5 h-auto p-0 text-xs font-medium text-[#173F68]"
-                  onClick={() =>
-                    setExpandedQuestionId(
-                      expandedQuestionId === q.id ? null : q.id,
-                    )
-                  }
-                  data-testid="toggle-question-detail"
-                >
-                  <span className="flex items-center gap-1">
-                    {expandedQuestionId === q.id ? (
-                      <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
-                    ) : (
-                      <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-                    )}
-                    {expandedQuestionId === q.id ? "Hide detail" : "Show detail"}
-                  </span>
-                </Button>
-              ) : null}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-1.5 h-auto p-0 text-xs font-medium text-[#173F68]"
+                onClick={() =>
+                  setExpandedQuestionId(
+                    expandedQuestionId === q.id ? null : q.id,
+                  )
+                }
+                data-testid="toggle-question-detail"
+              >
+                <span className="flex items-center gap-1">
+                  {expandedQuestionId === q.id ? (
+                    <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  {expandedQuestionId === q.id
+                    ? "Hide detail"
+                    : "Show detail / review"}
+                </span>
+              </Button>
             </div>
             <Button
               variant="secondary"
@@ -148,7 +156,7 @@ export function QuestionsList({
               }
               data-testid="create-submission-action-trigger"
             >
-              Create SUBMISSION action
+              Create action
             </Button>
           </div>
 
@@ -180,6 +188,11 @@ export function QuestionsList({
                   </blockquote>
                 </AiSuggestionPanel>
               ) : null}
+              <ReviewControls
+                caseId={caseId}
+                question={q}
+                onReviewed={(updated) => onQuestionUpdated?.(updated)}
+              />
             </div>
           ) : null}
 

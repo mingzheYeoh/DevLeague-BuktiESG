@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { UploadPanel } from "@/components/upload-panel";
 import { QuestionsList } from "@/components/questions-list";
@@ -111,8 +112,40 @@ export default function CaseDetailPage() {
             onRetry={() => void loadQuestions()}
           />
         ) : (
-          <QuestionsList caseId={caseId} questions={questions} />
+          <QuestionsList
+            caseId={caseId}
+            questions={questions}
+            onQuestionUpdated={(answer) =>
+              setQuestions((prev) =>
+                prev.map((q) =>
+                  q.id === answer.question_id
+                    ? {
+                        ...q,
+                        review_status: answer.review_status,
+                        evidence_status: answer.evidence_status,
+                        status_reason: answer.status_reason,
+                      }
+                    : q,
+                ),
+              )
+            }
+          />
         )}
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#667085]">
+          Actions
+        </h2>
+        <p className="text-sm text-[#667085]">
+          <Link
+            href={`/cases/${caseId}/actions`}
+            className="font-medium text-[#173F68] underline"
+          >
+            View the Actions Kanban
+          </Link>{" "}
+          for this Case.
+        </p>
       </section>
     </main>
   );

@@ -10,12 +10,15 @@
  */
 import type {
   ActionRecord,
+  AnswerRecord,
   ApiErrorBody,
   CaseSummary,
   CreateActionRequest,
   CreateCaseRequest,
   DocumentRecord,
   QuestionListItem,
+  ReviewQuestionRequest,
+  UpdateActionStatusRequest,
 } from "./types";
 
 const API_BASE_URL =
@@ -133,6 +136,52 @@ export const api = {
   ): Promise<ActionRecord> {
     return request<ActionRecord>(
       `/api/v1/cases/${encodeURIComponent(caseId)}/actions`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
+  },
+
+  /** GET /api/v1/cases/{case_id}/actions (contract §6 "Priority and
+   * Actions"; implemented in apps/api/app/routers/actions.py). */
+  getActions(caseId: string): Promise<ActionRecord[]> {
+    return request<ActionRecord[]>(
+      `/api/v1/cases/${encodeURIComponent(caseId)}/actions`,
+    );
+  },
+
+  /** POST /api/v1/cases/{case_id}/actions/{action_id}/status (apps/api's
+   * real Action lifecycle/completion endpoint -- NOT the
+   * `POST /actions/{action_id}/complete` shape
+   * Shared-Integration-Contract.md §6 documents; see the note on
+   * UpdateActionStatusRequest in ./types.ts). Verified live. */
+  updateActionStatus(
+    caseId: string,
+    actionId: string,
+    body: UpdateActionStatusRequest,
+  ): Promise<ActionRecord> {
+    return request<ActionRecord>(
+      `/api/v1/cases/${encodeURIComponent(caseId)}/actions/${encodeURIComponent(actionId)}/status`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
+  },
+
+  /** POST /api/v1/cases/{case_id}/questions/{question_id}/review
+   * (apps/api's Human Review endpoint, Main Spec §17 Phase 5). Verified
+   * live against apps/api commit 48dbcec -- returns AnswerRecord, not
+   * QuestionListItem; see the note on AnswerRecord in ./types.ts for what
+   * that does and doesn't expose. */
+  reviewQuestion(
+    caseId: string,
+    questionId: string,
+    body: ReviewQuestionRequest,
+  ): Promise<AnswerRecord> {
+    return request<AnswerRecord>(
+      `/api/v1/cases/${encodeURIComponent(caseId)}/questions/${encodeURIComponent(questionId)}/review`,
       {
         method: "POST",
         body: JSON.stringify(body),
