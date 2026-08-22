@@ -17,11 +17,11 @@ Requirement text is quoted from the normative English Main Spec. Where a require
 
 ## Discrepancy found while building this matrix
 
-The Main Spec defines **eight** critical end-to-end tests, `TEST-E2E-001` through `TEST-E2E-008`. The Integration Checklist section 11 lists only **seven**, `E2E-001` through `E2E-007`. **`E2E-008` — repeated uploads, repeated clicks, and refresh must not create duplicate data — is absent from the checklist.**
+The Main Spec defines **eight** critical end-to-end tests, `TEST-E2E-001` through `TEST-E2E-008`. The Integration Checklist section 11 previously listed only **seven**, `E2E-001` through `E2E-007`, folding the `E2E-008` bullets ("Duplicate upload does not duplicate processing.", "Double-click does not duplicate business objects.", "Refresh restores persisted state.") into the `E2E-007` section.
 
-This is escalated, not silently resolved. Under the authority order the Main Spec governs, so eight critical tests are required. The Integration Checklist needs a corresponding correction, which is **not** applied in this commit.
+**Correction applied.** The Integration Checklist now has its own `E2E-008 — Duplicate Prevention and Idempotency` section immediately after `E2E-007`, containing those three bullets, matching the mapping below. — CTO Agent, 2026-08-22
 
-Recorded as an open item in [`../decisions/decision-register.md`](../decisions/decision-register.md).
+Recorded as an item in [`../decisions/decision-register.md`](../decisions/decision-register.md).
 
 ---
 

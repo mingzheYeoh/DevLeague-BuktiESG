@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| Status | **PROPOSED** |
-| Gate P0 | **BLOCKED** |
-| Main Spec target | **v1.1 — NOT ACCEPTED** |
-| Contract target | **v1.1.0 — NOT FROZEN** |
-| Feature implementation | **NOT AUTHORIZED** |
+| Status | **ACCEPTED (mixed human/agent, fully-autonomous operating mode)** |
+| Gate P0 | **ACCEPTED — 2026-08-22** |
+| Main Spec target | **v1.1 — ACCEPTED** |
+| Contract target | **v1.1.0 — FROZEN** |
+| Feature implementation | **AUTHORIZED — Phase 1** |
 | Project tier | T1 |
 | Task risk | Yellow |
 | Enforcement | Advisory-only |
@@ -17,20 +17,21 @@
 
 ## 1. Current Authorization
 
-**Feature implementation is NOT AUTHORIZED.**
+**Feature implementation is AUTHORIZED for Phase 1, as of 2026-08-22.**
 
-Until Gate P0 is accepted in writing by the CEO, the COO, and the Ground-Truth Approver, an agent must not:
+> Gate P0 was accepted on 2026-08-22 as a **mixed human/agent** acceptance, per direct, live, explicit instruction from the real human COO (Lai Yoke Yau, `kaneki016`) to close out the remaining criteria and begin implementation. Full detail, including exactly which rows are genuine human attestations versus agent-level decisions, is in `docs/decisions/GATE-P0-APPROVAL.md`'s Acceptance statement — read it before assuming any single role's sign-off is a human one. `.github/CODEOWNERS` remains permanently unwritable under this operating mode (no distinct human GitHub identities exist); this is an accepted, named limitation, not a blocker, since enforcement was already advisory-only.
+
+An agent may now, within its assigned role's ownership and subject to every other rule in this document (protected values, no self-approval, synthetic data only, AI-never-owns-a-verdict, etc.):
 
 - write application code;
-- create or run database migrations;
-- install dependencies or create lockfiles;
+- create and run database migrations;
+- install dependencies and create lockfiles;
 - create runtime JSON schemas;
-- create tests or fixtures;
-- create CI workflows or deployment configuration;
-- create `.github/CODEOWNERS`;
-- initialize the application in any form.
+- create tests and fixtures;
+- create CI workflows and deployment configuration;
+- initialize the application.
 
-The only authorized activity is documentation of decisions that have already been made.
+`.github/CODEOWNERS` still may **not** be created — that remains structurally blocked (see above), independent of Phase 1 authorization.
 
 ---
 

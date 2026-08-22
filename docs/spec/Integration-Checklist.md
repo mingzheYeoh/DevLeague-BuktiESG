@@ -249,13 +249,16 @@ This gate should pass before the team expands to all 20 questions.
 ### E2E-007 — Failure and Recovery
 
 - [ ] Empty or malformed input is handled.
-- [ ] Duplicate upload does not duplicate processing.
-- [ ] Double-click does not duplicate business objects.
-- [ ] Refresh restores persisted state.
 - [ ] Failed network does not report save success.
 - [ ] Parser failure offers retry/manual review.
 - [ ] AI timeout produces a recoverable state.
 - [ ] Wrong-Case object ID is rejected.
+
+### E2E-008 — Duplicate Prevention and Idempotency
+
+- [ ] Duplicate upload does not duplicate processing.
+- [ ] Double-click does not duplicate business objects.
+- [ ] Refresh restores persisted state.
 
 ## 12. Final Demo Readiness
 

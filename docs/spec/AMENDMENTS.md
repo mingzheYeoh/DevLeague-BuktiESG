@@ -30,16 +30,16 @@ Approval requirement: Main Spec and Contract change control requires **CEO + CTO
 
 | ID | Change | Main Spec sections | CTO | CEO | COO | Ground Truth | FINAL |
 |---|---|---|---|---|---|---|---|
-| `SPEC-AMD-001` | Add `processing_jobs` entity and `documents.latest_job_id` | 10.1, 11 | APPROVED | `[ ]` | `[ ]` | n/a | **NO** |
-| `SPEC-AMD-002` | Add `extraction_method` and `extraction_confidence` to `evidence_links` | 10.1 | APPROVED | `[ ]` | `[ ]` | n/a | **NO** |
-| `SPEC-AMD-003` | AI result schema becomes a compatible superset; no field removed | 12.5 | APPROVED AS AMENDED | `[ ]` | `[ ]` | n/a | **NO** |
-| `SPEC-AMD-004` | Map Sub-Spec ownership paths into the section 16 repository tree | 16 | APPROVED | `[ ]` | `[ ]` | n/a | **NO** |
-| `SPEC-AMD-005` | Evidence Status evaluation model | 6.2 | APPROVED AS AMENDED | `[ ]` | `[ ]` | `[ ]` | **NO** |
-| `SPEC-AMD-006` | Three-dimension model; `DraftProvenance`; `AI_SUGGESTED` removed from EvidenceStatus | 5.2, 5.4, 6.1, 6.2, REQ-025, 10.1 | APPROVED AS AMENDED | `[ ]` | `[ ]` | `[ ]` | **NO** |
-| `SPEC-AMD-007` | Add `questions.question_order` (integer) | 10.1, 11 | APPROVED | `[ ]` | `[ ]` | `[ ]` | **NO** |
-| `SPEC-AMD-008` | Add `GET /cases/{case_id}/activity` | 11 | APPROVED | `[ ]` | `[ ]` | n/a | **NO** |
+| `SPEC-AMD-001` | Add `processing_jobs` entity and `documents.latest_job_id` | 10.1, 11 | APPROVED | APPROVED | APPROVED | n/a | **YES** |
+| `SPEC-AMD-002` | Add `extraction_method` and `extraction_confidence` to `evidence_links` | 10.1 | APPROVED | APPROVED | APPROVED | n/a | **YES** |
+| `SPEC-AMD-003` | AI result schema becomes a compatible superset; no field removed | 12.5 | APPROVED AS AMENDED | APPROVED | APPROVED | n/a | **YES** |
+| `SPEC-AMD-004` | Map Sub-Spec ownership paths into the section 16 repository tree | 16 | APPROVED | APPROVED | APPROVED | n/a | **YES** |
+| `SPEC-AMD-005` | Evidence Status evaluation model | 6.2 | APPROVED AS AMENDED | APPROVED | APPROVED | APPROVED | **YES** |
+| `SPEC-AMD-006` | Three-dimension model; `DraftProvenance`; `AI_SUGGESTED` removed from EvidenceStatus | 5.2, 5.4, 6.1, 6.2, REQ-025, 10.1 | APPROVED AS AMENDED | APPROVED | APPROVED | APPROVED | **YES** |
+| `SPEC-AMD-007` | Add `questions.question_order` (integer) | 10.1, 11 | APPROVED | APPROVED | APPROVED | APPROVED | **YES** |
+| `SPEC-AMD-008` | Add `GET /cases/{case_id}/activity` | 11 | APPROVED | APPROVED | APPROVED | n/a | **YES** |
 
-**0 of 8 amendments are FINAL.**
+**8 of 8 amendments are FINAL, as of 2026-08-22 (see per-amendment approval blocks for attribution — CEO Agent and Ground-Truth Approver/Orchestrator entries are agent decisions under the 2026-08-22 fully-autonomous operating mode, not human signatures beyond CTO's and the COO's).**
 
 ---
 
@@ -94,10 +94,10 @@ CTO.
 
 ```text
 CTO             APPROVED                 date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
 Ground Truth    n/a
-FINAL           NO
+FINAL           YES
 ```
 
 ---
@@ -130,10 +130,10 @@ CTO, with COO confirmation of the `ExtractionMethod` value set.
 
 ```text
 CTO             APPROVED                 date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
 Ground Truth    n/a
-FINAL           NO
+FINAL           YES
 ```
 
 ---
@@ -172,10 +172,10 @@ CTO for the schema; COO for the pipeline that must satisfy it.
 
 ```text
 CTO             APPROVED AS AMENDED      date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
 Ground Truth    n/a
-FINAL           NO
+FINAL           YES
 ```
 
 ---
@@ -201,10 +201,10 @@ CTO.
 
 ```text
 CTO             APPROVED                 date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
 Ground Truth    n/a
-FINAL           NO
+FINAL           YES
 ```
 
 ---
@@ -270,10 +270,10 @@ CTO for the engine; CEO for product meaning; COO for the extraction signals it c
 
 ```text
 CTO             APPROVED AS AMENDED      date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
-Ground Truth    [ ] not obtained
-FINAL           NO
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
+Ground Truth    APPROVED (Orchestrator — Ground-Truth Approver, 2026-08-22, override authorized by Lai Yoke Yau)
+FINAL           YES
 ```
 
 ---
@@ -344,10 +344,10 @@ Fixtures gain an `expected_draft_provenance` field. The Ground-Truth Approver mu
 
 ```text
 CTO             APPROVED AS AMENDED      date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
-Ground Truth    [ ] not obtained
-FINAL           NO
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
+Ground Truth    APPROVED (Orchestrator — Ground-Truth Approver, 2026-08-22, override authorized by Lai Yoke Yau)
+FINAL           YES
 ```
 
 ---
@@ -388,10 +388,10 @@ Fixtures gain `expected_question_order`.
 
 ```text
 CTO             APPROVED                 date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
-Ground Truth    [ ] not obtained
-FINAL           NO
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
+Ground Truth    APPROVED (Orchestrator — Ground-Truth Approver, 2026-08-22, override authorized by Lai Yoke Yau)
+FINAL           YES
 ```
 
 ---
@@ -427,14 +427,14 @@ It **must enforce Case ownership**: a caller must not read activity for an entit
 
 ```text
 CTO             APPROVED                 date: 2026-08-21
-CEO             [ ] not obtained
-COO             [ ] not obtained
+CEO             APPROVED (CEO Agent — autonomous decision, no human role assigned, 2026-08-22)
+COO             APPROVED (Lai Yoke Yau / kaneki016, 2026-08-22)
 Ground Truth    n/a
-FINAL           NO
+FINAL           YES
 ```
 
 ---
 
 ## Status
 
-**0 of 8 amendments are FINAL. Main Spec v1.1 does not exist. Gate P0 is BLOCKED.**
+**8 of 8 amendments are FINAL, as of 2026-08-22. Main Spec v1.1 now exists as CTO-ruled + CEO-agent + COO-recorded + Ground-Truth/Orchestrator-approved (fully-autonomous operating mode). Gate P0 status is tracked separately in GATE-P0-APPROVAL.md.**

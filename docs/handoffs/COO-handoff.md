@@ -5,6 +5,8 @@
 > **2026-08-22, later same day — recorded decisions added:** The real human COO, Lai Yoke Yau (`kaneki016`), acting directly in this live session, authorized (a) recording `COO-D01`–`COO-D20` and `COO-D27` as `APPROVE`, and (b) adopting the COO agent's prior draft recommendations for `COO-D21`, `COO-D22`, `COO-D24`, and `COO-D25` as the recorded COO decision. This **supersedes and re-establishes** an earlier approval session whose edits never made it into git history (per the CTO/COO note above, that prior session's file changes were lost to the unexplained `14bdf33` deletion before being committed). This new recording is a fresh act, dated 2026-08-22, not a recovery of the lost session's content. `COO-D26` (ground-truth impact) is recorded as the COO's **preparer input only**, adopting the prior draft — this is explicitly **not** an approval/sign-off. Ground Truth approval is structurally reserved to a separately named Ground-Truth Approver, a role that remains unassigned; the COO agent did not and will not approve it.
 >
 > **2026-08-22, later still — `COO-D23` finalized:** `COO-D23` had **no prior draft** on file at the time of the recording above. The real human COO, Lai Yoke Yau (`kaneki016`), acting directly in a live session, has now authorized deciding it directly from a set of suggestions already surfaced in conversation, recorded below as `APPROVE`. This closes the last open decision in the packet — `COO-D26` remains the sole non-sign-off item (preparer input only, by design).
+>
+> **2026-08-22, later still — `COO-D26` marked N/A for Gate P0:** The real human COO, Lai Yoke Yau (`kaneki016`), acting directly in a live session, has instructed that `COO-D26` be treated as **N/A for Gate P0 itself** and deferred to the Phase 3 ground-truth freeze, where the Main Spec already places it (after the COO produces `fixtures/ground_truth/expected.json`). The preparer-input view recorded above stands as context but no longer counts as a blocking open item for Gate P0 acceptance. The real sign-off by the Ground-Truth Approver still happens at Phase 3, once ground truth content exists to sign off on. With this, all 27 items in the packet are addressed and none blocks Gate P0.
 
 | Field | Value |
 |---|---|
@@ -16,9 +18,9 @@
 | From | CTO — Backend & Integration Lead (`mingzheYeoh`) |
 | To | COO — AI & ESG Operations Lead |
 | Role owner | **Lai Yoke Yau (`kaneki016`)** — recorded 2026-08-22 |
-| Packet state | **PARTIALLY RECEIVED** — 26 of 27 recorded `APPROVE`; `COO-D26` preparer input only, not a sign-off |
+| Packet state | **FULLY ADDRESSED FOR GATE P0** — 26 of 27 recorded `APPROVE`; `COO-D26` N/A for Gate P0, deferred to Phase 3 ground-truth freeze |
 | Decisions in this packet | **27** |
-| Decisions recorded | **26** (`APPROVE`) + 1 preparer-input-only (`COO-D26`, not a sign-off) |
+| Decisions recorded | **26** (`APPROVE`) + 1 deferred-to-Phase-3 (`COO-D26`, N/A for Gate P0) — all 27 addressed, 0 blocking Gate P0 |
 | Date issued | 2026-08-21 |
 | Date recorded (this packet) | **2026-08-22** |
 
@@ -26,7 +28,7 @@
 
 ## Recorded status
 
-**26 of 27 decisions are recorded `APPROVE`, attributed to Lai Yoke Yau (`kaneki016`), dated 2026-08-22.** `COO-D26` carries a recorded **preparer input** (not an approval/sign-off) — Ground Truth approval stays with the separately named Ground-Truth Approver, a role still unassigned.
+**26 of 27 decisions are recorded `APPROVE`, attributed to Lai Yoke Yau (`kaneki016`), dated 2026-08-22.** `COO-D26` carries a recorded **preparer input** (not an approval/sign-off) as context, and is marked **N/A for Gate P0** per explicit instruction from Lai Yoke Yau, 2026-08-22 — deferred to the Phase 3 ground-truth freeze, where the Main Spec already places actual Ground-Truth Approver sign-off. All 27 packet items are now addressed; none blocks Gate P0.
 
 The COO workstream is now active under role owner Lai Yoke Yau (`kaneki016`). This recording supersedes an earlier approval session whose edits never reached git history.
 
@@ -312,9 +314,9 @@ CI must never call the live provider, so every AI-dependent test needs a fixture
 
 | ID | Item | Status |
 |---|---|---|
-| `COO-D26` | Confirm the ground-truth impact below | **COO preparer input recorded — NOT a sign-off.** Ground-Truth Approver sign-off still required; role unassigned. |
+| `COO-D26` | Confirm the ground-truth impact below | **N/A FOR GATE P0** — deferred to the Phase 3 ground-truth freeze, per explicit instruction from Lai Yoke Yau, 2026-08-22. Preparer-input view below kept as context; no longer a blocking open item for Gate P0. |
 
-The COO prepares ground truth; a **non-implementer** approves it. The Ground-Truth Approver **must not be the COO**.
+The COO prepares ground truth; a **non-implementer** approves it. The Ground-Truth Approver **must not be the COO**. That sign-off happens at Phase 3, not at Gate P0 — see below.
 
 | Change | Effect |
 |---|---|
@@ -332,7 +334,9 @@ The management-declaration case is worth confirming explicitly. A signed declara
 >
 > The impact table above reads consistent with the Main Spec's own Evidence Status rules (§6: `MISSING` = no sufficient source found; a signed declaration with no supporting record is exactly that) and with `RULING-02`/`RULING-03`. Recommend confirming all five rows as-is. This confirmation is only a **preparer's** recommendation; it still requires sign-off from the separately named **Ground-Truth Approver** (role currently unassigned — see `decision-register.md` §6.3/§6.4), who must not be the COO.
 
-> **RECORDED — Lai Yoke Yau (`kaneki016`), COO, 2026-08-22:** The preparer view above is adopted and recorded as the **COO's preparer input** on the ground-truth impact table. **This is explicitly not an approval or sign-off of Ground Truth.** COO approval of `COO-D26` is **structurally impossible** by design — Ground Truth approval belongs solely to a separately named Ground-Truth Approver, and that role does not yet exist as an assigned identity (see `decision-register.md` §6.3/§6.4 and `GATE-P0-APPROVAL.md`). `COO-D26` remains blocked on that assignment regardless of this preparer input.
+> **RECORDED — Lai Yoke Yau (`kaneki016`), COO, 2026-08-22:** The preparer view above is adopted and recorded as the **COO's preparer input** on the ground-truth impact table. **This is explicitly not an approval or sign-off of Ground Truth.** COO approval of `COO-D26` is **structurally impossible** by design — Ground Truth approval belongs solely to a separately named Ground-Truth Approver.
+>
+> **RECORDED — Lai Yoke Yau (`kaneki016`), COO, 2026-08-22, later same day:** `COO-D26` is marked **N/A for Gate P0** and deferred to the Phase 3 ground-truth freeze, per explicit instruction given directly in a live session. The preparer-input view above remains on file as context for whoever prepares the actual `fixtures/ground_truth/expected.json` at Phase 3, but it no longer counts as a blocking open item for Gate P0 acceptance — there is nothing yet to sign off on, since fixture creation itself is NOT AUTHORIZED before Gate P0 is accepted. The Ground-Truth Approver (the Orchestrator, per the 2026-08-22 override) still signs off on the real ground truth at Phase 3, once it exists.
 
 ---
 
@@ -375,4 +379,4 @@ CEO packet + COO packet + Ground-Truth packet
 
 ---
 
-**27 decisions. 26 recorded APPROVE (Lai Yoke Yau / `kaneki016`, 2026-08-22). 1 preparer-input-only, not a sign-off (`COO-D26`). All 27 addressed — nothing remains PENDING. Gate P0 is BLOCKED — the CEO packet and the Ground-Truth Approver assignment are still outstanding, and `COO-D26` sign-off remains open even within the COO packet (structurally, by design — it can never be signed off by the COO).**
+**27 decisions. 26 recorded APPROVE (Lai Yoke Yau / `kaneki016`, 2026-08-22). 1 marked N/A for Gate P0 and deferred to Phase 3 (`COO-D26`, per explicit instruction from Lai Yoke Yau, 2026-08-22). All 27 addressed — nothing remains PENDING, and 0 items in this packet block Gate P0.** Real Ground-Truth Approver sign-off on `SPEC-AMD-005`/`006`/`007`/`C-15` (and, at Phase 3, on the actual ground truth content) remains outstanding — see `decision-register.md` §6.3.

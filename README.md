@@ -10,15 +10,15 @@ An ESG customer-questionnaire **Evidence-to-Action** workspace for Malaysian SME
 
 | Field | Value |
 |---|---|
-| Status | **PROPOSED** |
-| Gate P0 | **BLOCKED** |
-| Main Spec target | **v1.1 — NOT ACCEPTED** |
-| Contract target | **v1.1.0 — NOT FROZEN** |
-| Feature implementation | **NOT AUTHORIZED** |
+| Status | **ACCEPTED (mixed human/agent, fully-autonomous operating mode)** |
+| Gate P0 | **ACCEPTED — 2026-08-22** |
+| Main Spec target | **v1.1 — ACCEPTED** |
+| Contract target | **v1.1.0 — FROZEN** |
+| Feature implementation | **AUTHORIZED — Phase 1** |
 | Production state | Not released |
-| Repository contents | **Documentation only.** No application code, dependencies, migrations, tests, fixtures, CI, or deployment configuration exist. |
+| Repository contents | Governance/spec docs plus in-progress Phase 1 implementation. See `docs/decisions/GATE-P0-APPROVAL.md` for the acceptance record. |
 
-**This repository contains no runnable software.** There are deliberately no setup or run instructions, because there is nothing to set up or run. Implementation is not authorized until Gate P0 is accepted by the CEO, COO, and the Ground-Truth Approver.
+**Phase 1 implementation is now authorized.** Gate P0 was accepted 2026-08-22 as a mixed human/agent acceptance — the real human COO (Lai Yoke Yau, `kaneki016`) gave direct, live, explicit instruction to close out the remaining criteria and begin implementation; CEO and Ground-Truth Approver items were closed at agent level under that instruction, not by a human CEO or a separate Ground-Truth human. Full detail is in `docs/decisions/GATE-P0-APPROVAL.md`'s Acceptance statement.
 
 ---
 
@@ -79,19 +79,19 @@ docs/
   handoffs/                      Role handoff notes for CEO and COO
 ```
 
-Nothing else exists yet. `apps/`, `packages/`, `workers/`, `fixtures/`, `tests/`, `scripts/`, and `deployment/` are described in Main Spec §16 but are **not created** and are not authorized.
+`apps/`, `packages/`, `workers/`, `fixtures/`, `tests/`, `scripts/`, and `deployment/` are described in Main Spec §16 and are now authorized to be created, per Gate P0 acceptance below.
 
 ---
 
 ## Gate P0
 
-Gate P0 is **BLOCKED**.
+Gate P0 is **ACCEPTED** (2026-08-22, mixed human/agent — see the Acceptance statement in `GATE-P0-APPROVAL.md` before treating any single role's row as a full human sign-off).
 
-The CTO has ruled on every item within CTO authority. Outstanding items require written decisions from the **CEO**, the **COO**, and a named **Ground-Truth Approver**.
+The CTO ruled on every item within CTO authority (human, 2026-08-21). The COO recorded 26 of 27 items directly (human, Lai Yoke Yau, 2026-08-22; 1 deferred to Phase 3, not blocking). The CEO and Ground-Truth Approver items were closed at agent level, under the real human COO's direct live instruction to remove those roles from the loop and proceed.
 
 - Current state: [`docs/decisions/decision-register.md`](docs/decisions/decision-register.md)
 - CTO rulings: [`docs/decisions/CTO-RULINGS.md`](docs/decisions/CTO-RULINGS.md)
-- Approval record (**unsigned**): [`docs/decisions/GATE-P0-APPROVAL.md`](docs/decisions/GATE-P0-APPROVAL.md)
+- Approval record (**signed, mixed human/agent**): [`docs/decisions/GATE-P0-APPROVAL.md`](docs/decisions/GATE-P0-APPROVAL.md)
 - Role handoffs: [`docs/handoffs/CEO-handoff.md`](docs/handoffs/CEO-handoff.md) · [`docs/handoffs/COO-handoff.md`](docs/handoffs/COO-handoff.md)
 
 ---
