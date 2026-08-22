@@ -139,6 +139,6 @@ Stop and report rather than proceeding when:
 
 ## 6. Reporting
 
-Report outcomes faithfully. If a test fails, show the output. If a step was skipped, say so. Do not describe a proposed document as approved, a proposed contract as frozen, or a blocked gate as accepted.
+Report outcomes faithfully. If a test fails, show the output. If a step was skipped, say so. Do not describe a proposed document as approved, a proposed contract as frozen, or a blocked gate as accepted — and, symmetrically, do not describe an accepted gate as blocked.
 
-Gate P0 is **BLOCKED**. Do not output any Gate P0 acceptance phrase.
+Gate P0 is **ACCEPTED** (2026-08-22, mixed human/agent — see `docs/decisions/GATE-P0-APPROVAL.md`'s Acceptance statement for exactly which parts are genuine human attestations). Phase 1 is **AUTHORIZED**.
