@@ -35,9 +35,33 @@ An agent may now, within its assigned role's ownership and subject to every othe
 
 ---
 
+---
+
+## 1a. `docs/` was deleted — 2026-08-23
+
+The repository owner (Yeoh Ming Zhe, `mingzheYeoh`) instructed the deletion of the entire `docs/` tree, and all 20 files were removed and committed. **This document is now the only governance file left in the repository.**
+
+What went: the normative Main Technical Spec (EN and ZH), `Shared-Integration-Contract.md` and its proposed v1.1.0 delta, `AMENDMENTS.md` (`SPEC-AMD-001`…`009`), the three role sub-specs, `Integration-Checklist.md`, `decision-register.md`, `CTO-RULINGS.md`, `ADR-001-stack-and-architecture.md`, `GATE-P0-APPROVAL.md`, `project-control-status.md`, `risk-register.md`, and the CEO/COO handoffs.
+
+Everything is recoverable at commit **`bfd45ad`**:
+
+```bash
+git show bfd45ad:docs/spec/AMENDMENTS.md      # read one file
+git checkout bfd45ad -- docs                  # restore the tree
+```
+
+Rules for working in this state:
+
+- **Deleting the specifications did not repeal the rules.** §3's non-negotiables, §3.5's protected values and §5's stop conditions all still bind. The priority and readiness formulas, the Evidence Status precedence, and the E2E test IDs remain protected values even though the documents defining them are only in history.
+- **Do not reconstruct a rule from memory or inference.** Source comments across `backend/` and `packages/ai-pipeline/` cite `SPEC-AMD-005`, `SPEC-AMD-006`, `SPEC-AMD-007`, `RULING-01`…`03`, `C-15`, `BLOCKER-04`/`06`/`08`, `DEC-007`, Main Spec §6.2/§16/§17 and Contract §4/§8. Resolve them at `bfd45ad`.
+- **There is no decision-record destination.** Do not recreate `docs/` to file a decision unless asked. Report it instead.
+- **One conflict is now open and undocumented in the tree:** `SPEC-AMD-009` recorded that the layout (`backend/` + `frontend/`) contradicts Main Spec §16 (`apps/api` + `apps/web`), unsigned. That conflict is unresolved.
+
+---
+
 ## 2. Authority Order
 
-1. Main Technical Spec — `docs/spec/BuktiESG-Technical-Spec-EN.md` (**English is normative**)
+1. Main Technical Spec — `docs/spec/BuktiESG-Technical-Spec-EN.md` (**English is normative**) — **deleted from the working tree 2026-08-23 on the repository owner's instruction; readable at commit `bfd45ad`.** Levels 1–4 below are all in that commit and nowhere else in the tree.
 2. Approved Shared Integration Contract
 3. Approved architecture and decision records
 4. Role Sub-Specs
@@ -107,17 +131,21 @@ An agent that implements a change must not approve its own release. Migration an
 Changes to these require review by a non-author once `CODEOWNERS` exists:
 
 ```
-docs/spec/**
-docs/spec/AMENDMENTS.md
+docs/spec/**            (deleted 2026-08-23; still protected if restored)
+docs/spec/AMENDMENTS.md (deleted 2026-08-23; still protected if restored)
 packages/contracts/**
-apps/api/migrations/**
+backend/migrations/**
 .github/workflows/**
 .github/CODEOWNERS
 fixtures/ground_truth/**
-uv.lock
-pnpm-lock.yaml
+backend/uv.lock
+packages/ai-pipeline/uv.lock
+frontend/package-lock.json
 tests/e2e/**
+frontend/e2e/**
 ```
+
+> **2026-08-23:** this list previously named a bare `uv.lock` and `pnpm-lock.yaml`. The lockfiles are now named by path. `frontend/pnpm-lock.yaml` was **deleted**: the frontend had both a pnpm and an npm lockfile describing different dependency trees, and npm is the tool actually in use (`package-lock.json` is the one that gets updated). Two lockfiles for one package meant two possible installs from the same commit. Recorded here because a protected path was removed.
 
 **`CODEOWNERS` does not yet exist.** Enforcement of the above is advisory-only.
 

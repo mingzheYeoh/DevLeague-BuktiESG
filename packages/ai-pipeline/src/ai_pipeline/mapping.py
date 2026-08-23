@@ -7,7 +7,7 @@ text is scored against the keyword list of every SEDG disclosure in
 
 Purity boundary (AGENTS.md §3.2/3.3, same as every other function in this
 package): no DB session, no HTTP client, no credentials. Input is a plain
-string, output is a `MappingResult`. The caller (apps/api) decides what to
+string, output is a `MappingResult`. The caller (`backend/`) decides what to
 do with it — persisting it into `questions.pillar` /
 `questions.sedg_topic_code` / `questions.sedg_disclosure_code` /
 `questions.mapping_rationale` is the server's job, never this package's.

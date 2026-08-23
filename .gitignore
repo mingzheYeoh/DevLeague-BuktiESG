@@ -30,4 +30,6 @@ playwright/.cache/
 *.db
 *.sqlite
 *.sqlite3
-apps/api/var/
+
+# Uploaded document storage (synthetic data, never committed)
+backend/var/

@@ -132,6 +132,49 @@ def test_parse_xlsx_evidence_one_chunk_per_row_with_sheet_and_cell_range():
     assert "12840" in chunks[1].text
 
 
+def test_parse_xlsx_evidence_handles_rows_narrower_than_the_sheet():
+    """A wide table with a narrow note row under it must not crash.
+
+    Regression: the range was previously derived from `row[0]`/`row[-1]`, but
+    `read_only=True` pads a short row with `EmptyCell`, which has no `.column`
+    or `.row`. Any spreadsheet with a ragged row therefore raised
+    AttributeError and surfaced as a 500 on upload. This is the ordinary shape
+    of a real waste or utility log, not a corrupt file.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "FY2025"
+    ws.append(["Month", "Total waste (kg)", "Recycled (kg)", "Rate (%)"])
+    ws.append(["2025-01", 18400, 7360, 40])
+    ws.append([])  # fully blank row: skipped
+    ws.append(["Note", "FY2025 recycling rate 41% per this tracker."])  # narrower
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    chunks = parse_xlsx_evidence(buf.getvalue())
+
+    assert [c.cell_range for c in chunks] == ["A1:D1", "A2:D2", "A4:B4"]
+    assert "41%" in chunks[-1].text
+    assert all(c.sheet_name == "FY2025" for c in chunks)
+
+
+def test_parse_xlsx_evidence_handles_a_row_with_an_empty_leading_column():
+    """A row whose first cell is blank must be located from its first
+    *populated* cell, not from column A."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Indented"
+    ws.append(["Header A", "Header B"])
+    ws.append([None, "value in B only"])
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    chunks = parse_xlsx_evidence(buf.getvalue())
+
+    assert [c.cell_range for c in chunks] == ["A1:B1", "B2"]
+    assert chunks[1].text == "value in B only"
+
+
 def test_parse_xlsx_evidence_rejects_unparseable_bytes():
     with pytest.raises(ValueError):
         parse_xlsx_evidence(b"not a real xlsx file")

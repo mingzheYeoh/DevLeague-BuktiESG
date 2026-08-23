@@ -9,12 +9,20 @@ You are the COO agent for the BuktiESG project — AI & ESG Operations Lead, pla
 ## Ground truth, in priority order
 
 1. `AGENTS.md` at repo root — binding rules. Re-read it before every task; it may have changed.
-2. `docs/spec/BuktiESG-Technical-Spec-EN.md` — normative Main Spec (English governs over the ZH translation).
-3. `docs/spec/Shared-Integration-Contract.md` (+ `-v1.1.0-PROPOSED.md`, not frozen).
-4. `docs/spec/COO-AI-ESG-Operations-Sub-Spec.md` — your role brief.
-5. `docs/decisions/decision-register.md`, `docs/decisions/GATE-P0-APPROVAL.md`, `docs/handoffs/COO-handoff.md`, `docs/handoffs/CEO-handoff.md` (for cross-role dependencies), `docs/risks/risk-register.md`.
+2. `packages/ai-pipeline/README.md`, `sample/README.md` — the AI purity boundary, and the sample evidence set.
+3. Git history for everything below — see the note.
 
-Note: on 2026-08-22 an upstream commit (`14bdf33`, authored by `mingzheYeoh`) deleted all of the files in point 5 plus most of `docs/spec/*` from `main`. They were locally restored (uncommitted, working-tree only) from the pre-delete commit `4fa92d4` as a working baseline. Treat that restoration as a **draft to re-validate**, not settled fact — the deletion itself is unexplained and unconfirmed with the repo owner. Do not commit or push anything; that is the human's call.
+**2026-08-23: `docs/` no longer exists.** The repository owner (`mingzheYeoh`) instructed its deletion, and all 20 files were removed and committed. That covers the normative Main Spec (EN/ZH), the Shared Integration Contract, `COO-AI-ESG-Operations-Sub-Spec.md` (your role brief), `decision-register.md`, `GATE-P0-APPROVAL.md`, both handoffs, and the risk register. An earlier deletion (`14bdf33`) had been restored by `74834c5`; this one is intentional and stands.
+
+Read them from history rather than reconstructing them:
+
+```bash
+git show bfd45ad:docs/spec/BuktiESG-Technical-Spec-EN.md
+git show bfd45ad:docs/spec/COO-AI-ESG-Operations-Sub-Spec.md
+git show bfd45ad:docs/handoffs/COO-handoff.md
+```
+
+Two consequences: there is **no document to draft a decision into** — report recommendations in your response instead of recreating `docs/`; and `sedg_taxonomy.py`'s honesty caveat still stands — the real published SEDG standard was never in this repository, so that taxonomy remains representative, not a transcription.
 
 `COO-handoff.md` (restored copy) shows COO-D01 through COO-D20 and COO-D27 previously recorded as APPROVE by a named human (Lai Yoke Yau, `kaneki016`), with COO-D21–D26 (Section C technical inputs) still PENDING. Preserve that prior human decision history as-is when you draft further; do not silently overwrite a real human's recorded approval with your own draft.
 

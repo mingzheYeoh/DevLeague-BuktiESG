@@ -2,25 +2,38 @@
 
 Claude Code entry point for this repo. **AGENTS.md is the binding rulebook — read it in full before touching anything.** This file adds Claude-Code-specific orientation on top of it; it does not relax any rule in AGENTS.md.
 
+> **⚠ 2026-08-23 — this file contradicted AGENTS.md and is not the authority.**
+>
+> The status table below said Gate P0 was **BLOCKED** and the repo was "documentation only", while `AGENTS.md` §1 records Gate P0 as **ACCEPTED (2026-08-22)** with Phase 1 implementation **AUTHORIZED** — and application code, migrations and tests plainly exist. `CLAUDE.md` itself names AGENTS.md as binding, so the stale table has been corrected to match rather than left to mislead. The underlying question of *who* accepted Gate P0 (mixed human/agent) is unchanged and unresolved: the Acceptance statement that settles it is in `GATE-P0-APPROVAL.md`, deleted with `docs/` later the same day — read it at `git show bfd45ad:docs/decisions/GATE-P0-APPROVAL.md` before treating any role's row as a human sign-off.
+
 ## Current state (check before any action)
 
 | Field | Value |
 |---|---|
-| Gate P0 | **BLOCKED** |
-| Feature implementation | **NOT AUTHORIZED** |
-| Repo contents | Documentation only — no app code, deps, migrations, tests, fixtures, CI |
+| Gate P0 | **ACCEPTED — 2026-08-22 (mixed human/agent)** |
+| Feature implementation | **AUTHORIZED — Phase 1** |
+| Repo contents | Governance docs plus Phase 1 implementation: `backend/` (FastAPI, 48 tests), `frontend/` (Next.js workspace), `packages/ai-pipeline/` |
+| Enforcement | Advisory-only — no CI, no branch protection, no `CODEOWNERS` |
 
-Do not write code, install deps, create migrations/schemas/tests/fixtures/CI, or init the app. The only authorized work is documentation of decisions already made. Live status: `docs/decisions/decision-register.md`, `docs/decisions/GATE-P0-APPROVAL.md`.
+Live status was tracked in `docs/decisions/decision-register.md` and `docs/decisions/GATE-P0-APPROVAL.md`, both **deleted 2026-08-23** (readable at `bfd45ad`). `.github/CODEOWNERS` still may **not** be created (structurally blocked — no distinct human GitHub identities under this operating mode).
 
 ## Reading order
 
-1. `AGENTS.md` — binding execution rules, stop conditions, protected values/paths
-2. `docs/spec/BuktiESG-Technical-Spec-EN.md` — normative Main Spec (English governs; ZH is a non-normative translation)
-3. `docs/spec/Shared-Integration-Contract.md` (+ `-v1.1.0-PROPOSED.md` delta, not frozen)
-4. Role sub-spec relevant to the task: `CEO-Product-Frontend-Sub-Spec.md` / `CTO-Backend-Integration-Sub-Spec.md` / `COO-AI-ESG-Operations-Sub-Spec.md`
-5. `docs/spec/Integration-Checklist.md`, `docs/spec/AMENDMENTS.md`, `docs/decisions/decision-register.md`
+1. `AGENTS.md` — binding execution rules, stop conditions, protected values/paths. **The only governance document still in the tree.**
+2. `README.md` — layout, how to run it, and what was removed
+3. `backend/README.md` — HTTP surface, dev-database caveats, security posture
+4. `sample/README.md` — test data and what each file exercises
 
-Authority order on conflict: Main Spec (EN) > approved Shared Contract > approved decisions/amendments > Role Sub-Spec > individual preference. **Never silently resolve a conflict — escalate, name both sources, stop.**
+Items 2–5 of the old reading order (Main Spec EN/ZH, Shared Integration Contract, role sub-specs, Integration Checklist, `AMENDMENTS.md`, decision register) were **deleted with `docs/` on 2026-08-23** at the repository owner's instruction. Read them from git history when a rule's origin matters:
+
+```bash
+git show bfd45ad:docs/spec/BuktiESG-Technical-Spec-EN.md
+git show bfd45ad:docs/spec/AMENDMENTS.md
+git show bfd45ad:docs/decisions/CTO-RULINGS.md
+git checkout bfd45ad -- docs        # restore everything
+```
+
+Authority order on conflict is unchanged: Main Spec (EN) > approved Shared Contract > approved decisions/amendments > Role Sub-Spec > individual preference. **Never silently resolve a conflict — escalate, name both sources, stop.** Note that levels 1–4 are now only reachable via git history, so "I could not find the governing document" is not a licence to invent one — go to `bfd45ad`.
 
 ## Non-negotiables (see AGENTS.md §3 for full text)
 
@@ -37,17 +50,23 @@ Stop and report (don't route around it) when: two specs conflict; a needed decis
 
 ## Orchestrator convention
 
-There is no separate "orchestrator" subagent — the top-level Claude Code session driving the work IS the orchestrator. It never writes code and never edits `docs/` directly; it only:
+There is no separate "orchestrator" subagent — the top-level Claude Code session driving the work IS the orchestrator. It never writes code; it only:
 
 - routes tasks to the `ceo`, `cto`, `coo` subagents (`.claude/agents/{ceo,cto,coo}.md`) via the Agent tool,
 - merges their draft edits into a coherent packet,
 - executes non-blocking routing/sequencing calls directly using its own best judgment,
 - stops and surfaces to the human the moment something is a genuine blocker per §5 above (missing owner, protected-value or spec conflict, exceeds current authorization) — it never resolves those itself.
 
-Each of the three worker agents plays an **assistant role**: they draft recommended decisions directly into `docs/decisions/**` / `docs/handoffs/**` (never leaving them blank), but every draft is explicitly non-binding — only the named human role-holder can convert a draft into an actual signed approval, and the orchestrator must never report a draft as accepted.
+Each of the three worker agents plays an **assistant role**: they drafted recommended decisions into `docs/decisions/**` / `docs/handoffs/**`, but every draft was explicitly non-binding — only the named human role-holder can convert a draft into an actual signed approval, and the orchestrator must never report a draft as accepted.
 
-**2026-08-22 state note:** commit `14bdf33` deleted `docs/decisions/**`, `docs/handoffs/**`, `docs/risks/**`, and most of `docs/spec/**` from `main`, authored by the repo owner (`mingzheYeoh`) with no stated reason. Those files were restored locally (uncommitted, working-tree only) from pre-delete commit `4fa92d4` as a working baseline for the CEO/CTO/COO agents. This is flagged, not resolved — nothing has been committed or pushed, and `mingzheYeoh`'s intent behind the deletion should be confirmed before any of this is pushed back to `main`.
+**2026-08-23 state note — `docs/` is gone, deliberately and on the second attempt.** Commit `14bdf33` deleted `docs/decisions/**`, `docs/handoffs/**`, `docs/risks/**` and most of `docs/spec/**` from `main` (repo owner `mingzheYeoh`, no stated reason); `74834c5` restored them. On 2026-08-23 the repository owner instructed the deletion again, this time covering all 20 files, and it was carried out and committed.
+
+Consequences an agent must not work around:
+
+- There is **no decision-record destination in the tree**. Do not recreate `docs/` to file a decision unless the owner asks for it. Report decisions in your response instead.
+- Rule identifiers still cited throughout the source (`SPEC-AMD-005`, `RULING-02`, `C-15`, `BLOCKER-04`, `DEC-007`, Main Spec §6.2/§17) resolve only via `git show bfd45ad:<path>`. Read them there rather than guessing what they said.
+- `SPEC-AMD-009` recorded an **open, unresolved** conflict between the repository layout (`backend/` + `frontend/`) and Main Spec §16 (`apps/web` + `apps/api`). Deleting the file did not close the conflict.
 
 ## Reporting
 
-State outcomes exactly as they are. Never describe a PROPOSED document as approved, an unfrozen contract as frozen, or Gate P0 as accepted — it is BLOCKED.
+State outcomes exactly as they are. Never describe a PROPOSED document as approved or an unfrozen contract as frozen. Gate P0 is **ACCEPTED** (2026-08-22, mixed human/agent) — do not describe it as blocked, and do not describe it as a full human sign-off either.

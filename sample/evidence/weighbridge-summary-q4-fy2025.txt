@@ -1,0 +1,8 @@
+WEIGHBRIDGE RECONCILIATION Q4 FY2025 - BuktiPack Manufacturing Sdn. Bhd. (SYNTHETIC SAMPLE)
+SYNTHETIC FIXTURE. Invented tonnages.
+Prepared by the appointed waste contractor from weighbridge tickets, not from the internal tracker.
+Q4 FY2025 total waste collected and weighed: 56,100 kg.
+Q4 FY2025 material sent for recycling: 29,733 kg.
+Recycling rate for FY2025 calculated on weighbridge tickets: 53 percent.
+CONTRADICTION: the internal spreadsheet waste-tracker-fy2025.xlsx states a FY2025 recycling rate of 41 percent. This document states 53 percent for the same year. Both cannot be right and neither is marked correct.
+The contractor attributes the gap to mixed recyclables recorded as general waste in the internal log, but this has not been reconciled.

@@ -1,0 +1,15 @@
+MALAYSIA GRID EMISSION FACTOR - REAL PUBLISHED REFERENCE DATA
+Figures below are real. Source: Grid Emission Factor (GEF) in Malaysia, published by the Energy Commission of Malaysia (Suruhanjaya Tenaga). Retrieved 2026-08-23. Content was rephrased for compliance with licensing restrictions.
+Unit: Gg CO2e/GWh, numerically equal to tCO2e/MWh.
+Provisional series 2022-2024: 2024 Peninsular 0.740, Sabah 0.539, Sarawak 0.199.
+Provisional series 2022-2024: 2023 Peninsular 0.760, Sabah 0.545, Sarawak 0.206.
+Provisional series 2022-2024: 2022 Peninsular 0.769, Sabah 0.531, Sarawak 0.199.
+Earlier series 2017-2022: 2022 Peninsular 0.774, Sabah 0.525, Sarawak 0.199.
+Earlier series 2017-2022: 2021 Peninsular 0.757, Sabah 0.524, Sarawak 0.198.
+Earlier series 2017-2022: 2020 Peninsular 0.821, Sabah 0.503, Sarawak 0.203.
+Earlier series 2017-2022: 2019 Peninsular 0.753, Sabah 0.548, Sarawak 0.222.
+Earlier series 2017-2022: 2018 Peninsular 0.797, Sabah 0.500, Sarawak 0.193.
+Earlier series 2017-2022: 2017 Peninsular 0.767, Sabah 0.530, Sarawak 0.213.
+DISCREPANCY WORTH NOTING: the two published series give different Peninsular values for 2022 - 0.769 provisional against 0.774 earlier. Both come from the same publisher. This is a real example of the problem this product exists to surface: two credible sources, one metric, two numbers, and no automatic way to decide which is right.
+A Scope 2 location-based calculation multiplies grid electricity consumption in MWh by the grid emission factor for the year and region.
+Scope 1 covers direct combustion the company controls, such as diesel burned in its own generator or forklift; the grid emission factor does not apply to it.

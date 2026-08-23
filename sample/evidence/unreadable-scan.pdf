@@ -1,0 +1,6 @@
+%PDF-1.4
+% Synthetic sample: a deliberately corrupt PDF with no valid xref
+% table and no extractable text layer. Stands in for a phone photo
+% of a paper record, which is the common real-world case.
+1 0 obj << /Type /Catalog >> endobj
+trailer << /Root 1 0 R >>

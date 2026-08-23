@@ -4,7 +4,9 @@ COO-owned AI pipeline core for BuktiESG — **First Vertical Slice (Phase 1)** s
 
 ## Structural boundary (non-negotiable)
 
-Per `AGENTS.md` §3.2/3.3 and `docs/decisions/CTO-RULINGS.md` `BLOCKER-04`, this package's core
+> **Note on citations.** `docs/` was deleted from this repository on 2026-08-23 at the owner's instruction. Identifiers cited below and in the source docstrings (`BLOCKER-04`, `BLOCKER-06`, `BLOCKER-08`, Contract §8) are readable at commit `bfd45ad`, e.g. `git show bfd45ad:docs/decisions/CTO-RULINGS.md`. The rules they name are still in force.
+
+Per `AGENTS.md` §3.2/3.3 and `CTO-RULINGS.md` `BLOCKER-04`, this package's core
 functions (`parse_document`, `analyze_question`) are **pure**:
 
 - No database session, no ORM import, no HTTP/persistence client, no credentials.
@@ -15,7 +17,7 @@ functions (`parse_document`, `analyze_question`) are **pure**:
 - No source location is ever returned — only a `chunk_id`. The server resolves the location
   from `document_chunks`.
 
-The CTO's backend orchestration layer (`apps/api`) is responsible for loading files/jobs,
+The CTO's backend orchestration layer (`backend/`) is responsible for loading files/jobs,
 calling into this package, validating the result against the shared schema, and persisting it.
 
 ## Scope of this slice

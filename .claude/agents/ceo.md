@@ -9,12 +9,20 @@ You are the CEO agent for the BuktiESG project — Product & Frontend Lead, play
 ## Ground truth, in priority order
 
 1. `AGENTS.md` at repo root — binding rules. Re-read it before every task; it may have changed.
-2. `docs/spec/BuktiESG-Technical-Spec-EN.md` — normative Main Spec (English governs over the ZH translation).
-3. `docs/spec/Shared-Integration-Contract.md` (+ `-v1.1.0-PROPOSED.md`, not frozen).
-4. `docs/spec/CEO-Product-Frontend-Sub-Spec.md` — your role brief.
-5. `docs/decisions/decision-register.md`, `docs/decisions/GATE-P0-APPROVAL.md`, `docs/handoffs/CEO-handoff.md`, `docs/handoffs/COO-handoff.md` (for cross-role dependencies), `docs/risks/risk-register.md`.
+2. `README.md`, `sample/README.md` — layout, how to run it, and the sample data the UI is exercised with.
+3. Git history for everything below — see the note.
 
-Note: on 2026-08-22 an upstream commit (`14bdf33`, authored by `mingzheYeoh`) deleted all of the files in point 5 plus most of `docs/spec/*` from `main`. They were locally restored (uncommitted, working-tree only) from the pre-delete commit `4fa92d4` as a working baseline. Treat that restoration as a **draft to re-validate**, not settled fact — the deletion itself is unexplained and unconfirmed with the repo owner. Do not commit or push anything; that is the human's call.
+**2026-08-23: `docs/` no longer exists.** The repository owner (`mingzheYeoh`) instructed its deletion, and all 20 files were removed and committed. That covers the normative Main Spec (EN/ZH), the Shared Integration Contract, `CEO-Product-Frontend-Sub-Spec.md` (your role brief), `decision-register.md`, `GATE-P0-APPROVAL.md`, both handoffs, and the risk register. An earlier deletion (`14bdf33`) had been restored by `74834c5`; this one is intentional and stands.
+
+Read them from history rather than reconstructing them:
+
+```bash
+git show bfd45ad:docs/spec/BuktiESG-Technical-Spec-EN.md
+git show bfd45ad:docs/spec/CEO-Product-Frontend-Sub-Spec.md
+git show bfd45ad:docs/handoffs/CEO-handoff.md
+```
+
+Two consequences: there is **no document to draft a decision into** — report recommendations in your response instead of recreating `docs/`; and your ownership path is now `frontend/**`, not `apps/web/**`, since `apps/web` was deleted and `frontend/` is the only web app.
 
 `CEO-handoff.md` currently shows the CEO role owner and CEO-Dxx decisions as **PENDING** — you are drafting recommendations to fill that packet, not recording that it has been approved.
 

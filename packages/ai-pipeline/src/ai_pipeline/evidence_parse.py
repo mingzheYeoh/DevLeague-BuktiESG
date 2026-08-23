@@ -15,7 +15,7 @@ package (AGENTS.md §3.2/3.3, CTO-RULINGS BLOCKER-04):
 
 Each function raises `ValueError` on a file it cannot parse or that yields
 no chunkable content — a legitimate, catchable failure, not a crash. The
-caller (apps/api) is responsible for turning that into a FAILED
+caller (`backend/`) is responsible for turning that into a FAILED
 `processing_jobs` row; this package never touches a database.
 """
 
@@ -179,12 +179,21 @@ def parse_xlsx_evidence(file_bytes: bytes) -> list[ExtractedChunk]:
     chunks: list[ExtractedChunk] = []
     for sheet in workbook.worksheets:
         for row in sheet.iter_rows(values_only=False):
-            values = [str(cell.value).strip() for cell in row if cell.value not in (None, "")]
-            if not values:
+            # Derive the range from the populated cells only, never from
+            # row[0]/row[-1]. In read_only mode openpyxl pads a short row with
+            # `EmptyCell`, which carries no `.column`/`.row` at all, so indexing
+            # the raw tuple raises AttributeError on any sheet where one row is
+            # narrower than the sheet's max_column. That is the normal shape of
+            # a real spreadsheet -- a wide data table with a narrow note or
+            # total row under it -- so it has to be handled, not treated as a
+            # corrupt file.
+            populated = [cell for cell in row if cell.value not in (None, "")]
+            if not populated:
                 continue
-            first_col = row[0].column
-            last_col = row[-1].column
-            row_no = row[0].row
+            values = [str(cell.value).strip() for cell in populated]
+            first_col = populated[0].column
+            last_col = populated[-1].column
+            row_no = populated[0].row
             cell_range = (
                 f"{_col_letter(first_col)}{row_no}"
                 if first_col == last_col

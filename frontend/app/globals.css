@@ -1908,3 +1908,187 @@ h1, h2, h3, p {
   .nav-scrim { display: none; }
   .app-main { margin: 0; width: 100%; }
 }
+
+/* ------------------------------------------------------------------ *
+ * API binding additions
+ *
+ * Styles for state the backend actually produces: loading, failure,
+ * unreachable, and "the server sends nothing here". Added when the
+ * screens were wired to the real API — the prototype never had to
+ * render any of these because it always had data.
+ * ------------------------------------------------------------------ */
+
+.prototype.offline {
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.prototype.offline code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(193, 74, 66, 0.12);
+  font-size: 11px;
+}
+
+.spin {
+  animation: bukti-spin 900ms linear infinite;
+}
+
+@keyframes bukti-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin { animation: none; }
+}
+
+/* A value the server did not send. Deliberately quiet, never a zero. */
+.not-available,
+.muted {
+  color: var(--subtle);
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  color: var(--subtle);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.form-card .field-hint,
+.priority-box .field-hint {
+  margin-bottom: 10px;
+}
+
+.hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  word-break: break-all;
+  color: var(--muted);
+}
+
+.control.select-control {
+  gap: 8px;
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.control.select-control select {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+}
+
+.control.active {
+  border-color: var(--teal);
+  color: var(--navy);
+}
+
+.mapping-readback {
+  margin-bottom: 20px;
+  border-left: 3px solid var(--info);
+}
+
+.mapping-readback h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mapping-readback h2 svg {
+  width: 16px;
+  height: 16px;
+  color: var(--info);
+}
+
+/* Status dot in the "needs attention" list. Replaces the prototype's
+   numeric priority badge, because the server sends no priority score. */
+.priority-dot {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 10px;
+  border-radius: 50%;
+  background: var(--subtle);
+}
+
+.priority-dot.supported { background: var(--teal); }
+.priority-dot.partial { background: var(--warning); }
+.priority-dot.conflict { background: var(--danger); }
+.priority-dot.missing,
+.priority-dot.outdated,
+.priority-dot.review,
+.priority-dot.unreviewed { background: var(--subtle); }
+
+.coverage-secondary {
+  display: grid;
+  gap: 2px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.answer-result {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--teal-soft);
+}
+
+.form-card.inline-form {
+  margin-top: 16px;
+  box-shadow: none;
+  border: 1px solid var(--line-strong);
+}
+
+.form-card.inline-form h2 {
+  font-size: 1rem;
+}
+
+button.avatar {
+  border: 1px solid var(--line-strong);
+  padding: 0;
+}
+
+.empty svg {
+  color: var(--subtle);
+}
+
+.callout .link {
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* Checkbox with an explanatory sub-label, used by the create-action form to
+   expose the server's closure-evidence rule. */
+.checkbox-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-bottom: 14px;
+  font-weight: 500;
+}
+
+.checkbox-row input[type='checkbox'] {
+  margin-top: 3px;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--teal);
+}
+
+.checkbox-row > span {
+  display: grid;
+  gap: 4px;
+}
+
+.checkbox-row small {
+  color: var(--subtle);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.45;
+}

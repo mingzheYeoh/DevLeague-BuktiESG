@@ -1,0 +1,19 @@
+# Normalise line endings for text, and keep binaries byte-exact.
+#
+# Without the binary rules below, git treats a small file with no NUL bytes as
+# text and rewrites its line endings on checkout. `sample/evidence/unreadable-scan.pdf`
+# is exactly that case, and a rewritten byte stream is a different file — which
+# would change how the parser fails on it.
+
+* text=auto
+
+# Office documents and PDFs: never touch the bytes.
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
+*.docx  binary
+*.doc   binary
+
+# Lockfiles: keep LF so the diff stays readable across platforms.
+uv.lock          text eol=lf
+package-lock.json text eol=lf
