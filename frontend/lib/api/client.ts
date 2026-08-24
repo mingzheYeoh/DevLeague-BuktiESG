@@ -218,7 +218,14 @@ export const api = {
 
   // ---- Documents -------------------------------------------------------
 
-  /** POST /api/v1/cases/{case_id}/documents (multipart: file, document_type)
+  /** POST /api/v1/cases/{case_id}/documents
+   * (multipart: file, document_type, source_date)
+   *
+   * `sourceDate` is the date the evidence speaks as of — a policy's approval
+   * date, a report's period end. The rule engine measures staleness from it,
+   * so a document uploaded without one is treated as current forever. Omitted
+   * rather than sent empty when the uploader does not know it: a guess would
+   * be worse than an absence, because the engine cannot tell them apart.
    *
    * Re-uploading identical bytes to the same Case returns the existing
    * Document rather than creating a duplicate (checksum de-duplication), so
@@ -227,10 +234,12 @@ export const api = {
     caseId: string,
     file: File,
     documentType: DocumentType = 'OTHER',
+    sourceDate?: string,
   ): Promise<DocumentRecord> {
     const form = new FormData()
     form.append('file', file)
     form.append('document_type', documentType)
+    if (sourceDate) form.append('source_date', sourceDate)
     return request<DocumentRecord>(`/api/v1/cases/${enc(caseId)}/documents`, {
       method: 'POST',
       body: form,

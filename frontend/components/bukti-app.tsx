@@ -121,8 +121,8 @@ export default function BuktiApp() {
   )
 
   const handleUpload = useCallback(
-    async (file: File, documentType: DocumentType) => {
-      const doc = await workspace.uploadDocument(file, documentType)
+    async (file: File, documentType: DocumentType, sourceDate?: string) => {
+      const doc = await workspace.uploadDocument(file, documentType, sourceDate)
       setLastUpload(doc)
     },
     [workspace],

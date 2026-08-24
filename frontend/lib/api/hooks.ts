@@ -157,7 +157,11 @@ export interface CaseWorkspace {
   busy: boolean
   error: unknown
   refresh: () => Promise<void>
-  uploadDocument: (file: File, documentType: DocumentType) => Promise<DocumentRecord>
+  uploadDocument: (
+    file: File,
+    documentType: DocumentType,
+    sourceDate?: string,
+  ) => Promise<DocumentRecord>
   retryDocument: (documentId: string) => Promise<DocumentRecord>
   reviewQuestion: (
     questionId: string,
@@ -253,8 +257,8 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
   )
 
   const uploadDocument = useCallback(
-    (file: File, documentType: DocumentType) =>
-      mutate((id) => api.uploadDocument(id, file, documentType)),
+    (file: File, documentType: DocumentType, sourceDate?: string) =>
+      mutate((id) => api.uploadDocument(id, file, documentType, sourceDate)),
     [mutate],
   )
 

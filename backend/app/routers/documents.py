@@ -22,6 +22,7 @@ server is the only thing that resolves that `chunk_id` back to a persisted
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
@@ -83,11 +84,39 @@ def _document_not_found(document_id: str):
     return api_error(404, "DOCUMENT_NOT_FOUND", f"Document '{document_id}' was not found.")
 
 
+
+def _parse_source_date(raw: str | None) -> date | None:
+    """The date the evidence speaks as of - a policy's approval date, a
+    report's period end.
+
+    The rule engine needs it: `_is_outdated` compares it against the
+    question's required period, or against the 24-month threshold when the
+    question states none (DEC-007). Without it every document looks current.
+
+    Optional, because a reviewer uploading a batch will not always know it and
+    a required field would be answered with a guess. An unparseable one is
+    refused rather than dropped: a silently ignored date reads to the uploader
+    as an accepted one, and the document would then be treated as current
+    forever.
+    """
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return date.fromisoformat(raw.strip())
+    except ValueError:
+        raise api_error(
+            422,
+            "VALIDATION_ERROR",
+            f"source_date '{raw}' is not a valid ISO 8601 date.",
+            expected_format="YYYY-MM-DD",
+        ) from None
+
 @router.post("/{case_id}/documents", response_model=DocumentRecord, status_code=201)
 async def upload_document(
     case_id: str,
     file: UploadFile = File(...),
     document_type: str = Form("OTHER"),
+    source_date: str | None = Form(None),
     db: Session = Depends(get_db),
 ) -> DocumentRecord:
     case = db.get(Case, case_id)
@@ -101,6 +130,8 @@ async def upload_document(
             f"Unknown document_type '{document_type}'.",
             allowed=list(DOCUMENT_TYPE),
         )
+
+    parsed_source_date = _parse_source_date(source_date)
 
     data = await file.read()
     if len(data) > settings.max_upload_bytes:
@@ -135,6 +166,7 @@ async def upload_document(
         storage_key=storage_key,
         document_type=document_type,
         processing_status="UPLOADED",
+        source_date=parsed_source_date,
     )
     db.add(document)
     db.flush()  # assign document.id before referencing it below

@@ -37,6 +37,11 @@ import {
 } from '../primitives'
 import { DocumentPreview } from '../document-preview'
 
+// Evidence cannot be dated in the future. A mistyped year — 2062 for 2026 —
+// would otherwise read as the freshest document in the case forever, which is
+// the one direction of error the staleness rule cannot catch.
+const TODAY = new Date().toISOString().slice(0, 10)
+
 const ACCEPTED =
   '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp,application/pdf,text/csv,text/plain,image/*'
 
@@ -66,7 +71,7 @@ export function EvidenceScreen({
   error: unknown
   busy: boolean
   refresh: () => void
-  onUpload: (file: File, documentType: DocumentType) => Promise<void>
+  onUpload: (file: File, documentType: DocumentType, sourceDate?: string) => Promise<void>
   onRetry: (documentId: string) => Promise<void>
   /** The most recent upload response, kept for its transient
    * `detected_columns` read-back. */
@@ -74,6 +79,9 @@ export function EvidenceScreen({
   onDismissMapping: () => void
 }) {
   const [documentType, setDocumentType] = useState<DocumentType>('OTHER')
+  // Applies to the next batch, like `documentType` above — the date is a
+  // property of the documents you are about to drop, not of the screen.
+  const [sourceDate, setSourceDate] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -109,7 +117,7 @@ export function EvidenceScreen({
         continue
       }
       try {
-        await onUpload(file, documentType)
+        await onUpload(file, documentType, sourceDate || undefined)
       } catch (err) {
         setUploadError(`${file.name}: ${errorMessage(err)}`)
       }
@@ -160,6 +168,16 @@ export function EvidenceScreen({
             ))}
           </select>
         </label>
+        <label className="control date-control">
+          Evidence dated
+          <input
+            type="date"
+            value={sourceDate}
+            max={TODAY}
+            onChange={(e) => setSourceDate(e.target.value)}
+            aria-describedby="source-date-hint"
+          />
+        </label>
         <SearchField placeholder="Search documents" value={query} onChange={setQuery} grow />
       </div>
 
@@ -200,8 +218,13 @@ export function EvidenceScreen({
         <div>
           <b>Drop supporting documents here</b>
           <span>
-            Uploading as <strong>{documentTypeLabel(documentType)}</strong> · identical files are
-            de-duplicated by checksum
+            Uploading as <strong>{documentTypeLabel(documentType)}</strong> ·{' '}
+            <span id="source-date-hint">
+              {sourceDate
+                ? `dated ${sourceDate}`
+                : 'undated — staleness cannot be assessed'}
+            </span>{' '}
+            · identical files are de-duplicated by checksum
           </span>
         </div>
       </div>

@@ -2155,6 +2155,31 @@ h1, h2, h3, p {
   outline: none;
 }
 
+/* The evidence date sits beside "Upload as" and shares its treatment: both
+   describe the batch about to be dropped, not the screen. */
+.control.date-control {
+  gap: 8px;
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.control.date-control input[type='date'] {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  font-family: inherit;
+}
+
+/* The picker glyph is near-invisible on the dark surface at its default
+   opacity, which reads as "no picker here" rather than as a subtle one. */
+.control.date-control input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.55);
+  cursor: pointer;
+}
+
 .control.active {
   border-color: var(--teal);
   color: var(--navy);

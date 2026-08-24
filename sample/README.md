@@ -95,15 +95,26 @@ Two are still wrong, and both have understood causes that keyword matching canno
 
 Both need capability the pipeline does not have — value extraction and multi-row aggregation — rather than a better keyword score. Tuning the weights until this particular sample set looks perfect would be overfitting to it.
 
-### Every question is still `PARTIAL`
+### `OUTDATED` is reachable; three statuses still are not
 
-The A, B and C tiers remain indistinguishable to the **rule engine**, for reasons that are separate from matching:
+Set **Evidence dated** on the Evidence screen before dropping a file and the
+engine can finally measure staleness. `C-02-energy-and-emissions-fy2022.txt`
+dated `2022-12-31` moves its question to `OUTDATED`, because the question
+states no required period and the file is past the 24-month threshold
+(DEC-007). The same file uploaded undated still reads as `PARTIAL` — the
+engine has nothing to measure, and it says so rather than guessing.
+
+The date is optional on purpose. A reviewer working through a batch will not
+always know it, and a required field is answered with a guess; an absent date
+and a wrong one are not equally recoverable.
+
+The other three statuses remain out of reach, for reasons separate from
+matching:
 
 | Status | Why it cannot happen |
 |---|---|
 | `VERIFIED` | No endpoint moves an `evidence_links` row to `ACCEPTED`, so `REASON_NOT_ACCEPTED` always applies |
 | `CONFLICTING` | Needs two links with the same scope and period and **different values**; the matcher never extracts a value, so `A-03` vs `C-01` — 12.6 t against 18.4 t — is invisible |
-| `OUTDATED` | Needs `documents.source_date`, which the upload endpoint does not accept; `C-02` being three years stale is undetectable |
 | `MISSING` | Still never occurs. The generic-term guard cut the candidate counts but a question can usually find *some* chunk sharing a distinctive word, so `Q-E-10` and `Q-S-07` — written to be unanswerable from this set — still attract candidates |
 
 So the honest demo script is not "watch the engine sort good evidence from bad". It is: **the matcher now points you at the right document, and everything after that is still yours to judge.** That is the product thesis — provenance over prose — stated as a limitation rather than a claim.
@@ -113,7 +124,7 @@ So the honest demo script is not "watch the engine sort good evidence from bad".
 1. Create a case for FY2025 and upload `questionnaire/customer-esg-questionnaire-2026.xlsx`. Expect **20 questions, 14 required**.
 2. Upload the three `reference-*` files as **Other**, then the A tier with matching types (utility bill, waste record, HR data, policy, safety record).
 3. Open `Q-E-02` (Scope 2). Work the answer out yourself from `A-01` and the grid-factor reference — 1,847.3 MWh × 0.740 = 1,367.0 tCO2e — then **Edit answer** and submit it. That is a human confirmation, and it is the only thing that moves readiness.
-4. Now upload the C tier. Nothing changes colour. Open `Q-E-08` (scheduled waste) and read `A-03` against `C-01`: 12.6 t against 18.4 t. Reject the draft with that as the reason, and raise an action to reconcile them.
+4. Now upload the C tier, setting **Evidence dated** to each file's own year first — `2022-12-31` for `C-02`. `C-02`'s question turns **Outdated**; the rest do not change colour. Open `Q-E-08` (scheduled waste) and read `A-03` against `C-01`: 12.6 t against 18.4 t. Reject the draft with that as the reason, and raise an action to reconcile them.
 5. Upload `C-06-unreadable-scan-safety-records.pdf` and `broken-questionnaire-wrong-headers.xlsx`. Both must fail loudly and name why, and the question count must stay at 20.
 
 Upload order no longer decides what you see: citations are ranked by match score, with creation time only as a tie-break. It still decides the two ties noted above.
