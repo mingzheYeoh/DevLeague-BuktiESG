@@ -151,8 +151,46 @@ test.describe('Questionnaire summary strip', () => {
 
     const strip = page.locator('.summary-strip')
     await expect(strip.getByText('required confirmed', { exact: true })).toBeVisible()
-    // "20 awaiting human review" beside "0 / 14 required confirmed" reads as
-    // 20 out of 14. The six optional questions are the difference.
+    // Every other figure in the strip counts all 20 questions, not the 14 the
+    // first one does. Each says so rather than borrowing the first's total.
     await expect(strip.getByText('of 20 awaiting human review', { exact: true })).toBeVisible()
+    await expect(strip.getByText('of 20 with an evidence gap', { exact: true })).toBeVisible()
+    await expect(strip.getByText('of 20 reporting a source conflict', { exact: true })).toBeVisible()
+  })
+})
+
+test.describe('Cases summary tiles', () => {
+  /** Two cases, one of them archived — the state where the tile's silence bites. */
+  const CASES = [
+    { ...CASE_SUMMARY, id: 'c-active', title: 'Active case', status: 'DRAFT' },
+    {
+      ...CASE_SUMMARY,
+      id: 'c-archived',
+      title: 'Archived case',
+      status: 'ARCHIVED',
+      archived_at: new Date().toISOString(),
+      status_before_archive: 'IN_REVIEW',
+    },
+  ]
+
+  test('the count says it excludes archived cases', async ({ page }) => {
+    await page.route('**/health', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"status":"ok"}' }),
+    )
+    await page.route('**/api/v1/cases', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: CORS,
+        body: JSON.stringify(CASES),
+      }),
+    )
+    await page.goto('/')
+
+    const tiles = page.locator('.summary-grid')
+    // "Cases 1" beside "Show archived 1" invites the reader to add them; the
+    // tile counts only what the table shows, and now says which that is.
+    await expect(tiles.getByText('Active cases', { exact: true })).toBeVisible()
+    await expect(tiles.getByText('Cases', { exact: true })).toHaveCount(0)
   })
 })

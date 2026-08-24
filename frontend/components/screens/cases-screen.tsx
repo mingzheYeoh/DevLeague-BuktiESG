@@ -185,8 +185,11 @@ export function CasesScreen({
       {actionError ? <ErrorNotice message={actionError} /> : null}
 
       <div className="summary-grid">
+        {/* All four tiles count `active`, and the label says so. "Cases 1"
+            beside a "Show archived 1" toggle invites the reader to add them
+            together; the tile counts what the table below is showing. */}
         <Summary
-          label="Cases"
+          label="Active cases"
           value={String(active.length)}
           sub={customerCount ? `Across ${customerCount} named customers` : 'No customer names set'}
         />

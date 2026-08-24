@@ -142,17 +142,19 @@ export function QuestionsScreen({
           {stats.confirmedRequired} / {stats.totalRequiredFromServer}{' '}
           <span>required confirmed</span>
         </b>
-        {/* Readiness counts required answers; review counts every question. The
-            two sit adjacent, so the second states its own total rather than
-            borrowing the first's. */}
+        {/* Only the first figure counts required answers - that is what gates
+            export. The other three count every question. All four sit in one
+            strip, so each states its own total; without that they read against
+            the only denominator on the line, which is the wrong one for three
+            of them. */}
         <b>
           {stats.unconfirmedDrafts} <span>of {stats.total} awaiting human review</span>
         </b>
         <b>
-          {stats.evidenceGaps} <span>open evidence gaps</span>
+          {stats.evidenceGaps} <span>of {stats.total} with an evidence gap</span>
         </b>
         <b>
-          {stats.sourceConflicts} <span>source conflicts</span>
+          {stats.sourceConflicts} <span>of {stats.total} reporting a source conflict</span>
         </b>
       </div>
 

@@ -149,7 +149,17 @@ export function ExportScreen({
         stats.readinessPercentage === null ? 'not available' : `${stats.readinessPercentage}%`
       } (${stats.confirmedRequired} of ${stats.totalRequiredFromServer} required answers confirmed)`,
       '',
-      `Unresolved: ${outstanding} required answers unconfirmed, ${stats.evidenceGaps} evidence gaps, ${stats.sourceConflicts} source conflicts, ${openActionCount} open actions.`,
+      // One figure per line, each against its own total. Run together as a
+      // sentence with bare numbers, "14 required answers unconfirmed, 20
+      // evidence gaps" reads as more gaps than there are answers: the first
+      // counts the required questions, the next two count all of them. This
+      // file is the one artefact that leaves the building, so a figure in it
+      // that needs explaining is worse than one on screen.
+      'Unresolved:',
+      `  ${outstanding} of ${stats.totalRequiredFromServer} required answers unconfirmed`,
+      `  ${stats.evidenceGaps} of ${stats.total} questions have an unresolved evidence gap`,
+      `  ${stats.sourceConflicts} of ${stats.total} questions report a source conflict`,
+      `  ${openActionCount} open actions`,
       '',
       '--- QUESTIONS ---',
       '',
@@ -233,7 +243,7 @@ export function ExportScreen({
         <div>
           <strong>{stats.sourceConflicts}</strong>
           <span>Source conflicts</span>
-          <small>Human decision needed</small>
+          <small>of {stats.total} questions</small>
         </div>
         <div>
           <strong>{stats.unconfirmedDrafts}</strong>
@@ -350,14 +360,14 @@ export function ExportScreen({
           <div className="gap-card">
             <AlertTriangle />
             <h3>
-              {outstanding} required answer{outstanding === 1 ? '' : 's'} not confirmed
+              {outstanding} of {stats.totalRequiredFromServer} required answers not confirmed
             </h3>
             <p>Resolve these before treating the package as submission-ready.</p>
           </div>
           <Key label="Missing evidence" value={`${stats.evidenceCounts.MISSING} questions`} />
           <Key label="Partial evidence" value={`${stats.evidenceCounts.PARTIAL} questions`} />
           <Key label="Outdated evidence" value={`${stats.evidenceCounts.OUTDATED} questions`} />
-          <Key label="Source conflicts" value={`${stats.sourceConflicts} need a human decision`} />
+          <Key label="Source conflicts" value={`${stats.sourceConflicts} questions`} />
           <Key
             label="Unconfirmed answers"
             value={`${stats.unconfirmedDrafts} of ${stats.total} questions`}
