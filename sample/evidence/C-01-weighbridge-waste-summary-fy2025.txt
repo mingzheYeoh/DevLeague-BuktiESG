@@ -1,0 +1,9 @@
+WEIGHBRIDGE WASTE SUMMARY - CONTRADICTS A-03 - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January 2025 to 31 December 2025). Scope: Klang plant. Source: gatehouse weighbridge tickets.
+Total scheduled waste despatched in FY2025: 18.4 metric tonnes.
+Total waste generated in FY2025: 229.5 metric tonnes.
+Waste diverted from disposal in FY2025: 131.0 metric tonnes.
+Waste directed to disposal in FY2025: 98.5 metric tonnes.
+CONTRADICTION: A-03, the DOE consignment-note summary, reports 12.6 tonnes of scheduled waste and 214.7 tonnes generated for the same site and the same period. This file reports 18.4 and 229.5.
+Both files are internally plausible and neither is obviously the more credible one. The weighbridge measures what leaves the gate; the consignment notes record what was formally consigned. They should reconcile and they do not.
+Nothing in the system will flag this. The rule engine only reports CONFLICTING when two evidence links carry different values for the same scope and period, and the keyword matcher never extracts a value at all. A reviewer has to notice.

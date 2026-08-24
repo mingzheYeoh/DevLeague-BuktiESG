@@ -1,0 +1,9 @@
+OCCUPATIONAL SAFETY RECORD - WRONG LEGAL ENTITY - SYNTHETIC SAMPLE
+Entity: Tenggara Logistics Sdn. Bhd. THIS IS A DIFFERENT COMPANY FROM THE ONE THE QUESTIONNAIRE IS ABOUT.
+Tenggara Logistics Sdn. Bhd. is a separate legal entity under the same holding company, operating the Port Klang depot.
+Reporting period: FY2025 (1 January 2025 to 31 December 2025). Scope: Port Klang depot.
+Work-related fatalities: 1. A fatal forklift incident occurred at the depot on 6 August 2025.
+Work-related injuries: 11.
+Lost time injury frequency rate (LTIFR): 14.2 per million hours worked.
+WRONG SCOPE: citing this file against the questionnaire would report a fatality that did not happen at the site being asked about, and would roughly treble the injury count.
+The keyword matcher will happily match this file to the safety question. Nothing in the pipeline compares the entity name in the document against the case.

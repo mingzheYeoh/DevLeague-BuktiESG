@@ -1,0 +1,12 @@
+WATER WITHDRAWAL - PARTIAL RECORD - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+INCOMPLETE: this file covers January to June 2025 only. Statements for July to December 2025 have not been retrieved from the utility portal.
+Scope: Klang plant only. Source: purchased municipal supply (Air Selangor).
+January 2025: 682 cubic metres.
+February 2025: 641 cubic metres.
+March 2025: 714 cubic metres.
+April 2025: 699 cubic metres.
+May 2025: 706 cubic metres.
+June 2025: 678 cubic metres.
+Total for the six months shown: 4,120 cubic metres.
+No breakdown by source is available beyond purchased municipal supply; the site has no groundwater abstraction and no surface water intake.
+A full-year withdrawal figure cannot be derived from this file. Doubling the half-year total would be an estimate, not a measurement, and the second half of the year includes the annual shutdown in August.

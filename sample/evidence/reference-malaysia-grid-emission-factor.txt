@@ -7,9 +7,7 @@ Provisional series 2022-2024: 2022 Peninsular 0.769, Sabah 0.531, Sarawak 0.199.
 Earlier series 2017-2022: 2022 Peninsular 0.774, Sabah 0.525, Sarawak 0.199.
 Earlier series 2017-2022: 2021 Peninsular 0.757, Sabah 0.524, Sarawak 0.198.
 Earlier series 2017-2022: 2020 Peninsular 0.821, Sabah 0.503, Sarawak 0.203.
-Earlier series 2017-2022: 2019 Peninsular 0.753, Sabah 0.548, Sarawak 0.222.
-Earlier series 2017-2022: 2018 Peninsular 0.797, Sabah 0.500, Sarawak 0.193.
-Earlier series 2017-2022: 2017 Peninsular 0.767, Sabah 0.530, Sarawak 0.213.
+No Peninsular grid emission factor has been published for 2025 at the time of writing, so a 2025 Scope 2 calculation must state which earlier factor it used.
 DISCREPANCY WORTH NOTING: the two published series give different Peninsular values for 2022 - 0.769 provisional against 0.774 earlier. Both come from the same publisher. This is a real example of the problem this product exists to surface: two credible sources, one metric, two numbers, and no automatic way to decide which is right.
 A Scope 2 location-based calculation multiplies grid electricity consumption in MWh by the grid emission factor for the year and region.
 Scope 1 covers direct combustion the company controls, such as diesel burned in its own generator or forklift; the grid emission factor does not apply to it.

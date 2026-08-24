@@ -1,0 +1,11 @@
+MALAYSIAN ESG DISCLOSURE FRAMEWORKS - REAL PUBLISHED REFERENCE DATA
+Sources: Capital Markets Malaysia, Simplified ESG Disclosure Guide (SEDG) Version 2, July 2025; Bursa Malaysia Sustainability Reporting Guide. Retrieved 2026-08-24. Summarised, not reproduced.
+SEDG is issued by Capital Markets Malaysia, an affiliate of the Securities Commission Malaysia, for SMEs answering ESG data requests from customers in their supply chain.
+SEDG Version 2 contains 38 disclosures across 15 topics and three pillars, and supersedes Version 1 which had 35.
+Version 2 added three disclosures: SEDG-E1.7, SEDG-E3.1 and SEDG-S2.3.
+Disclosures are graded Basic, Intermediate and Advanced so a company can start small and extend later.
+SEDG is voluntary, and it is aligned to the Bursa Malaysia Sustainability Reporting Guide, GRI, the ISSB standards (IFRS S1 and S2) and the GHG Protocol.
+Version 2 is aligned with the ASEAN Simplified ESG Disclosure Guide launched by the ASEAN Capital Markets Forum in April 2025.
+Bursa Malaysia requires Main Market listed issuers to report against nine common sustainability matters: anti-corruption, community and society, diversity, energy management, health and safety, labour practices and standards, supply chain management, data privacy and security, and water.
+ACE Market issuers report eleven common sustainability matters: the nine above plus waste management and emissions management.
+A listed customer that must report supply chain management is the reason an SME supplier receives a questionnaire like this one at all.
