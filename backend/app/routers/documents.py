@@ -22,18 +22,55 @@ server is the only thing that resolves that `chunk_id` back to a persisted
 
 from __future__ import annotations
 
+from pathlib import Path
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
 from app.errors import api_error, case_not_found
 from app.enums import DOCUMENT_TYPE
-from app.models import Case, Document
-from app.schemas import DocumentRecord
+from app.models import Case, Document, DocumentChunk
+from app.schemas import DocumentChunkRecord, DocumentRecord
 from app.services import jobs, storage
 
 router = APIRouter(prefix="/api/v1/cases", tags=["documents"])
+
+# Types that may be rendered inline by a browser, keyed by file extension.
+#
+# Deliberately an allow-list keyed on the extension rather than on the stored
+# `mime_type`, because that column holds whatever the uploading client claimed.
+# Anything not listed here is served as an opaque download.
+#
+# `.svg` and `.html` are absent on purpose: both execute script when rendered
+# inline, and uploaded document content is untrusted (trust boundary TB-3). An
+# uploaded `.html` served inline would be stored XSS against an API that has no
+# authentication at all.
+#
+# `.csv` maps to text/plain, not text/csv, so a browser shows it rather than
+# handing it to a spreadsheet application.
+_INLINE_CONTENT_TYPES: dict[str, str] = {
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".txt": "text/plain; charset=utf-8",
+    ".csv": "text/plain; charset=utf-8",
+}
+
+# Nothing served here should ever execute or fetch anything. Verified in a real
+# browser: `sandbox` does not stop Chrome rendering a PDF or an image inline.
+#
+# It does stop Playwright's bundled headless Chromium, which ships without the
+# PDF viewer and falls back to downloading — a limitation of that browser build,
+# not of this policy. Do not relax this because a headless test downloaded
+# instead of rendering.
+_CSP_SERVED_FILE = "default-src 'none'; sandbox"
 
 _RETRYABLE_STATUSES = {"FAILED", "NEEDS_MANUAL_REVIEW"}
 
@@ -128,6 +165,140 @@ def list_documents(case_id: str, db: Session = Depends(get_db)) -> list[Document
         .all()
     )
     return [DocumentRecord.from_model(doc) for doc in documents]
+
+
+def _load_document(db: Session, case_id: str, document_id: str) -> Document:
+    """Fetch a Document, enforcing that it belongs to this Case.
+
+    The case check is the authorisation boundary for both read endpoints below:
+    without it, knowing any document id would be enough to read another Case's
+    file through any Case's URL.
+    """
+    case = db.get(Case, case_id)
+    if case is None:
+        raise case_not_found(case_id)
+
+    document = db.get(Document, document_id)
+    if document is None or document.case_id != case_id:
+        raise _document_not_found(document_id)
+    return document
+
+
+@router.get(
+    "/{case_id}/documents/{document_id}/chunks",
+    response_model=list[DocumentChunkRecord],
+)
+def list_document_chunks(
+    case_id: str, document_id: str, db: Session = Depends(get_db)
+) -> list[DocumentChunkRecord]:
+    """The document as the server parsed it, in order.
+
+    This is the format-independent view: PDFs, DOCX, spreadsheets and plain
+    text all end up here as ordered fragments, each carrying whatever location
+    its format supports. It is also exactly the text the evidence matcher ran
+    against, which makes it the honest thing to show someone verifying a
+    citation — a rendered original can differ from what extraction produced,
+    and the citation rests on the extraction.
+
+    Empty for a document that failed to parse; the document's `error` field
+    says why.
+    """
+    _load_document(db, case_id, document_id)
+
+    chunks = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == document_id)
+        .order_by(DocumentChunk.sequence_no)
+        .all()
+    )
+    return [DocumentChunkRecord.from_model(c) for c in chunks]
+
+
+@router.get("/{case_id}/documents/{document_id}/content")
+def get_document_content(
+    case_id: str,
+    document_id: str,
+    download: bool = False,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    """The stored file itself, for preview or download.
+
+    `?download=1` forces `Content-Disposition: attachment`. The frontend runs
+    on a different origin from this API, and a browser ignores the `download`
+    attribute on a cross-origin `<a>` — so a plain link to an inline-allowed
+    type (PDF, image, text) navigates the tab to the file and discards the
+    single-page app's state instead of saving anything. The disposition is the
+    only part of that a link can control, so the server has to offer it.
+
+    Security posture, because this endpoint hands back user-uploaded bytes:
+
+    * Authorisation is the case check in `_load_document`. There is no
+      authentication anywhere in this service, so this endpoint is readable by
+      anything that can reach the port — one more reason it must stay on
+      localhost (see backend/README.md).
+    * The content type is chosen from an extension allow-list, never from the
+      client-supplied `mime_type`. Anything unlisted is `application/octet-stream`
+      as an attachment, so an uploaded `.html` or `.svg` cannot execute script
+      on this origin.
+    * `X-Content-Type-Options: nosniff` stops a browser second-guessing that.
+    * `Content-Security-Policy: default-src 'none'; sandbox` neuters anything
+      that does get rendered. Confirmed in a real browser that this still allows
+      inline PDF and image display.
+    * The filename goes out RFC 5987-encoded, so a filename containing quotes
+      or newlines cannot inject a header.
+
+    What actually keeps this safe is the allow-list, not the CSP: no `.html` or
+    `.svg` is ever served inline, and the three inline families that remain
+    cannot script this origin. Images are inert; `text/plain` plus `nosniff` is
+    never parsed as markup; and PDF script runs inside the viewer's own sandbox,
+    with no access to the embedding origin.
+    """
+    document = _load_document(db, case_id, document_id)
+
+    try:
+        path = storage.resolve(document.storage_key)
+    except storage.StorageKeyOutsideRoot:
+        # Not a 404: a key that escapes the storage root means stored data is
+        # wrong, and quietly returning "not found" would hide that.
+        raise api_error(
+            500,
+            "STORAGE_KEY_INVALID",
+            "The stored path for this document is not inside the storage root.",
+        ) from None
+
+    if not path.is_file():
+        raise api_error(
+            404,
+            "DOCUMENT_CONTENT_MISSING",
+            f"Document '{document_id}' has a database row but no stored file.",
+            storage_key=document.storage_key,
+        )
+
+    suffix = Path(document.original_filename).suffix.lower()
+    inline_type = _INLINE_CONTENT_TYPES.get(suffix)
+    # `download` can only ever make this stricter: it turns an inline type into
+    # an attachment, and never turns an attachment into an inline render. A
+    # query parameter must not be able to widen what the allow-list permits.
+    if download:
+        content_type = "application/octet-stream"
+        disposition = "attachment"
+    else:
+        content_type = inline_type or "application/octet-stream"
+        disposition = "inline" if inline_type else "attachment"
+
+    encoded_name = quote(document.original_filename, safe="")
+    return FileResponse(
+        path,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f"{disposition}; filename*=UTF-8''{encoded_name}",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": _CSP_SERVED_FILE,
+            # Uploaded content is synthetic test data, but it is still nobody
+            # else's business to cache it.
+            "Cache-Control": "private, no-store",
+        },
+    )
 
 
 @router.post(

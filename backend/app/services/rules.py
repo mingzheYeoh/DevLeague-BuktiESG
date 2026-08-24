@@ -174,6 +174,48 @@ def _scope_key(scope_description: str | None) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Why a candidate fell short of VERIFIED
+#
+# Two separate things, kept in separate fields on purpose:
+#
+#   * the REASON — one short phrase a reviewer can act on. This is what a UI
+#     shows. It says what is wrong, not which clause says so.
+#   * the BASIS — the normative citation behind that reason. Preserved in the
+#     finding's `basis` map so the rule is auditable, and deliberately kept out
+#     of the reason phrase.
+#
+# They used to be one string. The citation was inlined into the phrase, so the
+# only user-facing text available was a 460-character sentence carrying
+# "Main Spec §17 Gate P4: AI confidence does not participate in the VERIFIED
+# determination" — accurate, and useless to the person deciding what to do next.
+# Splitting them loses nothing and lets a UI render a readable bullet.
+# --------------------------------------------------------------------------- #
+
+REASON_PERIOD_NOT_COVERED = "reporting period does not fully cover the required period"
+REASON_SCOPE_MISMATCH = "scope does not match the required scope"
+REASON_CLAIM_UNCLEAR = "evidence does not clearly support the claim"
+REASON_NO_UNIT = "numerical value has no explainable unit"
+REASON_NO_LOCATION = "source location is empty"
+REASON_NOT_ACCEPTED = "evidence has not been accepted by a human reviewer"
+
+#: reason phrase -> the normative clause it comes from.
+REASON_BASIS: dict[str, str] = {
+    REASON_NOT_ACCEPTED: (
+        "An unreviewed AI-proposed candidate cannot, by itself, satisfy VERIFIED "
+        "— Main Spec §17 Gate P4: AI confidence does not participate in the "
+        "VERIFIED determination."
+    ),
+    REASON_PERIOD_NOT_COVERED: "Main Spec §6.2 VERIFIED conditions (period coverage).",
+    REASON_SCOPE_MISMATCH: "Main Spec §6.2 VERIFIED conditions (scope match).",
+    REASON_NO_UNIT: "Main Spec §6.2 VERIFIED conditions (explainable unit).",
+    REASON_NO_LOCATION: (
+        "A VERIFIED record needs a server-resolved source location "
+        "(AGENTS.md §3.3 — the AI never supplies one)."
+    ),
+}
+
+
+# --------------------------------------------------------------------------- #
 # The engine
 # --------------------------------------------------------------------------- #
 
@@ -302,41 +344,40 @@ def compute_evidence_status(
                 and c.period_end >= requirement.required_period_end
             )
             if not covers:
-                reasons.append("reporting period does not fully cover the required period")
+                reasons.append(REASON_PERIOD_NOT_COVERED)
         if requirement.required_scope:
             scope_ok = bool(c.scope_description) and (
                 requirement.required_scope.strip().casefold()
                 in c.scope_description.strip().casefold()  # type: ignore[union-attr]
             )
             if not scope_ok:
-                reasons.append("scope does not match the required scope")
+                reasons.append(REASON_SCOPE_MISMATCH)
         if not c.claim_supported or not c.claim_supported.strip():
-            reasons.append("evidence does not clearly support the claim")
+            reasons.append(REASON_CLAIM_UNCLEAR)
         if c.value is not None and c.value.strip() and (not c.unit or not c.unit.strip()):
-            reasons.append("numerical value has no explainable unit")
+            reasons.append(REASON_NO_UNIT)
         if not c.source_location or not c.source_location.strip():
-            reasons.append("source location is empty")
+            reasons.append(REASON_NO_LOCATION)
         if c.link_status != "ACCEPTED":
-            reasons.append(
-                "evidence has not been human-accepted (an unreviewed AI-proposed "
-                "candidate cannot, by itself, satisfy VERIFIED — Main Spec §17 "
-                "Gate P4: AI confidence does not participate in the VERIFIED "
-                "determination)"
-            )
+            reasons.append(REASON_NOT_ACCEPTED)
         return reasons
 
     verified_candidates: list[EvidenceCandidate] = []
     for c in readable:
         reasons = _partial_reasons(c)
         if reasons:
-            findings.append(
-                {
-                    "condition": "PARTIAL",
-                    "link_id": c.link_id,
-                    "reasons": reasons,
-                    "detail": "Coverage exists but is incomplete: " + "; ".join(reasons) + ".",
-                }
-            )
+            finding: dict = {
+                "condition": "PARTIAL",
+                "link_id": c.link_id,
+                "reasons": reasons,
+                "detail": "Coverage exists but is incomplete: " + "; ".join(reasons) + ".",
+            }
+            # The citations stay on the finding so the rule remains auditable,
+            # without being inlined into the reason phrases above.
+            basis = {r: REASON_BASIS[r] for r in reasons if r in REASON_BASIS}
+            if basis:
+                finding["basis"] = basis
+            findings.append(finding)
         else:
             verified_candidates.append(c)
             findings.append(
@@ -366,6 +407,9 @@ def compute_evidence_status(
                     "condition": "NEEDS_MANUAL_REVIEW",
                     "document_id": doc.document_id,
                     "document_type": doc.document_type,
+                    # Carried as its own key so a UI can name the file without
+                    # having to parse it back out of `detail`.
+                    "original_filename": doc.original_filename,
                     "matched_keyword": keyword,
                     "detail": f"Unreadable {doc.document_type} document "
                     f"'{doc.original_filename}' may be relevant to this question "
@@ -420,6 +464,91 @@ def _find_relevant_unreadable(
     return None
 
 
+def summarize_points(status: str, findings: list[dict]) -> list[str]:
+    """Short, action-oriented bullets explaining one `evidence_status`.
+
+    The companion to `_summarize()`. That one produces `status_reason`, a prose
+    sentence for the audit trail; this one produces the handful of phrases a
+    reviewer actually needs to read. Neither decides the status — both only
+    describe findings the engine already produced.
+
+    Pure and stateless, taking the findings list rather than an
+    `EvidenceStatusResult`, so it works equally on a freshly computed result and
+    on a persisted `answers.status_findings_json`. That is what lets the API
+    expose these without a new column.
+    """
+    points: list[str] = []
+
+    def add(point: str) -> None:
+        if point and point not in points:
+            points.append(point)
+
+    by_condition = lambda name: [f for f in findings if f.get("condition") == name]  # noqa: E731
+
+    if status == "NOT_APPLICABLE":
+        finding = next(iter(by_condition("NOT_APPLICABLE")), None)
+        reviewer = (finding or {}).get("reviewer_name")
+        add(
+            f"Marked not applicable by {reviewer}"
+            if reviewer
+            else "Marked not applicable by a human reviewer"
+        )
+    elif status == "CONFLICTING":
+        conflicting = by_condition("CONFLICTING")
+        values = [f.get("value") for f in conflicting if f.get("value")]
+        unique = list(dict.fromkeys(str(v) for v in values))
+        if len(unique) > 1:
+            add(f"sources disagree: {' vs '.join(unique)}")
+        add("two or more records report different values for the same scope and period")
+        add("a human has to decide which source is right — this is never resolved automatically")
+    elif status == "OUTDATED":
+        add("evidence falls outside the required reporting period, or is more than 24 months old")
+    elif status == "MISSING":
+        add("no readable evidence is linked to this question")
+    elif status == "NEEDS_MANUAL_REVIEW":
+        finding = next(iter(by_condition("NEEDS_MANUAL_REVIEW")), None)
+        filename = (finding or {}).get("original_filename")
+        add(
+            f"'{filename}' could not be read and may be relevant"
+            if filename
+            else "a document that could not be read may be relevant"
+        )
+        add("open the document and either re-upload a readable copy or link the evidence by hand")
+    elif status == "PARTIAL":
+        for finding in by_condition("PARTIAL"):
+            for reason in finding.get("reasons", []):
+                add(reason)
+    # VERIFIED needs no caveat; the status already says it.
+
+    # Applies under any status: a record the engine had to set aside is
+    # something the reviewer should know about.
+    excluded = by_condition("EXCLUDED_UNREADABLE")
+    if excluded:
+        add(
+            f"{len(excluded)} evidence record(s) were set aside because their text "
+            "could not be read"
+        )
+
+    return points
+
+
+def _collapse_identical(details: list[str]) -> list[tuple[str, int]]:
+    """Group byte-identical detail strings, keeping first-seen order.
+
+    Only exact equality collapses. Two findings whose wording differs at all
+    are kept separately, because a difference in wording here means a
+    difference in the underlying reasons list — never a rephrasing.
+
+    Returns `(detail, occurrences)` pairs so the summary can say how many
+    evidence records a finding applies to instead of silently dropping the
+    duplicates.
+    """
+    counts: dict[str, int] = {}
+    for detail in details:
+        counts[detail] = counts.get(detail, 0) + 1
+    return list(counts.items())  # dict preserves insertion order (3.7+)
+
+
 def _summarize(status: str, findings: list[dict]) -> str:
     if status == "CONFLICTING":
         n = sum(1 for f in findings if f["condition"] == "CONFLICTING")
@@ -436,8 +565,25 @@ def _summarize(status: str, findings: list[dict]) -> str:
     if status == "VERIFIED":
         return "At least one accepted evidence record satisfies all Main Spec §6.2 VERIFIED conditions."
     if status == "PARTIAL":
-        detail_reasons = [f["detail"] for f in findings if f["condition"] == "PARTIAL"]
-        return "Evidence exists but coverage is incomplete. " + " ".join(detail_reasons)
+        # One PARTIAL finding is produced per readable candidate, and candidates
+        # overwhelmingly fail VERIFIED for the same reason (nothing has been
+        # human-accepted yet). Joining them verbatim therefore repeated one
+        # identical sentence once per evidence link — 9 times, 2,327 characters,
+        # for a question with 9 candidates. Collapse exact duplicates and state
+        # the multiplicity instead. `status_findings` still carries one entry
+        # per link with its own link_id, so SPEC-AMD-005 step 3 ("lower-priority
+        # findings are never discarded") is unaffected: nothing is dropped from
+        # the structured record, only from the prose summary.
+        collapsed = _collapse_identical(
+            [f["detail"] for f in findings if f["condition"] == "PARTIAL"]
+        )
+        sentences = [
+            detail
+            if occurrences == 1
+            else f"{detail.rstrip('.')} (same finding on {occurrences} evidence records)."
+            for detail, occurrences in collapsed
+        ]
+        return "Evidence exists but coverage is incomplete. " + " ".join(sentences)
     if status == "NEEDS_MANUAL_REVIEW":
         finding = next(f for f in findings if f["condition"] == "NEEDS_MANUAL_REVIEW")
         return finding["detail"]

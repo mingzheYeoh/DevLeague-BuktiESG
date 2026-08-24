@@ -16,11 +16,16 @@ from __future__ import annotations
 from datetime import date
 
 from app.services.rules import (
+    REASON_BASIS,
+    REASON_CLAIM_UNCLEAR,
+    REASON_NO_LOCATION,
+    REASON_NOT_ACCEPTED,
     EvidenceCandidate,
     EvidenceRequirement,
     UnreadableDocument,
     compute_evidence_status,
     normalize_tokens,
+    summarize_points,
 )
 
 
@@ -49,7 +54,11 @@ def test_partial_when_coverage_exists_but_is_incomplete():
     assert result.status == "PARTIAL"
     partial_findings = [f for f in result.status_findings if f["condition"] == "PARTIAL"]
     assert partial_findings
-    assert any("human-accepted" in r for r in partial_findings[0]["reasons"])
+    assert REASON_NOT_ACCEPTED in partial_findings[0]["reasons"]
+    # The reason phrase stays short and actionable; the clause it rests on is
+    # carried alongside it rather than inlined into it.
+    assert "Main Spec §17 Gate P4" not in REASON_NOT_ACCEPTED
+    assert "Main Spec §17 Gate P4" in partial_findings[0]["basis"][REASON_NOT_ACCEPTED]
 
 
 def test_verified_requires_all_seven_conditions_and_human_acceptance():
@@ -377,3 +386,270 @@ def test_c15_normalize_tokens_is_case_and_punctuation_insensitive():
     assert normalize_tokens("Anti-Bribery, Policy!") == frozenset({"anti", "bribery", "policy"})
     assert normalize_tokens(None) == frozenset()
     assert normalize_tokens("") == frozenset()
+
+
+# --------------------------------------------------------------------------- #
+# status_reason must not repeat a byte-identical finding once per evidence link
+# --------------------------------------------------------------------------- #
+
+
+def _unaccepted_candidate(link_id: str, claim: str = "Keyword overlap: electricity") -> EvidenceCandidate:
+    """A plain CANDIDATE link: readable, has a claim and a location, but has
+    not been human-accepted — so it lands on PARTIAL for that one reason."""
+    return EvidenceCandidate(
+        link_id=link_id,
+        link_status="CANDIDATE",
+        claim_supported=claim,
+        source_location='{"type": "paragraph", "paragraph_index": 1}',
+    )
+
+
+def test_status_reason_states_an_identical_finding_once_not_once_per_link():
+    """Regression: every uploaded document adds a candidate link, and each one
+    produced its own PARTIAL finding with the same wording. The summary joined
+    them verbatim, so one sentence appeared nine times for a question with nine
+    candidates (2,327 characters observed against the sample data set).
+    """
+    candidates = [_unaccepted_candidate(f"link-{i}") for i in range(9)]
+
+    result = compute_evidence_status(candidates=candidates, reference_date=REFERENCE_DATE)
+
+    assert result.status == "PARTIAL"
+    marker = "Coverage exists but is incomplete:"
+    assert result.status_reason.count(marker) == 1, result.status_reason
+    # The multiplicity is stated rather than silently dropped.
+    assert "same finding on 9 evidence records" in result.status_reason
+    # Nothing is lost from the structured record: SPEC-AMD-005 step 3 requires
+    # every detected condition to be preserved, one per link.
+    partial = [f for f in result.status_findings if f["condition"] == "PARTIAL"]
+    assert len(partial) == 9
+    assert {f["link_id"] for f in partial} == {f"link-{i}" for i in range(9)}
+
+
+def test_status_reason_keeps_every_distinct_finding():
+    """Only byte-identical wording collapses. Candidates failing for different
+    reasons must each keep their own sentence."""
+    no_claim = EvidenceCandidate(
+        link_id="link-no-claim",
+        link_status="CANDIDATE",
+        claim_supported=None,  # adds "does not clearly support the claim"
+        source_location='{"type": "paragraph"}',
+    )
+    no_unit = EvidenceCandidate(
+        link_id="link-no-unit",
+        link_status="CANDIDATE",
+        claim_supported="Waste total per waste log.",
+        value="41",  # a value with no unit adds its own reason
+        unit=None,
+        source_location='{"type": "paragraph"}',
+    )
+    no_location = EvidenceCandidate(
+        link_id="link-no-location",
+        link_status="CANDIDATE",
+        claim_supported="Waste total per waste log.",
+        source_location=None,  # adds "source location is empty"
+    )
+
+    result = compute_evidence_status(
+        candidates=[no_claim, no_unit, no_location], reference_date=REFERENCE_DATE
+    )
+
+    assert result.status == "PARTIAL"
+    marker = "Coverage exists but is incomplete:"
+    # Three genuinely different findings -> three sentences, none merged.
+    assert result.status_reason.count(marker) == 3, result.status_reason
+    assert "does not clearly support the claim" in result.status_reason
+    assert "no explainable unit" in result.status_reason
+    assert "source location is empty" in result.status_reason
+    assert "same finding on" not in result.status_reason
+
+
+def test_status_reason_collapses_duplicates_while_keeping_distinct_ones():
+    """A mix: two identical findings plus one different one."""
+    duplicate_a = _unaccepted_candidate("link-dup-a")
+    duplicate_b = _unaccepted_candidate("link-dup-b")
+    distinct = EvidenceCandidate(
+        link_id="link-distinct",
+        link_status="CANDIDATE",
+        claim_supported=None,
+        source_location='{"type": "paragraph"}',
+    )
+
+    result = compute_evidence_status(
+        candidates=[duplicate_a, duplicate_b, distinct], reference_date=REFERENCE_DATE
+    )
+
+    marker = "Coverage exists but is incomplete:"
+    assert result.status_reason.count(marker) == 2, result.status_reason
+    assert "same finding on 2 evidence records" in result.status_reason
+    assert "does not clearly support the claim" in result.status_reason
+
+
+def test_normative_citations_are_preserved_on_the_finding():
+    """Citations moved out of the reason phrase and into `basis`. They must not
+    be lost in the move — the rule has to stay auditable.
+
+    Previously this asserted the citation appeared in `status_reason`. It no
+    longer does, by design: `status_reason` is now short enough to show a user,
+    and the clause lives on the finding instead. The thing being protected is
+    unchanged — the citation still exists and still reads intact, periods in
+    '§6.2' and all.
+    """
+    result = compute_evidence_status(
+        candidates=[_unaccepted_candidate("link-1")], reference_date=REFERENCE_DATE
+    )
+
+    finding = next(f for f in result.status_findings if f["condition"] == "PARTIAL")
+    basis = finding["basis"][REASON_NOT_ACCEPTED]
+    assert "Main Spec §17 Gate P4" in basis
+    assert basis.endswith("VERIFIED determination.")
+
+    # Every phrase that has a citation keeps it, and none of them smuggle the
+    # citation back into the user-facing text.
+    for reason, clause in REASON_BASIS.items():
+        assert clause.strip()
+        assert "§" not in reason
+
+    # A single occurrence keeps its original wording, with no count suffix.
+    assert "same finding on" not in result.status_reason
+
+
+def test_status_reason_is_short_enough_to_show_a_person():
+    """The regression this whole area exists for: one candidate used to yield a
+    240-character sentence, nine yielded 2,327."""
+    one = compute_evidence_status(
+        candidates=[_unaccepted_candidate("link-1")], reference_date=REFERENCE_DATE
+    )
+    nine = compute_evidence_status(
+        candidates=[_unaccepted_candidate(f"link-{i}") for i in range(9)],
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert len(one.status_reason) < 200, one.status_reason
+    assert len(nine.status_reason) < 260, nine.status_reason
+
+
+def test_summarize_points_gives_short_actionable_bullets():
+    """`summarize_points` is what a UI renders instead of the prose sentence."""
+    result = compute_evidence_status(
+        candidates=[_unaccepted_candidate("link-1")], reference_date=REFERENCE_DATE
+    )
+
+    points = summarize_points(result.status, result.status_findings)
+
+    assert points == [REASON_NOT_ACCEPTED]
+    # Short enough for a bullet, and free of clause references.
+    for point in points:
+        assert len(point) < 90
+        assert "§" not in point
+
+
+def test_summarize_points_deduplicates_across_candidates():
+    """Nine candidates failing for the same reason is one bullet, not nine."""
+    result = compute_evidence_status(
+        candidates=[_unaccepted_candidate(f"link-{i}") for i in range(9)],
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert summarize_points(result.status, result.status_findings) == [REASON_NOT_ACCEPTED]
+
+
+def test_summarize_points_keeps_every_distinct_reason():
+    no_claim = EvidenceCandidate(
+        link_id="link-no-claim",
+        link_status="CANDIDATE",
+        claim_supported=None,
+        source_location='{"type": "paragraph"}',
+    )
+    no_location = EvidenceCandidate(
+        link_id="link-no-location",
+        link_status="CANDIDATE",
+        claim_supported="Waste total per waste log.",
+        source_location=None,
+    )
+
+    result = compute_evidence_status(
+        candidates=[no_claim, no_location], reference_date=REFERENCE_DATE
+    )
+    points = summarize_points(result.status, result.status_findings)
+
+    assert REASON_CLAIM_UNCLEAR in points
+    assert REASON_NO_LOCATION in points
+    assert REASON_NOT_ACCEPTED in points
+
+
+def test_summarize_points_covers_every_status():
+    """Each status a reviewer can land on must produce at least one bullet,
+    except VERIFIED, which needs no caveat."""
+    missing = compute_evidence_status(candidates=[], reference_date=REFERENCE_DATE)
+    assert summarize_points(missing.status, missing.status_findings) == [
+        "no readable evidence is linked to this question"
+    ]
+
+    verified = compute_evidence_status(
+        candidates=[
+            EvidenceCandidate(
+                link_id="link-ok",
+                link_status="ACCEPTED",
+                claim_supported="Confirmed by the reviewer.",
+                source_location='{"type": "paragraph"}',
+            )
+        ],
+        reference_date=REFERENCE_DATE,
+    )
+    assert verified.status == "VERIFIED"
+    assert summarize_points(verified.status, verified.status_findings) == []
+
+    not_applicable = compute_evidence_status(
+        current_status="NOT_APPLICABLE",
+        not_applicable_reason="No company vehicles.",
+        reviewer_name="Nur Aina",
+        reference_date=REFERENCE_DATE,
+    )
+    assert summarize_points(not_applicable.status, not_applicable.status_findings) == [
+        "Marked not applicable by Nur Aina"
+    ]
+
+
+def test_summarize_points_works_on_persisted_findings():
+    """The API derives bullets from `answers.status_findings_json`, so the
+    helper has to survive a JSON round trip — no dataclasses, no tuples."""
+    import json
+
+    result = compute_evidence_status(
+        candidates=[_unaccepted_candidate("link-1")], reference_date=REFERENCE_DATE
+    )
+    round_tripped = json.loads(json.dumps(result.status_findings))
+
+    assert summarize_points(result.status, round_tripped) == summarize_points(
+        result.status, result.status_findings
+    )
+
+
+def test_summarize_points_reports_set_aside_records():
+    readable = _unaccepted_candidate("link-readable")
+    garbled = EvidenceCandidate(
+        link_id="link-garbled",
+        link_status="CANDIDATE",
+        extraction_valid=False,
+        claim_supported="???",
+    )
+
+    result = compute_evidence_status(
+        candidates=[readable, garbled], reference_date=REFERENCE_DATE
+    )
+    points = summarize_points(result.status, result.status_findings)
+
+    assert any("set aside" in p for p in points), points
+
+
+def test_single_finding_reason_is_unchanged_in_wording():
+    """One candidate must produce exactly the pre-existing sentence, so the
+    fix is a no-op for the common single-evidence case."""
+    result = compute_evidence_status(
+        candidates=[_unaccepted_candidate("link-1")], reference_date=REFERENCE_DATE
+    )
+    partial = next(f for f in result.status_findings if f["condition"] == "PARTIAL")
+    assert result.status_reason == (
+        "Evidence exists but coverage is incomplete. " + partial["detail"]
+    )

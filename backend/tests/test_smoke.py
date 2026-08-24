@@ -284,3 +284,172 @@ def test_evidence_document_with_no_keyword_overlap_leaves_questions_missing(clie
     assert len(questions) == 1
     assert questions[0]["evidence_status"] == "MISSING"
     assert questions[0]["evidence_location"] is None
+
+
+def test_questions_expose_short_status_points_alongside_the_prose_reason(client):
+    """`status_points` is what the UI renders instead of `status_reason`.
+
+    Both are returned: the bullets for a reviewer, the sentence for the audit
+    trail. The bullets must be short and must not carry clause references,
+    because the whole point is that a person can read them at a glance.
+    """
+    case_id = client.post("/api/v1/cases", json={"title": "Status points"}).json()["id"]
+
+    xlsx = _build_questionnaire_xlsx(
+        [
+            {
+                "question_text": "Report annual electricity consumption.",
+                "external_question_id": "Q-E-01",
+                "section": "Environment",
+            },
+            {
+                "question_text": "Describe your anti-bribery policy.",
+                "external_question_id": "Q-G-01",
+                "section": "Governance",
+            },
+        ]
+    )
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={
+            "file": (
+                "questionnaire.xlsx",
+                xlsx,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+        data={"document_type": "QUESTIONNAIRE"},
+    )
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={
+            "file": (
+                "utility-bill.txt",
+                b"Total electricity consumption: 12,840 kWh in January 2025.\n",
+                "text/plain",
+            )
+        },
+        data={"document_type": "UTILITY_BILL"},
+    )
+
+    questions = client.get(f"/api/v1/cases/{case_id}/questions").json()
+    assert questions
+
+    matched = [q for q in questions if q["evidence_status"] == "PARTIAL"]
+    assert matched, [q["evidence_status"] for q in questions]
+
+    for q in matched:
+        points = q["status_points"]
+        assert points, q
+        for point in points:
+            assert len(point) < 90, point
+            assert "§" not in point, point
+            assert "Main Spec" not in point, point
+        # The prose sentence is still there for anyone who wants it.
+        assert q["status_reason"]
+
+    unmatched = [q for q in questions if q["evidence_status"] == "MISSING"]
+    for q in unmatched:
+        assert q["status_points"] == ["no readable evidence is linked to this question"]
+
+
+def test_evidence_citation_names_its_document_and_admits_how_many_candidates(client):
+    """A location without a filename is not a citation.
+
+    `evidence_location` said "Paragraph 8" with no way to learn paragraph 8 of
+    *which* file, and nothing revealed that the same question had other
+    candidates. Two uploads that both match produce two links, and only one is
+    described by the evidence_* fields -- so the count has to be visible or the
+    UI silently implies the shown excerpt is the only evidence.
+    """
+    case_id = client.post("/api/v1/cases", json={"title": "Citation"}).json()["id"]
+
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={
+            "file": (
+                "questionnaire.xlsx",
+                _build_questionnaire_xlsx(
+                    [
+                        {
+                            "question_text": "Report total annual electricity consumption in kWh.",
+                            "external_question_id": "Q-E-01",
+                            "section": "Environment",
+                        }
+                    ]
+                ),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+        data={"document_type": "QUESTIONNAIRE"},
+    )
+
+    # Strong match first, then a weak one that only shares the word "total".
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={
+            "file": (
+                "electricity-bill.txt",
+                b"Total electricity consumption: 12,840 kWh for January 2025.\n",
+                "text/plain",
+            )
+        },
+        data={"document_type": "UTILITY_BILL"},
+    )
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={
+            "file": (
+                "safety-register.txt",
+                b"Total days lost to work-related injury: 11.\n",
+                "text/plain",
+            )
+        },
+        data={"document_type": "SAFETY_RECORD"},
+    )
+
+    question = client.get(f"/api/v1/cases/{case_id}/questions").json()[0]
+
+    # The citation names its source file.
+    assert question["evidence_document_name"] in {"electricity-bill.txt", "safety-register.txt"}
+    assert question["evidence_document_id"]
+
+    # And it admits it is one of several.
+    assert question["evidence_candidate_count"] == 2
+
+    # The excerpt and the named document agree with each other -- whichever
+    # link is chosen, the filename describes the excerpt actually shown.
+    if question["evidence_document_name"] == "safety-register.txt":
+        assert "days lost" in question["evidence_excerpt"]
+    else:
+        assert "electricity" in question["evidence_excerpt"].lower()
+
+
+def test_a_question_with_no_evidence_reports_zero_candidates(client):
+    case_id = client.post("/api/v1/cases", json={"title": "No evidence"}).json()["id"]
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={
+            "file": (
+                "questionnaire.xlsx",
+                _build_questionnaire_xlsx(
+                    [
+                        {
+                            "question_text": "Describe biodiversity impact assessments undertaken.",
+                            "external_question_id": "Q-E-09",
+                            "section": "Environment",
+                        }
+                    ]
+                ),
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        },
+        data={"document_type": "QUESTIONNAIRE"},
+    )
+
+    question = client.get(f"/api/v1/cases/{case_id}/questions").json()[0]
+
+    assert question["evidence_candidate_count"] == 0
+    assert question["evidence_document_name"] is None
+    assert question["evidence_document_id"] is None
+    assert question["evidence_location"] is None

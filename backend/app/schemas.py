@@ -14,6 +14,10 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# Safe direction: app.services.rules imports only the standard library, so it
+# never imports back into this module.
+from app.services.rules import summarize_points
+
 
 class ErrorDetail(BaseModel):
     code: str
@@ -54,6 +58,11 @@ class CaseSummary(BaseModel):
     deadline_at: datetime | None
     status: str
     updated_at: datetime
+    # Null on every Case that is not archived. `status_before_archive` is what
+    # the client needs to name the restore target ("Restore to In review")
+    # instead of offering an unlabelled undo.
+    archived_at: datetime | None = None
+    status_before_archive: str | None = None
 
     @classmethod
     def from_model(cls, case) -> "CaseSummary":
@@ -64,6 +73,8 @@ class CaseSummary(BaseModel):
             deadline_at=case.deadline_at,
             status=case.status,
             updated_at=case.updated_at,
+            archived_at=case.archived_at,
+            status_before_archive=case.status_before_archive,
         )
 
 
@@ -119,6 +130,51 @@ class DocumentRecord(BaseModel):
         )
 
 
+class DocumentChunkRecord(BaseModel):
+    """One parsed fragment of a stored document.
+
+    Every supported format is chunked on upload, so this is the one view of a
+    document that works regardless of type: a PDF page, a DOCX heading section,
+    a spreadsheet row, or a line of plain text. It is also the text the evidence
+    matcher actually saw, which makes it the right thing to show someone
+    checking whether a citation holds up — the original rendering may look
+    different from what was extracted.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    sequence_no: int
+    text: str
+    page_number: int | None = None
+    sheet_name: str | None = None
+    cell_range: str | None = None
+    heading_path: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_model(cls, chunk) -> "DocumentChunkRecord":
+        import json
+
+        heading_path: list[str] = []
+        if chunk.heading_path:
+            try:
+                parsed = json.loads(chunk.heading_path)
+                if isinstance(parsed, list):
+                    heading_path = [str(p) for p in parsed]
+            except (ValueError, TypeError):
+                heading_path = []
+
+        return cls(
+            id=chunk.id,
+            sequence_no=chunk.sequence_no,
+            text=chunk.text,
+            page_number=chunk.page_number,
+            sheet_name=chunk.sheet_name,
+            cell_range=chunk.cell_range,
+            heading_path=heading_path,
+        )
+
+
 class SourceLocation(BaseModel):
     """One of the Contract §4 location shapes. Kept loose (extra fields
     allowed per type) rather than a discriminated union, since this slice
@@ -146,6 +202,19 @@ class QuestionListItem(BaseModel):
     owner_name: str | None = None
     source_location: SourceLocation | None = None
     status_reason: str | None = None
+    # Additive, read-only. The same findings `status_reason` summarises, but as
+    # short separate phrases instead of one prose sentence -- e.g.
+    # ["evidence has not been accepted by a human reviewer"].
+    #
+    # Exists because `status_reason` is an audit sentence, and a client that
+    # only has the sentence can do nothing but print all of it. Deriving these
+    # in the browser would mean parsing prose, so the rule engine derives them
+    # instead (app/services/rules.py::summarize_points) from the persisted
+    # status_findings_json -- no new column, no migration.
+    #
+    # Not a verdict and not a status: purely a restatement of findings the
+    # engine already computed (AGENTS.md §3.2).
+    status_points: list[str] = Field(default_factory=list)
     # Additive, slice-scope field: the SERVER-resolved location of the most
     # recent evidence_links candidate for this question, resolved from
     # persisted document_chunks (never a location the AI pipeline supplied —
@@ -166,6 +235,19 @@ class QuestionListItem(BaseModel):
     # until a human reviews it.
     evidence_excerpt: str | None = None
     evidence_claim_supported: str | None = None
+    # Additive, read-only. Which document the excerpt above came out of.
+    #
+    # A location without a filename is not a citation. "Paragraph 8" is
+    # unusable on its own -- paragraph 8 of which file? These two fields close
+    # that gap; nothing about how the link is chosen changes here.
+    evidence_document_id: str | None = None
+    evidence_document_name: str | None = None
+    # How many *live* candidate links this question has -- REJECTED and
+    # INVALIDATED ones are excluded, matching what the rule engine counts. The
+    # fields above describe exactly one of them, so a UI that omits this count
+    # implies the shown excerpt is the only evidence -- which is routinely
+    # false: a question can accumulate one candidate per uploaded document.
+    evidence_candidate_count: int = 0
 
     @classmethod
     def from_model(cls, question) -> "QuestionListItem":
@@ -182,9 +264,36 @@ class QuestionListItem(BaseModel):
         evidence_loc = None
         evidence_excerpt = None
         evidence_claim_supported = None
-        links = list(question.evidence_links or [])
+        evidence_document_id = None
+        evidence_document_name = None
+        # Only links the rule engine still counts. `rules.py` drops REJECTED
+        # and INVALIDATED before it computes anything, so including them here
+        # makes the screen contradict the engine that produced the status next
+        # to it: invalidate eight of nine bad matches and the detail view still
+        # reads "showing 1 of 9 possible matches". It also decides which link
+        # is shown -- surfacing the excerpt from a link a reviewer has already
+        # thrown out is the same error, one step earlier.
+        links = [
+            link
+            for link in (question.evidence_links or [])
+            if link.link_status not in ("REJECTED", "INVALIDATED")
+        ]
         if links:
-            latest_link = max(links, key=lambda link: link.created_at)
+            # Rank by how well the matcher scored the link, not by when it was
+            # created. `max(..., key=created_at)` meant "the most recently
+            # uploaded document", so which citation a reviewer saw depended on
+            # upload order — with the sample evidence set every question
+            # displayed the same superseded handbook because it went in last.
+            # created_at stays as the tie-break so the choice is still
+            # deterministic, and a link with no score (written before migration
+            # 0006) sorts below any scored one rather than winning by accident.
+            latest_link = max(
+                links,
+                key=lambda link: (
+                    link.match_score if link.match_score is not None else -1.0,
+                    link.created_at,
+                ),
+            )
             try:
                 evidence_loc = SourceLocation.model_validate(
                     json.loads(latest_link.location_json)
@@ -193,6 +302,24 @@ class QuestionListItem(BaseModel):
                 evidence_loc = None
             evidence_excerpt = latest_link.quoted_excerpt
             evidence_claim_supported = latest_link.claim_supported
+            evidence_document_id = latest_link.document_id
+            # The relationship is declared on the model; guarded anyway so a
+            # link whose document row is gone degrades to no name rather than
+            # raising inside a response serialiser.
+            document = getattr(latest_link, "document", None)
+            evidence_document_name = getattr(document, "original_filename", None)
+
+        # Short bullets, derived from the findings the engine already persisted.
+        # A malformed or absent status_findings_json degrades to no bullets --
+        # status_reason is still there, so nothing is hidden by the fallback.
+        status_points: list[str] = []
+        if answer is not None and answer.status_findings_json:
+            try:
+                findings = json.loads(answer.status_findings_json)
+            except (ValueError, TypeError):
+                findings = None
+            if isinstance(findings, list):
+                status_points = summarize_points(answer.evidence_status, findings)
 
         return cls(
             id=question.id,
@@ -208,7 +335,11 @@ class QuestionListItem(BaseModel):
             owner_name=None,
             source_location=loc,
             status_reason=answer.status_reason if answer else None,
+            status_points=status_points,
             evidence_location=evidence_loc,
+            evidence_document_id=evidence_document_id,
+            evidence_document_name=evidence_document_name,
+            evidence_candidate_count=len(links),
             mapping_rationale=question.mapping_rationale,
             evidence_excerpt=evidence_excerpt,
             evidence_claim_supported=evidence_claim_supported,

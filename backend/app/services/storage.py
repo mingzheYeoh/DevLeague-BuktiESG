@@ -10,6 +10,7 @@ function, not a schema change (documents.storage_key is adapter-opaque).
 from __future__ import annotations
 
 import hashlib
+import shutil
 from pathlib import Path
 
 STORAGE_ROOT = Path(__file__).resolve().parents[2] / "var" / "storage"
@@ -31,5 +32,54 @@ def save(storage_key: str, data: bytes) -> None:
 
 
 def load(storage_key: str) -> bytes:
-    path = STORAGE_ROOT / storage_key
-    return path.read_bytes()
+    return resolve(storage_key).read_bytes()
+
+
+class StorageKeyOutsideRoot(ValueError):
+    """A storage_key resolved outside STORAGE_ROOT.
+
+    Should be impossible: keys are built by `storage_key_for()` from a case id
+    and a checksum, and `Path.suffix` cannot contain a path separator. Raised
+    rather than trusted because the value round-trips through the database, and
+    the endpoint that serves file bytes must not be one traversal bug away from
+    reading arbitrary files.
+    """
+
+
+def resolve(storage_key: str) -> Path:
+    """Resolve a storage_key to a real path, refusing anything that escapes
+    STORAGE_ROOT. Callers serving bytes to a client must use this, not
+    `STORAGE_ROOT / key`."""
+    root = STORAGE_ROOT.resolve()
+    path = (root / storage_key).resolve()
+    if path != root and root not in path.parents:
+        raise StorageKeyOutsideRoot(storage_key)
+    return path
+
+
+def exists(storage_key: str) -> bool:
+    try:
+        return resolve(storage_key).is_file()
+    except StorageKeyOutsideRoot:
+        return False
+
+
+def delete_case_tree(case_id: str) -> None:
+    """Remove every stored file belonging to one Case.
+
+    Keys are ``<case_id>/<sha256><suffix>`` (see `storage_key_for`), so a
+    Case's blobs are exactly one directory. Deleting the Case row cascades
+    through the ORM to its `documents`, but nothing in the database owns the
+    bytes on disk — without this, a deleted Case leaves its uploads behind.
+
+    `case_id` arrives from a URL path, so it goes through the same escape check
+    as `resolve()`: this function calls `shutil.rmtree`, and that is not a
+    traversal bug worth risking. A Case that never had an upload has no
+    directory, which is not an error.
+    """
+    root = STORAGE_ROOT.resolve()
+    path = (root / case_id).resolve()
+    if path == root or root not in path.parents:
+        raise StorageKeyOutsideRoot(case_id)
+    if path.is_dir():
+        shutil.rmtree(path)
