@@ -1,0 +1,39 @@
+# The database this project actually targets. PostgreSQL 16 per the decision
+# register (§4 item 003, readable at `git show bfd45ad:docs/decisions/decision-register.md`).
+#
+# The volume is declared with an explicit `name:` so Compose adopts the
+# existing `buktiesg-postgres-data` rather than creating a project-prefixed
+# one. The container is disposable; the volume is the data.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: buktiesg-postgres
+    environment:
+      POSTGRES_USER: buktiesg
+      POSTGRES_PASSWORD: buktiesg_dev
+      POSTGRES_DB: buktiesg
+    ports:
+      # Bound to the loopback interface deliberately. This slice has no
+      # authentication anywhere in it (README, "Data Restriction"), and the
+      # database password below is a local development credential, not a
+      # secret. Publishing on 0.0.0.0 would put an unauthenticated stack on
+      # the local network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `alembic upgrade head` fails confusingly if it connects while the
+      # server is still initialising, so make readiness explicit.
+      test: ["CMD-SHELL", "pg_isready -U buktiesg -d buktiesg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    # An explicit name, not `external: true` - Compose adopts this volume if
+    # it already exists and creates it on a machine that has never run the
+    # project, so a fresh clone works without a manual `docker volume create`.
+    name: buktiesg-postgres-data

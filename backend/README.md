@@ -25,31 +25,50 @@ cd backend
 uv sync
 ```
 
-## Configuration
+## Database
 
-Set `DATABASE_URL` (e.g. `postgresql+psycopg://user:pass@localhost:5432/buktiesg`).
-If unset, the app defaults to a local SQLite file for ad-hoc manual runs only —
-**never use SQLite for real persistence**; it exists so the app can boot without a
-live Postgres instance during development. Tests use an isolated in-memory SQLite
-database (see `tests/conftest.py`), never the dev database.
+PostgreSQL 16, from the repository root:
 
-### Local SQLite schema
+```bash
+docker compose up -d          # postgres:16 on 127.0.0.1:5432
+cd backend
+cp .env.example .env          # DATABASE_URL, already pointing at that container
+uv run alembic upgrade head
+```
 
-The Alembic migrations are written for PostgreSQL and **cannot run on SQLite** —
-`0002_evidence_status_engine.py` adds CHECK constraints via `ALTER`, which the
-SQLite dialect rejects. So `alembic upgrade head` against the SQLite fallback
-fails, and without a schema every request dies with `no such table: cases`.
+`.env.example` uses `127.0.0.1` rather than `localhost` on purpose: Compose binds
+the port to the IPv4 loopback only, and on Windows `localhost` resolves to `::1`
+first, so a `localhost` URL stalls until that attempt times out.
 
-For the SQLite fallback, build the schema from the models instead:
+The data lives in the named volume `buktiesg-postgres-data`, not in the
+container, so `docker compose down` and a rebuild lose nothing. `docker compose
+down -v` does delete it.
+
+### The SQLite fallback
+
+With `DATABASE_URL` unset, `app/config.py` falls back to a local SQLite file so
+the app can boot without a live database. That is for emergencies. **It is not a
+supported way to run this application**, and the difference is not cosmetic:
+
+- SQLite does not enforce foreign keys unless `PRAGMA foreign_keys=ON` is set per
+  connection. A cascade-ordering bug that Postgres rejects outright can pass
+  unnoticed on SQLite — one did, and `tests/test_schema_integrity.py` exists
+  because of it.
+- `claim_next_job` has no row-level locking on SQLite (`app/services/jobs.py`
+  documents exactly how it degrades). Never run more than one worker against it.
+- The Alembic migrations are written for PostgreSQL and **cannot run on SQLite** —
+  `0002_evidence_status_engine.py` adds CHECK constraints via `ALTER`, which the
+  SQLite dialect rejects. Its schema comes from `scripts/init_dev_db.py`
+  (`create_all`) instead, which stamps no Alembic revision:
 
 ```bash
 uv run python scripts/init_dev_db.py              # create missing tables
 uv run python scripts/init_dev_db.py --recreate   # rebuild; drops local dev data
 ```
 
-It stamps no Alembic revision and refuses to run against anything but SQLite. It
-also reports schema drift, which is what a dev database created before a model
-change looks like (`create_all` never alters an existing table).
+The test suite is the one place SQLite is used deliberately: `tests/conftest.py`
+builds an isolated in-memory database per test, with `PRAGMA foreign_keys=ON`, so
+the suite runs on a fresh clone without Docker. It never touches a dev database.
 
 ## Run
 
