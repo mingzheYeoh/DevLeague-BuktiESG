@@ -175,17 +175,22 @@ export function QuestionsScreen({
         </button>
       </div>
 
-      <div className="table-card">
+      {/* `questions-table` scopes this screen's column widths and the Reason
+          clamp. The other three tables in the app share `.table-card` and must
+          not inherit any of it. */}
+      <div className="table-card questions-table">
         <table>
           <thead>
             <tr>
-              <th>Question</th>
-              <th>Topic</th>
-              <th>Evidence</th>
-              <th>Review</th>
-              <th>Reason</th>
-              <th>Priority</th>
-              <th />
+              <th className="col-question">Question</th>
+              <th className="col-topic">Topic</th>
+              <th className="col-evidence">Evidence</th>
+              <th className="col-review">Review</th>
+              <th className="col-reason">Reason</th>
+              <th className="col-priority">Priority</th>
+              <th className="col-action">
+                <span className="sr-only">Open question</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -208,12 +213,16 @@ export function QuestionsScreen({
                 <td>
                   <ReviewPill value={q.review_status} />
                 </td>
-                <td className="reason">
+                <td className="reason-cell">
                   {q.status_reason ? (
-                    <>
-                      <AlertTriangle />
-                      <span>{q.status_reason}</span>
-                    </>
+                    // The full reason stays in the DOM; `.reason-summary`
+                    // clamps it to two lines visually. Truncation is never
+                    // applied to the data, so the export and the detail screen
+                    // still carry the complete text.
+                    <div className="reason-content">
+                      <AlertTriangle aria-hidden="true" />
+                      <span className="reason-summary">{q.status_reason}</span>
+                    </div>
                   ) : (
                     <NotAvailable title="The server has not recorded a reason for this status" />
                   )}
@@ -225,8 +234,24 @@ export function QuestionsScreen({
                     <strong className="priority-score">{q.priority_score}</strong>
                   )}
                 </td>
-                <td>
-                  <ArrowRight />
+                <td className="col-action">
+                  {/* The row is clickable, but a click handler on <tr> is not
+                      reachable by keyboard. This button is the focusable route
+                      to the same destination. */}
+                  <button
+                    type="button"
+                    className="row-open-btn"
+                    aria-label={`View question ${
+                      q.external_question_id ?? q.id.slice(0, 8)
+                    }: ${q.question_text}`}
+                    title="View question"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onOpenQuestion(q.id)
+                    }}
+                  >
+                    <ArrowRight aria-hidden="true" />
+                  </button>
                 </td>
               </tr>
             ))}

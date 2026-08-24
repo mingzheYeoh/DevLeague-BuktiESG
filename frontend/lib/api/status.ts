@@ -111,6 +111,33 @@ export function isEvidenceGap(status: EvidenceStatus): boolean {
   return GAP_EVIDENCE_STATUSES.includes(status)
 }
 
+/**
+ * One plain sentence for an evidence status.
+ *
+ * `PARTIAL` tells a reviewer nothing on its own — it is the rule engine's word,
+ * not a person's. This is a fixed map from the enum, so it states the status in
+ * readable terms without inferring anything: the specifics come from
+ * `status_points`, which the server derives from the actual findings.
+ */
+const EVIDENCE_HEADLINES: Record<EvidenceStatus, string> = {
+  VERIFIED: 'Evidence checked and accepted',
+  PARTIAL: 'Evidence found, but not enough to rely on yet',
+  OUTDATED: 'Evidence is out of date',
+  CONFLICTING: 'Sources disagree with each other',
+  MISSING: 'No evidence for this question yet',
+  NOT_APPLICABLE: 'Does not apply to this company',
+  NEEDS_MANUAL_REVIEW: 'A document needs to be checked by hand',
+}
+
+export const evidenceHeadline = (s: EvidenceStatus): string =>
+  EVIDENCE_HEADLINES[s] ?? statusLabel(s)
+
+/** Whether the status is one a reviewer has to do something about. Drives the
+ * warning vs neutral treatment; never changes the status itself. */
+export function isActionableStatus(status: EvidenceStatus): boolean {
+  return status !== 'VERIFIED' && status !== 'NOT_APPLICABLE'
+}
+
 const PILLAR_LABELS: Record<Pillar, string> = {
   E: 'Environmental',
   S: 'Social',
@@ -138,6 +165,29 @@ export const documentTypeLabel = (t: DocumentType): string =>
 /** Processing statuses the retry endpoint accepts; anything else gets a 409. */
 export function isRetryable(status: DocumentProcessingStatus): boolean {
   return status === 'FAILED' || status === 'NEEDS_MANUAL_REVIEW'
+}
+
+/**
+ * `sourceLocationLabel` phrased for the format the document actually is.
+ *
+ * Plain text is chunked one fragment per line, so a `paragraph` location in a
+ * `.txt` or `.csv` file is a line number. Calling that "Paragraph 8" is
+ * technically the location type and useless to a reader — it reads as prose
+ * structure that the file does not have.
+ */
+export function locationLabelFor(
+  location: ({ type: string } & Record<string, unknown>) | null,
+  filename: string | null | undefined,
+): string {
+  if (!location) return 'No source location'
+
+  const isLineBased = Boolean(filename && /\.(txt|csv)$/i.test(filename))
+  if (isLineBased && location.type === 'paragraph') {
+    const index = location.paragraph_index
+    return typeof index === 'number' ? `Line ${index + 1}` : 'Line'
+  }
+
+  return sourceLocationLabel(location)
 }
 
 /**

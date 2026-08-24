@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" role="img" aria-label="BuktiESG">
+  <title>BuktiESG</title>
+  <!--
+    Icon-only version of the BuktiESG lockup: an evidence document with a folded
+    corner, a leaf, and a verification check.
+
+    Hand-authored from the supplied artwork rather than exported from it, so
+    treat it as a reconstruction: replace this one file with the official export
+    and every reference picks it up (sidebar brand, export letterhead, favicon,
+    apple-icon). Nothing else needs to change.
+
+    Brand colours are hard-coded on purpose. This is artwork, not themed UI, so
+    it must not drift with the design tokens.
+  -->
+
+  <!-- Folded corner. Drawn first so the document's own outline divides it
+       from the page. -->
+  <path fill="#2ba24e" d="M31 5h6a4 4 0 0 1 4 4v6z" />
+
+  <!-- The page: top edge stops short, then cuts away to the fold. -->
+  <path
+    fill="#ffffff"
+    stroke="#0c5c2d"
+    stroke-width="3.2"
+    stroke-linejoin="round"
+    d="M18 5h13l10 10v19a5 5 0 0 1-5 5H18a5 5 0 0 1-5-5V10a5 5 0 0 1 5-5z"
+  />
+
+  <!-- Lines of text on the page. -->
+  <g stroke="#16233a" stroke-width="2.8" stroke-linecap="round">
+    <path d="M19 13h11" />
+    <path d="M19 19h9" />
+    <path d="M19 25h6" />
+  </g>
+
+  <!-- Leaf, split along its vein into the two greens of the lockup. Sits over
+       the document's lower-left corner. -->
+  <path fill="#0d7a37" d="M4 27c5 4 11 10 15 15C10 42 4 36 4 27z" />
+  <path fill="#2ba24e" d="M4 27c9 0 15 6 15 15-4-5-10-11-15-15z" />
+
+  <!-- The check, reaching from the leaf up towards the folded corner. It stops
+       short of the fold: run it any further and the two greens merge into one
+       shape at the top right. -->
+  <path
+    fill="none"
+    stroke="#22a94a"
+    stroke-width="5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    d="M17 31l6 6 15-19"
+  />
+</svg>

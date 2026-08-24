@@ -14,7 +14,6 @@ import {
   Loader2,
   RefreshCw,
   Search,
-  ShieldCheck,
   X,
 } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -37,11 +36,20 @@ import type {
 } from '@/lib/api'
 import type { FileKind } from '@/lib/format'
 
+/**
+ * The product mark.
+ *
+ * One asset, `public/logo-mark.svg`, shared by the sidebar brand, the export
+ * letterhead and the favicon. Replacing that file is the whole update path.
+ *
+ * `alt=""` rather than a name: the sidebar renders "BuktiESG" as live text
+ * beside it, so a label here would be read out twice.
+ */
 export function Mark() {
   return (
-    <div className="mark" aria-hidden="true">
-      <ShieldCheck />
-    </div>
+    <span className="mark">
+      <img src="/logo-mark.svg" alt="" width={32} height={32} />
+    </span>
   )
 }
 

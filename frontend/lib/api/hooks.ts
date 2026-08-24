@@ -104,7 +104,44 @@ export function useCases() {
     [reload],
   )
 
-  return { cases, loading, error, reload, createCase }
+  /** Replace one row from the server's response. No optimistic write: archiving
+   * changes three fields at once (`status`, `archived_at`,
+   * `status_before_archive`) and the server is the only thing that knows what
+   * `status_before_archive` should be. */
+  const replace = useCallback((updated: CaseSummary) => {
+    setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+  }, [])
+
+  const archiveCase = useCallback(
+    async (caseId: string): Promise<CaseSummary> => {
+      const updated = await api.archiveCase(caseId)
+      replace(updated)
+      return updated
+    },
+    [replace],
+  )
+
+  const unarchiveCase = useCallback(
+    async (caseId: string): Promise<CaseSummary> => {
+      const updated = await api.unarchiveCase(caseId)
+      replace(updated)
+      return updated
+    },
+    [replace],
+  )
+
+  /** Drops the row locally on success. The reload that follows is what proves
+   * it: if the delete did not take, the row comes straight back. */
+  const deleteCase = useCallback(
+    async (caseId: string): Promise<void> => {
+      await api.deleteCase(caseId)
+      setCases((prev) => prev.filter((c) => c.id !== caseId))
+      void reload()
+    },
+    [reload],
+  )
+
+  return { cases, loading, error, reload, createCase, archiveCase, unarchiveCase, deleteCase }
 }
 
 // ---- One case's workspace ----------------------------------------------
@@ -298,7 +335,13 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
  * server; only the *selection* is local. */
 const SELECTED_CASE_KEY = 'buktiesg.selectedCaseId'
 
-export function useSelectedCaseId(cases: CaseSummary[]) {
+/**
+ * @param loaded whether `cases` reflects a successful load. Required, because
+ * an empty array is ambiguous on its own: it means both "not fetched yet" and
+ * "there really are no cases", and the stale-selection check below must fire
+ * for the second and not the first.
+ */
+export function useSelectedCaseId(cases: CaseSummary[], loaded: boolean) {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null)
   const restored = useRef(false)
 
@@ -316,10 +359,17 @@ export function useSelectedCaseId(cases: CaseSummary[]) {
   }, [selectedCaseId])
 
   // Drop a stale selection once the authoritative list has loaded.
+  //
+  // This used to bail on `cases.length === 0`, which was standing in for "not
+  // loaded yet". It also caught the case where the list is genuinely empty —
+  // so a selection left in localStorage for a case that no longer exists could
+  // never be cleared, and the workspace refetched and 404ed against it on
+  // every render. `loaded` says what was actually meant. A failed load leaves
+  // it false, so a network error does not throw away a valid selection.
   useEffect(() => {
-    if (!selectedCaseId || cases.length === 0) return
+    if (!loaded || !restored.current || !selectedCaseId) return
     if (!cases.some((c) => c.id === selectedCaseId)) setSelectedCaseId(null)
-  }, [cases, selectedCaseId])
+  }, [cases, loaded, selectedCaseId])
 
   return [selectedCaseId, setSelectedCaseId] as const
 }

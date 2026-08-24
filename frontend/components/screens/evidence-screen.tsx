@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   CircleHelp,
+  Eye,
   RefreshCw,
   Table2,
   UploadCloud,
@@ -34,6 +35,7 @@ import {
   PageTitle,
   SearchField,
 } from '../primitives'
+import { DocumentPreview } from '../document-preview'
 
 const ACCEPTED =
   '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp,application/pdf,text/csv,text/plain,image/*'
@@ -47,6 +49,7 @@ const ACCEPTED =
  * silently.
  */
 export function EvidenceScreen({
+  caseId,
   documents,
   loading,
   error,
@@ -54,10 +57,10 @@ export function EvidenceScreen({
   refresh,
   onUpload,
   onRetry,
-  sessionUrls,
   lastUpload,
   onDismissMapping,
 }: {
+  caseId: string
   documents: DocumentRecord[]
   loading: boolean
   error: unknown
@@ -65,9 +68,6 @@ export function EvidenceScreen({
   refresh: () => void
   onUpload: (file: File, documentType: DocumentType) => Promise<void>
   onRetry: (documentId: string) => Promise<void>
-  /** Object URLs for files uploaded in this browser session only. There is no
-   * document-download endpoint, so nothing else can be previewed. */
-  sessionUrls: Record<string, string>
   /** The most recent upload response, kept for its transient
    * `detected_columns` read-back. */
   lastUpload: DocumentRecord | null
@@ -75,12 +75,14 @@ export function EvidenceScreen({
 }) {
   const [documentType, setDocumentType] = useState<DocumentType>('OTHER')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [query, setQuery] = useState('')
   const [uploadError, setUploadError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   const selected = documents.find((d) => d.id === selectedId) ?? null
+  const previewDoc = documents.find((d) => d.id === previewId) ?? null
   const attention = documentsNeedingAttention(documents)
 
   const filtered = useMemo(() => {
@@ -271,12 +273,21 @@ export function EvidenceScreen({
       {selected && (
         <DocumentDrawer
           doc={selected}
-          localUrl={sessionUrls[selected.id]}
           busy={busy}
           onRetry={onRetry}
+          onPreview={() => setPreviewId(selected.id)}
           close={() => setSelectedId(null)}
         />
       )}
+
+      {previewDoc ? (
+        <DocumentPreview
+          caseId={caseId}
+          documentId={previewDoc.id}
+          documentName={previewDoc.original_filename}
+          onClose={() => setPreviewId(null)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -328,41 +339,36 @@ function ColumnMappingReadback({
 
 function DocumentDrawer({
   doc,
-  localUrl,
   busy,
   onRetry,
+  onPreview,
   close,
 }: {
   doc: DocumentRecord
-  localUrl?: string
   busy: boolean
   onRetry: (documentId: string) => Promise<void>
+  onPreview: () => void
   close: () => void
 }) {
   const [retryError, setRetryError] = useState<string | null>(null)
   const kind = getFileKind(doc.original_filename, doc.mime_type)
+  const parsed = doc.processing_status === 'PARSED' || doc.processing_status === 'INDEXED'
 
   return (
     <Drawer eyebrow="Stored document" title={doc.original_filename} close={close}>
-      {localUrl && kind === 'image' ? (
-        <div className="doc-preview image-preview">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={localUrl} alt={`Preview of ${doc.original_filename}`} />
-        </div>
-      ) : localUrl && kind === 'pdf' ? (
-        <div className="doc-preview pdf-frame">
-          <iframe src={localUrl} title={`Preview of ${doc.original_filename}`} />
-        </div>
-      ) : (
-        <div className="doc-preview">
-          <FileKindIcon kind={kind} />
-          <b>No preview</b>
-          <span>
-            The API stores documents but exposes no download endpoint, so the original cannot be
-            fetched back for display.
-          </span>
-        </div>
-      )}
+      <div className="doc-preview">
+        <FileKindIcon kind={kind} />
+        <b>{parsed ? 'Open this document' : 'Nothing was extracted'}</b>
+        <span>
+          {parsed
+            ? 'See the text the server extracted, with the original file alongside it.'
+            : 'Parsing produced no text, so there is nothing to match evidence against. The original file can still be downloaded.'}
+        </span>
+        <button className="primary" type="button" onClick={onPreview}>
+          <Eye />
+          Open preview
+        </button>
+      </div>
 
       <Key label="Type" value={documentTypeLabel(doc.document_type)} />
       <Key label="Processing" value={<DocumentPill value={doc.processing_status} />} />

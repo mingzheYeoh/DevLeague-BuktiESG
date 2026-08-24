@@ -9,7 +9,7 @@
  * screen with nothing to show says so instead of rendering something
  * plausible.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import type { CreateCaseRequest, DocumentRecord, DocumentType, QuestionListItem } from '@/lib/api'
 import {
@@ -45,12 +45,22 @@ export default function BuktiApp() {
   const [creatingCase, setCreatingCase] = useState(false)
   const [createError, setCreateError] = useState<unknown>(null)
   const [lastUpload, setLastUpload] = useState<DocumentRecord | null>(null)
-  const [sessionUrls, setSessionUrls] = useState<Record<string, string>>({})
   const [attentionFirst, setAttentionFirst] = useState(false)
 
   const { online } = useApiHealth()
-  const { cases, loading: casesLoading, error: casesError, reload: reloadCases } = useCases()
-  const [selectedCaseId, setSelectedCaseId] = useSelectedCaseId(cases)
+  const {
+    cases,
+    loading: casesLoading,
+    error: casesError,
+    reload: reloadCases,
+    archiveCase,
+    unarchiveCase,
+    deleteCase,
+  } = useCases()
+  const [selectedCaseId, setSelectedCaseId] = useSelectedCaseId(
+    cases,
+    !casesLoading && !casesError,
+  )
   const workspace = useCaseWorkspace(selectedCaseId)
   const { reviewerName, setReviewerName } = useReviewer()
 
@@ -66,14 +76,9 @@ export default function BuktiApp() {
     refresh,
   } = workspace
 
-  // Object URLs created for files uploaded in this session, revoked on unmount.
-  const urlsRef = useRef<string[]>([])
-  useEffect(
-    () => () => {
-      urlsRef.current.forEach((url) => URL.revokeObjectURL(url))
-    },
-    [],
-  )
+  // The object-URL cache that used to live here is gone: the API now serves
+  // stored documents directly, so a preview no longer depends on the file
+  // happening to have been uploaded in this browser session.
 
   const stats = questionStats(questions, readiness)
 
@@ -91,6 +96,22 @@ export default function BuktiApp() {
     [go, setSelectedCaseId],
   )
 
+  /** Deleting the case that is currently open would leave the workspace
+   * pointing at an id the API no longer knows, so the selection is cleared
+   * first. `useSelectedCaseId` would eventually notice the id has gone from the
+   * list, but not before the workspace fired a fetch for it and rendered the
+   * 404. */
+  const handleDeleteCase = useCallback(
+    async (caseId: string) => {
+      if (caseId === selectedCaseId) {
+        setSelectedCaseId(null)
+        setActiveQuestionId(null)
+      }
+      await deleteCase(caseId)
+    },
+    [deleteCase, selectedCaseId, setSelectedCaseId],
+  )
+
   const openQuestion = useCallback(
     (questionId: string) => {
       setActiveQuestionId(questionId)
@@ -99,19 +120,12 @@ export default function BuktiApp() {
     [go],
   )
 
-  const rememberSessionFile = useCallback((doc: DocumentRecord, file: File) => {
-    const url = URL.createObjectURL(file)
-    urlsRef.current.push(url)
-    setSessionUrls((prev) => ({ ...prev, [doc.id]: url }))
-  }, [])
-
   const handleUpload = useCallback(
     async (file: File, documentType: DocumentType) => {
       const doc = await workspace.uploadDocument(file, documentType)
-      rememberSessionFile(doc, file)
       setLastUpload(doc)
     },
-    [rememberSessionFile, workspace],
+    [workspace],
   )
 
   const handleCreateCase = useCallback(
@@ -124,7 +138,6 @@ export default function BuktiApp() {
           // Uploaded directly rather than through the workspace hook, which is
           // still bound to the previously selected case at this point.
           const doc = await api.uploadDocument(created.id, questionnaire, 'QUESTIONNAIRE')
-          rememberSessionFile(doc, questionnaire)
           setLastUpload(doc)
         }
         await reloadCases()
@@ -138,7 +151,7 @@ export default function BuktiApp() {
         setCreatingCase(false)
       }
     },
-    [go, rememberSessionFile, reloadCases, setSelectedCaseId],
+    [go, reloadCases, setSelectedCaseId],
   )
 
   const startActionForQuestion = useCallback(
@@ -221,6 +234,9 @@ export default function BuktiApp() {
               reload={reloadCases}
               onOpenCase={openCase}
               onNewCase={() => go('create')}
+              onArchive={archiveCase}
+              onUnarchive={unarchiveCase}
+              onDelete={handleDeleteCase}
             />
           )}
 
@@ -252,6 +268,7 @@ export default function BuktiApp() {
 
           {screen === 'intake' && selectedCaseId && (
             <EvidenceScreen
+              caseId={selectedCaseId}
               documents={documents}
               loading={loading}
               error={error}
@@ -262,7 +279,6 @@ export default function BuktiApp() {
                 const doc = await workspace.retryDocument(documentId)
                 setLastUpload(doc)
               }}
-              sessionUrls={sessionUrls}
               lastUpload={lastUpload}
               onDismissMapping={() => setLastUpload(null)}
             />
@@ -282,6 +298,7 @@ export default function BuktiApp() {
 
           {screen === 'detail' && activeQuestion && (
             <QuestionDetailScreen
+              caseId={selectedCaseId!}
               question={activeQuestion}
               reviewerName={reviewerName}
               onEditReviewer={() => setReviewerModalOpen(true)}
