@@ -134,10 +134,58 @@ matching:
 
 | Status | Why it cannot happen |
 |---|---|
-| `CONFLICTING` | Needs two links with the same scope and period and **different values**; the matcher never extracts a value, so `A-03` vs `C-01` — 12.6 t against 18.4 t — is invisible |
+| `CONFLICTING` | Needs two links with the same scope and period reporting **different values**. No link carries a value, and extracting one is not a small change — measured below |
 | `MISSING` | Still never occurs. The generic-term guard cut the candidate counts but a question can usually find *some* chunk sharing a distinctive word, so `Q-E-10` and `Q-S-07` — written to be unanswerable from this set — still attract candidates |
 
 So the honest demo script is not "watch the engine sort good evidence from bad". It is: **the matcher now points you at the right document, and everything after that is still yours to judge.** That is the product thesis — provenance over prose — stated as a limitation rather than a claim.
+
+
+### Why `CONFLICTING` is not implemented
+
+`A-03` reports 12.6 tonnes of scheduled waste and `C-01` reports 18.4 for the
+same site and year. That contradiction is the single most useful thing in this
+dataset, and the engine cannot see it, because `evidence_links.value` is never
+filled in. Filling it in looks like a small change. It was measured against all
+231 links in this case, and it is not.
+
+**Extracting every number in a chunk marks all 20 questions `CONFLICTING`.**
+The values it pulls out are `01`, `08`, `2025`, `0447`, `0.` — list numbers,
+years, fragments of document codes, truncated decimals. A status that fires on
+every question carries no information.
+
+**Requiring the number to sit on a line that shares a word with the question
+changes nothing** — still 20 of 20. Questionnaire vocabulary (`report`,
+`total`, `2025`) appears on numeric lines everywhere.
+
+**Requiring a unit immediately after the number, and that unit to be one the
+question asks for, gets it exactly backwards.** One question of 20 is flagged,
+and it is the wrong one:
+
+| | |
+|---|---|
+| Flagged | `Q-E-04`, on `148,600 kWh` · `1,612,400 kWh` · `1,847,300 kWh` · `4,912,600 kWh` |
+| Why that is wrong | A month, a subtotal, the annual total, and the three-site group total. Four granularities, not four claims about one metric |
+| Missed | `Q-E-08` — the real contradiction |
+
+Two structural reasons it is missed, both visible in the data:
+
+- `C-01` writes **`18.4 metric tonnes`**. The adjective sits between the number
+  and the unit, so adjacency fails. Patchable.
+- `A-03` is a spreadsheet: **`Total scheduled waste | … | 12.6 | 2025 | Klang
+  plant`**. That chunk contains no unit at all — `Metric tonnes` is a column
+  header, and the header is a *different chunk*. Not patchable, because
+  chunking is per row and a column header applies to every row beneath it.
+
+So the two things needed are semantic, not syntactic: knowing that a header's
+unit governs the cells below it, and knowing that 148,600 kWh is a month while
+1,847,300 kWh is a year. Both are what a language model is for; neither is what
+keyword matching can reach.
+
+The decision was to leave it unimplemented rather than ship a version that
+fires on the wrong question. A system that says "I checked for contradictions"
+and finds the wrong one is worse than one that does not claim to check —
+especially this system, whose whole argument is that the human holds the
+verdict.
 
 ## Suggested walkthrough
 
