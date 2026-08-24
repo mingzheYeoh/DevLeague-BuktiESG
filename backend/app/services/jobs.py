@@ -43,6 +43,7 @@ from ai_pipeline import (
     DocumentChunk as PipelineDocumentChunk,
     ExtractedChunk,
     analyze_question,
+    keyword_weights,
     parse_docx_evidence,
     parse_pdf_evidence,
     parse_plain_text_evidence,
@@ -373,8 +374,15 @@ def _run_evidence_index(db: Session, case: Case, document: Document, data: bytes
         .all()
     )
 
+    # Computed once for the whole questionnaire, not per question: the weights
+    # answer "how distinctive is this word across the questions this customer
+    # asked", which is a property of the set, not of any one question.
+    weights = keyword_weights([q.question_text for q in questions])
+
     for question in questions:
-        _analyze_question_against_evidence(db, question, document, pipeline_chunks, chunk_by_id)
+        _analyze_question_against_evidence(
+            db, question, document, pipeline_chunks, chunk_by_id, weights
+        )
 
 
 def _analyze_question_against_evidence(
@@ -383,10 +391,12 @@ def _analyze_question_against_evidence(
     document: Document,
     pipeline_chunks: list[PipelineDocumentChunk],
     chunk_by_id: dict[str, DocumentChunk],
+    weights: dict[str, float] | None = None,
 ) -> None:
     result = analyze_question(
         AnalysisQuestion(question_id=question.id, question_text=question.question_text),
         pipeline_chunks,
+        keyword_weights=weights,
     )
     # Hard boundary (AGENTS.md §3.2/3.3): `result` never carries a status or a
     # location. Only its `chunk_id` is trusted, and only if it resolves to a
@@ -416,6 +426,7 @@ def _analyze_question_against_evidence(
         scope_description=candidate.scope_description,
         unit=candidate.unit,
         value=candidate.value,
+        match_score=candidate.match_score,
         extraction_valid=True,
         link_status="CANDIDATE",
         created_by="SYSTEM",

@@ -20,7 +20,7 @@ from .evidence_parse import (
     parse_plain_text_evidence,
     parse_xlsx_evidence,
 )
-from .analyze import AnalysisQuestion, analyze_question
+from .analyze import AnalysisQuestion, analyze_question, keyword_weights
 from .mapping import map_question_to_sedg
 from .sedg_taxonomy import SEDG_TAXONOMY, SedgDisclosure, SedgTopic
 from .provider import FixtureProvider, LLMProvider
@@ -28,6 +28,7 @@ from .provider import FixtureProvider, LLMProvider
 __all__ = [
     "AnalysisResult",
     "AnalysisQuestion",
+    "keyword_weights",
     "CandidateEvidence",
     "DocumentChunk",
     "ExtractedChunk",
