@@ -17,6 +17,8 @@ rejects.
 
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
@@ -78,3 +80,31 @@ def client(db_session):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def isolated_storage_root(request, monkeypatch):
+    """Point the storage root at a per-test directory.
+
+    Without this the suite writes into `backend/var/storage`, the same tree a
+    developer's own cases live in, and never cleans up: every uploaded fixture
+    left a directory behind. That is where most of the 1,252 orphan
+    directories this repository accumulated came from, and it also made tests
+    that reconcile storage against the database see each other's files.
+
+    Under `var/` rather than pytest's `tmp_path`, which cannot be created in
+    this sandbox - the same restriction that makes `.pytest_cache` unwritable.
+
+    `storage.STORAGE_ROOT` is a module constant read at call time, so patching
+    the attribute is enough; nothing captures it at import.
+    """
+    import shutil
+    import uuid
+
+    from app.services import storage
+
+    root = pathlib.Path(__file__).resolve().parents[1] / "var" / "test-storage" / uuid.uuid4().hex
+    root.mkdir(parents=True)
+    monkeypatch.setattr(storage, "STORAGE_ROOT", root)
+    yield root
+    shutil.rmtree(root, ignore_errors=True)

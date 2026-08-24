@@ -1,0 +1,120 @@
+# The first CI this repository has had. Enforcement was advisory-only, which
+# meant every green run on this branch was one person running commands locally
+# and reporting the result - the reader had to take that on trust.
+#
+# Deliberately not a gate. AGENTS.md records enforcement as advisory and no
+# branch protection exists; turning that on is a decision for the repository
+# owner, not something to arrive with a workflow file. This makes the state
+# visible, which is the part that was missing.
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# A new push to the same branch makes the previous run's answer irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: backend (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        working-directory: backend
+        run: uv sync
+      # No database service. tests/conftest.py builds an isolated in-memory
+      # SQLite per test with PRAGMA foreign_keys=ON, so the suite runs on a
+      # fresh clone without Docker - which is the reason SQLite is kept.
+      - name: pytest
+        working-directory: backend
+        run: uv run pytest -q
+
+  ai_pipeline:
+    name: ai-pipeline (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        working-directory: backend
+        run: uv sync
+      - name: pytest
+        working-directory: packages/ai-pipeline
+        run: ../../backend/.venv/bin/python -m pytest -q
+
+  migrations:
+    name: migrations (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    # The migrations are written for PostgreSQL and cannot run on SQLite, so
+    # they are the one thing the unit suites cannot cover. Before this branch
+    # they had never been executed against a live server at all.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: buktiesg
+          POSTGRES_PASSWORD: buktiesg_dev
+          POSTGRES_DB: buktiesg
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U buktiesg -d buktiesg"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install
+        working-directory: backend
+        run: uv sync
+      - name: alembic upgrade head
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql+psycopg://buktiesg:buktiesg_dev@127.0.0.1:5432/buktiesg
+        run: uv run alembic upgrade head
+      # Reversibility is NOT checked here. Every migration has a downgrade
+      # body and 0003 correctly breaks the documents <-> processing_jobs
+      # cycle before dropping either, but `alembic downgrade base` has never
+      # been executed against a live server, and a CI step whose behaviour is
+      # unknown is not a check - it is a coin toss that turns the first run
+      # red. Verify it once by hand, then add it.
+
+  frontend:
+    name: frontend (typecheck, build, e2e)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: typecheck
+        working-directory: frontend
+        run: npm run typecheck
+      - name: build
+        working-directory: frontend
+        run: npm run build
+      - name: Install Playwright browser
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      # The suite stubs the API with the server's real response shapes, so it
+      # needs no backend. `live-integration.spec.ts` stubs nothing and stays
+      # skipped unless BUKTIESG_LIVE_API is set.
+      - name: e2e
+        working-directory: frontend
+        run: npm run test:e2e

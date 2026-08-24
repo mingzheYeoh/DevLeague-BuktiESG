@@ -70,6 +70,25 @@ The test suite is the one place SQLite is used deliberately: `tests/conftest.py`
 builds an isolated in-memory database per test, with `PRAGMA foreign_keys=ON`, so
 the suite runs on a fresh clone without Docker. It never touches a dev database.
 
+### Reclaiming stored bytes
+
+`var/storage` has no garbage collector. `delete_case_tree` and `delete_file`
+run only on a successful delete, so anything that fails between writing a blob
+and committing its row leaves bytes nothing references — and nothing notices.
+This repository reached 1,252 orphan directories and 8.8 MB in one development
+cycle, most of it from a test suite that wrote into the real storage root
+(`tests/conftest.py` now isolates it per test).
+
+```bash
+uv run python scripts/reclaim_storage.py            # report only
+uv run python scripts/reclaim_storage.py --delete   # remove the orphans
+```
+
+The reconciliation is one-directional. A blob with no row is garbage. A row
+with no blob is evidence that cannot be produced — reported for a human, never
+deleted, because losing the record that evidence was cited is worse than the
+inconsistency.
+
 ## Run
 
 ```bash

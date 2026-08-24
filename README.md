@@ -74,6 +74,7 @@ files that are not there, or files nothing references.
 
 ```
 AGENTS.md                        Execution rules binding on every AI agent
+.github/workflows/ci.yml         Tests on every push — advisory, not a gate
 docker-compose.yml               PostgreSQL 16 — the database the app runs on
 backend/                         FastAPI service — the only backend
   app/                           Routers, models, schemas, deterministic rule engine
@@ -120,7 +121,7 @@ Uses the files in [`sample/`](sample/README.md), which explains what each one is
 | Gate P0 | **ACCEPTED — 2026-08-22** (mixed human/agent, not a full human sign-off) |
 | Feature implementation | **AUTHORIZED — Phase 1** |
 | Production state | Not released |
-| Enforcement | **Advisory-only** — no CI, no branch protection, no `CODEOWNERS` |
+| Enforcement | **Advisory-only** — CI runs on every push but gates nothing; no branch protection, no `CODEOWNERS` |
 | Release approver | Orchestrator, under the named exception below |
 
 **`docs/` was deleted on 2026-08-23** on the direct instruction of the repository owner (Yeoh Ming Zhe, `mingzheYeoh`). Twenty files: the Main Technical Spec (EN + ZH), the Shared Integration Contract, `AMENDMENTS.md`, the three role sub-specs, the Integration Checklist, the decision register, `CTO-RULINGS.md`, `ADR-001`, `GATE-P0-APPROVAL.md`, the risk register and the CEO/COO handoffs. This was the second deletion; `14bdf33` removed them once before and `74834c5` restored them.
