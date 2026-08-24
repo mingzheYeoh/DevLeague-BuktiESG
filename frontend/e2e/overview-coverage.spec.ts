@@ -194,3 +194,42 @@ test.describe('Cases summary tiles', () => {
     await expect(tiles.getByText('Cases', { exact: true })).toHaveCount(0)
   })
 })
+
+test.describe('Row menu alignment', () => {
+  test('every item in the menu starts at the same left edge', async ({ page }) => {
+    await page.route('**/health', (r) =>
+      r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"status":"ok"}' }),
+    )
+    await page.route('**/api/v1/cases', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: CORS,
+        body: JSON.stringify([{ ...CASE_SUMMARY, id: 'c-draft', title: 'Draft case', status: 'DRAFT' }]),
+      }),
+    )
+    await page.goto('/')
+    await page.getByTestId('case-menu-c-draft').click()
+
+    const menu = page.getByRole('menu')
+    const archive = menu.getByRole('menuitem', { name: 'Archive' })
+    const del = menu.getByRole('menuitem', { name: 'Delete' })
+    await expect(archive).toBeVisible()
+    await expect(del).toBeVisible()
+
+    // `.danger` carries `justify-content: center` from the shared button rule,
+    // and the menu rule never overrode it — so Delete centred its icon and
+    // label inside a full-width button while Archive sat at the left edge.
+    const [a, d] = [await archive.boundingBox(), await del.boundingBox()]
+    expect(a).not.toBeNull()
+    expect(d).not.toBeNull()
+    expect(Math.abs(a!.x - d!.x)).toBeLessThan(1)
+
+    const icons = [
+      await archive.locator('svg').boundingBox(),
+      await del.locator('svg').boundingBox(),
+    ]
+    expect(Math.abs(icons[0]!.x - icons[1]!.x)).toBeLessThan(1)
+  })
+})
+

@@ -577,6 +577,13 @@ h1, h2, h3, p {
   border-radius: 6px;
   display: flex;
   align-items: center;
+  /* Explicit, because the shared `.primary/.secondary/.danger/...` rule sets
+     `justify-content: center` and this rule never overrode it. A menu item
+     carrying `.danger` therefore centred its icon and label inside a
+     full-width button while its plain neighbours sat at the left edge - the
+     two were following different rule sets, differing only in a property
+     neither one set on purpose. */
+  justify-content: flex-start;
   gap: 10px;
   color: var(--ink);
   font-weight: 500;
