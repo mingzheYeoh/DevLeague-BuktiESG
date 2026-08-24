@@ -22,6 +22,17 @@ CASE_STATUS = (
     "ARCHIVED",
 )
 
+# Statuses a Case may be deleted from. Not a DB-column allow-list — it gates
+# DELETE /cases/{id}, so adding a value here needs no migration.
+#
+# Deleting a Case destroys the record of what evidence was reviewed and by
+# whom, which is the thing this product exists to keep. So it is a two-step
+# action for any Case that has been worked on: archive it, then delete it.
+# DRAFT is exempt because it has nothing to destroy yet; ARCHIVED is exempt
+# because reaching it was already a deliberate human decision to retire the
+# Case.
+CASE_DELETABLE_FROM = ("DRAFT", "ARCHIVED")
+
 DOCUMENT_TYPE = (
     "QUESTIONNAIRE",
     "UTILITY_BILL",
@@ -76,8 +87,14 @@ EVIDENCE_CREATED_BY = ("SYSTEM", "USER")
 # Human Review actions (Main Spec §17 Phase 5). Not a DB-column allow-list
 # (no table column stores the action verb itself — it drives which
 # Answer fields get written), so this is a plain tuple, not a CHECK
-# constraint source.
-REVIEW_ACTION = ("ACCEPT", "EDIT", "REJECT", "NOT_APPLICABLE")
+# constraint source. Adding a verb here therefore needs no migration.
+#
+# REOPEN withdraws a review decision and hands evidence_status back to the rule
+# engine. RULING-02 says only a human action may "set or clear"
+# evidence_status == NOT_APPLICABLE; the four original verbs could only set it,
+# so NOT_APPLICABLE was a one-way door with no way back. REOPEN is the "clear"
+# half the ruling already assumed existed.
+REVIEW_ACTION = ("ACCEPT", "EDIT", "REJECT", "NOT_APPLICABLE", "REOPEN")
 
 ACTION_TYPE = ("SUBMISSION", "IMPROVEMENT")
 
