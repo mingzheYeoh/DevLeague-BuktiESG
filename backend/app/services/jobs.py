@@ -48,6 +48,7 @@ from ai_pipeline import (
     parse_pdf_evidence,
     parse_plain_text_evidence,
     parse_xlsx_evidence,
+    question_keywords,
 )
 
 from app.models import Case, Document, DocumentChunk, EvidenceLink, ProcessingJob, Question, Questionnaire
@@ -234,6 +235,13 @@ def run_document_job(db: Session, job: ProcessingJob) -> None:
         document.error_code = "DOCUMENT_PARSE_FAILED"
         document.error_message = str(exc)
         _fail_job(job, "DOCUMENT_PARSE_FAILED", str(exc))
+        # A document that could not be read is an input the rule engine reacts
+        # to, not the end of the story. Returning here left every question on
+        # whatever status it already had, so the C-15 rule -- an unreadable
+        # document may materially affect a question -- could never fire, and a
+        # reviewer was told MISSING about a file they had just uploaded.
+        db.flush()
+        _recompute_case_question_statuses(db, case)
         return
 
     job.status = "SUCCEEDED"
@@ -283,6 +291,7 @@ def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: 
             sedg_disclosure_code=pq.sedg_disclosure_code,
             mapping_rationale=pq.mapping_rationale,
             question_order=pq.question_order,
+            evidence_requirement_json=_build_requirement_json(pq.question_text),
         )
         db.add(question)
         db.flush()
@@ -300,6 +309,31 @@ def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: 
     # docstring for why this stays display-only rather than a new migration.
     document._detected_columns = parse_result.column_mapping  # type: ignore[attr-defined]
 
+
+
+def _build_requirement_json(question_text: str) -> str:
+    """What this question requires of its evidence, as the rule engine reads it.
+
+    Only `keywords` is filled, and the omissions are deliberate:
+
+    * `required_period_start`/`_end` would look natural to inherit from the
+      Case's reporting period, and would be a regression. The VERIFIED
+      period-coverage check demands `link.period_start <= required_start and
+      link.period_end >= required_end`, and no link carries a period, because
+      nothing extracts one from a chunk. Every VERIFIED would fall back to
+      PARTIAL. OUTDATED would go with it: the `source_date` fallback in
+      `_is_outdated` only applies when the question states no period.
+    * `required_scope` fails the same way against a NULL `scope_description`.
+    * `accepted_document_types` is not inferable from question text without
+      guessing, and a wrong guess silently narrows the C-15 gate below.
+
+    The keywords are the question's own distinctive words, matched by exact
+    token equality only (C-15 — no fuzzy matching, no embeddings, no model).
+    They gate one rule: whether an unreadable document may materially affect
+    this question, which is the difference between "no evidence" and "evidence
+    we could not read".
+    """
+    return json.dumps({"keywords": question_keywords(question_text)})
 
 def _create_default_answer(db: Session, question: Question) -> None:
     from app.models import Answer
@@ -384,6 +418,40 @@ def _run_evidence_index(db: Session, case: Case, document: Document, data: bytes
             db, question, document, pipeline_chunks, chunk_by_id, weights
         )
 
+
+
+def _recompute_case_question_statuses(db: Session, case: Case) -> None:
+    """Re-run the rule engine for every question in a Case, adding no evidence.
+
+    Used when something changed that the engine reads but that produces no new
+    links -- so far, a document failing to parse. The status text comes from
+    `compute_evidence_status` unmodified: the "candidate evidence located by
+    automated keyword match against X" preamble the indexing path adds would be
+    a lie here, because nothing was matched and X could not be read.
+    """
+    questions = (
+        db.query(Question)
+        .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
+        .filter(Questionnaire.case_id == case.id)
+        .all()
+    )
+    unreadable_documents = _build_unreadable_documents(db, case.id)
+    for question in questions:
+        answer = question.answer
+        if answer is None:
+            continue
+        result = compute_evidence_status(
+            candidates=_load_evidence_candidates(db, question.id),
+            requirement=_build_evidence_requirement(question),
+            unreadable_documents=unreadable_documents,
+            current_status=answer.evidence_status,
+            not_applicable_reason=answer.not_applicable_reason,
+            reviewer_name=answer.reviewer_name,
+        )
+        answer.evidence_status = result.status
+        answer.status_findings_json = json.dumps(result.status_findings)
+        if result.status != "NOT_APPLICABLE":
+            answer.status_reason = result.status_reason
 
 def _analyze_question_against_evidence(
     db: Session,

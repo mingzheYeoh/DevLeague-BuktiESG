@@ -95,7 +95,7 @@ Two are still wrong, and both have understood causes that keyword matching canno
 
 Both need capability the pipeline does not have — value extraction and multi-row aggregation — rather than a better keyword score. Tuning the weights until this particular sample set looks perfect would be overfitting to it.
 
-### `VERIFIED` and `OUTDATED` are reachable; two still are not
+### Which statuses can actually occur
 
 Set **Evidence dated** on the Evidence screen before dropping a file and the
 engine can finally measure staleness. `C-02-energy-and-emissions-fy2022.txt`
@@ -109,10 +109,12 @@ always know it, and a required field is answered with a guess; an absent date
 and a wrong one are not equally recoverable.
 
 **Accept this evidence** on a question's detail screen is the sixth and last
-VERIFIED condition. The matcher already satisfies the other five — every link
-it writes carries a claim and a server-resolved location, none carries a value
-without a unit, and this questionnaire states no required period or scope — so
-acceptance alone moves the question to `VERIFIED`. It is refused without a
+VERIFIED condition, and acceptance alone moves the question to `VERIFIED`. Of
+the other five, three are genuinely satisfied — every link the matcher writes
+carries a claim and a server-resolved location, and none carries a value
+without a unit — and two are *skipped rather than met*: period coverage and
+scope match apply only when the question states a required period or scope, and
+this build populates neither. Why not is worth reading below. It is refused without a
 reviewer label: an acceptance nobody signed is indistinguishable from one the
 AI issued.
 
@@ -129,13 +131,47 @@ human vouched, never that the human was right. That is the correct division of
 authority, and it is also the clearest demonstration in this dataset of why the
 human is the one accountable for the verdict.
 
-The other two statuses remain out of reach, for reasons separate from
-matching:
+**`NEEDS_MANUAL_REVIEW`** is the difference between "no evidence" and
+"evidence we could not read". Create a case with this questionnaire, upload
+**only** `C-06-unreadable-scan-safety-records.pdf`, and 19 questions report
+`MISSING` while `Q-S-06` reports `NEEDS_MANUAL_REVIEW` naming the file. That
+one question, and no other, because C-15 matches by exact token equality
+against the filename and extracted metadata — no fuzzy matching, no
+embeddings — and `safety` is the only word `Q-S-06` and that filename share.
+Deliberately narrow: a rule that guessed which unreadable file mattered would
+be asserting something it cannot know.
+
+Two things had to be true for it to fire at all, and neither was:
+`questions.evidence_requirement_json` was read in two places and written in
+none, so the keyword gate returned nothing; and a document that failed to
+parse returned early without recomputing any question, so the rule that exists
+to react to an unreadable document was never consulted when one appeared. The
+second is a plain bug; the first hid it, because recomputing would have changed
+nothing.
+
+Only the keywords are populated. Inheriting the Case's reporting period as
+`required_period_start`/`_end` reads like the obvious next step and is a
+regression: the period-coverage check demands `link.period_start <=
+required_start and link.period_end >= required_end`, and no link carries a
+period because nothing extracts one from a chunk. Every `VERIFIED` falls back
+to `PARTIAL`, and `OUTDATED` with it — the `source_date` fallback applies only
+when the question states no period. `required_scope` fails the same way against
+a NULL `scope_description`.
+`backend/tests/test_evidence_requirement.py` pins both, so the next person to
+reach for it sees the cost before paying it.
+
+`MISSING` occurs, but only when a question finds nothing at all — 19 of the
+20 do in the unreadable-only case above. With the full evidence set uploaded
+it never appears: the generic-term guard cut the candidate counts, but a
+question can usually find *some* chunk sharing a distinctive word, so even
+`Q-E-10` and `Q-S-07` — written to be unanswerable from this set — attract
+candidates and report `PARTIAL`. That is a matching limit, not a rule one.
+
+One status remains genuinely out of reach:
 
 | Status | Why it cannot happen |
 |---|---|
 | `CONFLICTING` | Needs two links with the same scope and period reporting **different values**. No link carries a value, and extracting one is not a small change — measured below |
-| `MISSING` | Still never occurs. The generic-term guard cut the candidate counts but a question can usually find *some* chunk sharing a distinctive word, so `Q-E-10` and `Q-S-07` — written to be unanswerable from this set — still attract candidates |
 
 So the honest demo script is not "watch the engine sort good evidence from bad". It is: **the matcher now points you at the right document, and everything after that is still yours to judge.** That is the product thesis — provenance over prose — stated as a limitation rather than a claim.
 

@@ -61,6 +61,18 @@ def _keywords(text: str) -> set[str]:
     return {w for w in _WORD_RE.findall(text.lower()) if len(w) >= 3 and w not in _STOPWORDS}
 
 
+def question_keywords(text: str) -> list[str]:
+    """A question's own distinctive words, sorted for a stable stored form.
+
+    The public name for what the matcher uses internally. The server persists
+    these on the Question as its evidence requirement, where the rule engine
+    matches them by exact token equality only (C-15). Exposed deliberately
+    rather than reaching for `_keywords` across the package boundary: the two
+    must agree, so there is one definition, not a copy.
+    """
+    return sorted(_keywords(text))
+
+
 # A matched term is "generic" when it appears in more than half the
 # questionnaire, and a match built only from generic terms is not evidence.
 #
