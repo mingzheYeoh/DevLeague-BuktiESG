@@ -141,6 +141,13 @@ embeddings — and `safety` is the only word `Q-S-06` and that filename share.
 Deliberately narrow: a rule that guessed which unreadable file mattered would
 be asserting something it cannot know.
 
+That state has an exit. Retrying re-runs the same parser over the same bytes,
+so a scan with no extractable text never recovers; the document drawer offers
+**Delete document**, which removes the file, its stored bytes, and the hold it
+had on `Q-S-06`. Only a document that failed to parse can be deleted — it has
+no chunks, so nothing cites it, and destroying it destroys no review decision.
+A document that parsed is refused with 409.
+
 Two things had to be true for it to fire at all, and neither was:
 `questions.evidence_requirement_json` was read in two places and written in
 none, so the keyword gate returned nothing; and a document that failed to

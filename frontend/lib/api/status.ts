@@ -168,6 +168,23 @@ export function isRetryable(status: DocumentProcessingStatus): boolean {
 }
 
 /**
+ * Mirrors `DOCUMENT_DELETABLE_FROM` on the server, which refuses anything else
+ * with 409.
+ *
+ * Narrower than `isRetryable` on purpose, and the gap is the point: a `FAILED`
+ * document may still have chunks from an earlier successful pass, so it is
+ * retryable but not deletable. Only a document that produced no text at all
+ * cites nothing and can go.
+ *
+ * Duplicated client-side deliberately. If the server grows a status this
+ * client does not know, the control is withheld rather than offered — which
+ * matches what the endpoint would do.
+ */
+export function isDeletable(status: DocumentProcessingStatus): boolean {
+  return status === 'NEEDS_MANUAL_REVIEW'
+}
+
+/**
  * `sourceLocationLabel` phrased for the format the document actually is.
  *
  * Plain text is chunked one fragment per line, so a `paragraph` location in a

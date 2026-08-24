@@ -172,6 +172,7 @@ export interface CaseWorkspace {
     actionId: string,
     body: UpdateActionStatusRequest,
   ) => Promise<ActionRecord>
+  deleteDocument: (documentId: string) => Promise<void>
   invalidateEvidenceLink: (evidenceLinkId: string) => Promise<void>
   acceptEvidenceLink: (evidenceLinkId: string, reviewerName: string) => Promise<void>
 }
@@ -291,6 +292,13 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
     [mutate],
   )
 
+  const deleteDocument = useCallback(
+    async (documentId: string) => {
+      await mutate((id) => api.deleteDocument(id, documentId))
+    },
+    [mutate],
+  )
+
   const acceptEvidenceLink = useCallback(
     async (evidenceLinkId: string, reviewerName: string) => {
       await mutate((id) => api.acceptEvidenceLink(id, evidenceLinkId, reviewerName))
@@ -321,6 +329,7 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
       reviewQuestion,
       createAction,
       updateActionStatus,
+      deleteDocument,
       invalidateEvidenceLink,
       acceptEvidenceLink,
     }),
@@ -339,6 +348,7 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
       reviewQuestion,
       createAction,
       updateActionStatus,
+      deleteDocument,
       invalidateEvidenceLink,
       acceptEvidenceLink,
     ],

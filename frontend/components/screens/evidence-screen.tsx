@@ -8,6 +8,7 @@ import {
   Eye,
   RefreshCw,
   Table2,
+  Trash2,
   UploadCloud,
 } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
@@ -18,8 +19,10 @@ import {
   documentTypeLabel,
   documentsNeedingAttention,
   errorMessage,
+  isDeletable,
   isRetryable,
 } from '@/lib/api'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { MAX_UPLOAD_BYTES } from '@/lib/constants'
 import { formatBytes, getFileKind, relativeTimeLabel } from '@/lib/format'
 
@@ -62,6 +65,7 @@ export function EvidenceScreen({
   refresh,
   onUpload,
   onRetry,
+  onDelete,
   lastUpload,
   onDismissMapping,
 }: {
@@ -73,6 +77,7 @@ export function EvidenceScreen({
   refresh: () => void
   onUpload: (file: File, documentType: DocumentType, sourceDate?: string) => Promise<void>
   onRetry: (documentId: string) => Promise<void>
+  onDelete: (documentId: string) => Promise<void>
   /** The most recent upload response, kept for its transient
    * `detected_columns` read-back. */
   lastUpload: DocumentRecord | null
@@ -298,6 +303,7 @@ export function EvidenceScreen({
           doc={selected}
           busy={busy}
           onRetry={onRetry}
+          onDelete={onDelete}
           onPreview={() => setPreviewId(selected.id)}
           close={() => setSelectedId(null)}
         />
@@ -364,16 +370,19 @@ function DocumentDrawer({
   doc,
   busy,
   onRetry,
+  onDelete,
   onPreview,
   close,
 }: {
   doc: DocumentRecord
   busy: boolean
   onRetry: (documentId: string) => Promise<void>
+  onDelete: (documentId: string) => Promise<void>
   onPreview: () => void
   close: () => void
 }) {
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const kind = getFileKind(doc.original_filename, doc.mime_type)
   const parsed = doc.processing_status === 'PARSED' || doc.processing_status === 'INDEXED'
 
@@ -454,6 +463,56 @@ function DocumentDrawer({
           </div>
         </div>
       )}
+
+      {/* Deleting is offered only where the server will honour it. An indexed
+          document has chunks, and those chunks carry citations a reviewer may
+          already have accepted, so the server refuses with 409 — rendering a
+          control that always fails would be a promise the API does not keep. */}
+      {isDeletable(doc.processing_status) ? (
+        <button
+          className="danger full"
+          type="button"
+          disabled={busy}
+          onClick={() => setConfirmDelete(true)}
+        >
+          <Trash2 />
+          Delete document
+        </button>
+      ) : (
+        <p className="field-hint">
+          This document carries evidence that questions may cite, so it cannot be deleted. Only a
+          document the parser could not read can be removed.
+        </p>
+      )}
+
+      {confirmDelete ? (
+        <ConfirmDialog
+          title="Delete this document?"
+          confirmLabel="Delete document"
+          busy={busy}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setRetryError(null)
+            try {
+              await onDelete(doc.id)
+              close()
+            } catch (err) {
+              setConfirmDelete(false)
+              setRetryError(errorMessage(err))
+            }
+          }}
+        >
+          <p>
+            <b>{doc.original_filename}</b> and its stored file will be removed. This cannot be
+            undone.
+          </p>
+          <p>
+            Nothing cites it — the parser extracted no text, so no question is answered from it.
+            Any question currently held at <em>Needs manual review</em> because of this file will
+            go back to reporting what it can actually find.
+          </p>
+        </ConfirmDialog>
+      ) : null}
     </Drawer>
   )
 }

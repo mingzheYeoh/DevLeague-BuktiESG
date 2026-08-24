@@ -64,6 +64,19 @@ def exists(storage_key: str) -> bool:
         return False
 
 
+def delete_file(storage_key: str) -> None:
+    """Remove one stored blob. Missing is success - the caller's goal is that
+    the bytes are gone, and they are.
+
+    Safe against another Document in another Case holding identical bytes:
+    `storage_key_for` puts the Case id in the key, so blobs are not shared
+    across Cases. Within one Case identical bytes are one Document, because
+    upload de-duplicates by checksum.
+    """
+    path = resolve(storage_key)
+    path.unlink(missing_ok=True)
+
+
 def delete_case_tree(case_id: str) -> None:
     """Remove every stored file belonging to one Case.
 

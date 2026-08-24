@@ -26,14 +26,14 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_db
 from app.errors import api_error, case_not_found
-from app.enums import DOCUMENT_TYPE
+from app.enums import DOCUMENT_DELETABLE_FROM, DOCUMENT_TYPE
 from app.models import Case, Document, DocumentChunk
 from app.schemas import DocumentChunkRecord, DocumentRecord
 from app.services import jobs, storage
@@ -202,9 +202,9 @@ def list_documents(case_id: str, db: Session = Depends(get_db)) -> list[Document
 def _load_document(db: Session, case_id: str, document_id: str) -> Document:
     """Fetch a Document, enforcing that it belongs to this Case.
 
-    The case check is the authorisation boundary for both read endpoints below:
-    without it, knowing any document id would be enough to read another Case's
-    file through any Case's URL.
+    The case check is the authorisation boundary for every endpoint that
+    addresses a Document by id: without it, knowing any document id would be
+    enough to read another Case's file - or delete it - through any Case's URL.
     """
     case = db.get(Case, case_id)
     if case is None:
@@ -332,6 +332,63 @@ def get_document_content(
         },
     )
 
+
+
+@router.delete("/{case_id}/documents/{document_id}", status_code=204)
+def delete_document(case_id: str, document_id: str, db: Session = Depends(get_db)) -> Response:
+    """Delete a Document the parser could not read, and its stored bytes.
+
+    Refused unless the Document is in `DOCUMENT_DELETABLE_FROM`. That gate is
+    the whole safety argument: a document that parsed has chunks, and those
+    chunks carry evidence links a reviewer may have accepted. A document that
+    failed to parse has neither.
+
+    `latest_job_id` is cleared before the job rows go. `documents.latest_job_id`
+    and `processing_jobs.document_id` reference each other, so there is no
+    order in which both can be deleted while both constraints hold - the
+    pointer has to be broken first. PostgreSQL enforces this; SQLite with its
+    default PRAGMA does not, which is exactly how such a bug reaches
+    production unnoticed.
+
+    Row first and committed, then the blob, for the same reason as
+    `delete_case`: bytes nobody references are a janitor's problem, a row
+    citing a file that is gone is a correctness one.
+    """
+    document = _load_document(db, case_id, document_id)
+
+    if document.processing_status not in DOCUMENT_DELETABLE_FROM:
+        raise api_error(
+            409,
+            "DOCUMENT_NOT_DELETABLE",
+            f"A document in '{document.processing_status}' cannot be deleted. "
+            "Only a document the parser could not read may be removed, because "
+            "it carries no evidence anyone has cited.",
+            document_id=document_id,
+            processing_status=document.processing_status,
+            deletable_from=list(DOCUMENT_DELETABLE_FROM),
+        )
+
+    storage_key = document.storage_key
+    case = document.case
+
+    document.latest_job_id = None
+    db.flush()
+    db.delete(document)
+    db.flush()
+
+    # The unreadable document was an input to the C-15 rule, so a question it
+    # was holding in NEEDS_MANUAL_REVIEW has to be told it is gone. Without
+    # this the question keeps a status justified by a file that no longer
+    # exists, and names it in the reason.
+    jobs._recompute_case_question_statuses(db, case)
+    db.commit()
+
+    try:
+        storage.delete_file(storage_key)
+    except OSError:
+        logger.exception("Deleted document %s but could not remove its stored file", document_id)
+
+    return Response(status_code=204)
 
 @router.post(
     "/{case_id}/documents/{document_id}/retry",

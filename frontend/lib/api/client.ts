@@ -246,6 +246,18 @@ export const api = {
     })
   },
 
+  /** DELETE /api/v1/cases/{case_id}/documents/{document_id}
+   *
+   * Only a document the parser could not read. The server refuses anything
+   * else with 409: a document that parsed has chunks, and those chunks carry
+   * citations a reviewer may have accepted. */
+  deleteDocument(caseId: string, documentId: string): Promise<void> {
+    return request<void>(
+      `/api/v1/cases/${enc(caseId)}/documents/${enc(documentId)}`,
+      { method: 'DELETE' },
+    )
+  },
+
   /** GET /api/v1/cases/{case_id}/documents */
   listDocuments(caseId: string): Promise<DocumentRecord[]> {
     return request<DocumentRecord[]>(`/api/v1/cases/${enc(caseId)}/documents`)

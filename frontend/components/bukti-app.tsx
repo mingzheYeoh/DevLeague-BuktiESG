@@ -279,6 +279,12 @@ export default function BuktiApp() {
                 const doc = await workspace.retryDocument(documentId)
                 setLastUpload(doc)
               }}
+              onDelete={async (documentId) => {
+                await workspace.deleteDocument(documentId)
+                // The column-mapping read-back belongs to a document that no
+                // longer exists; leaving it up would describe a deleted file.
+                setLastUpload((current) => (current?.id === documentId ? null : current))
+              }}
               lastUpload={lastUpload}
               onDismissMapping={() => setLastUpload(null)}
             />

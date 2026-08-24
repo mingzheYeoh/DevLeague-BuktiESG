@@ -80,6 +80,18 @@ DRAFT_PROVENANCE = (
     "USER_ENTERED",
 )
 
+# Processing states a Document may be deleted from. Like CASE_DELETABLE_FROM
+# this is not a DB-column allow-list - it gates DELETE
+# /cases/{id}/documents/{id} only, so widening it needs no migration.
+#
+# Narrow on purpose. A document that parsed has chunks, and those chunks carry
+# evidence links that a reviewer may have accepted; deleting it would destroy
+# citations and review decisions, which is the thing this product exists to
+# keep. A document that failed to parse has neither - nothing was extracted, so
+# nothing cites it - and it is the only state with no other way out: `/retry`
+# re-runs the same parser over the same bytes.
+DOCUMENT_DELETABLE_FROM = ("NEEDS_MANUAL_REVIEW",)
+
 EVIDENCE_LINK_STATUS = ("CANDIDATE", "ACCEPTED", "REJECTED", "INVALIDATED")
 
 EVIDENCE_CREATED_BY = ("SYSTEM", "USER")
