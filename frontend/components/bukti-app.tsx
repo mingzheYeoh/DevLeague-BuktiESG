@@ -304,6 +304,7 @@ export default function BuktiApp() {
               onEditReviewer={() => setReviewerModalOpen(true)}
               busy={busy}
               onReview={workspace.reviewQuestion}
+              onAcceptEvidence={workspace.acceptEvidenceLink}
               onCreateAction={startActionForQuestion}
               onBack={() => go('questions')}
             />

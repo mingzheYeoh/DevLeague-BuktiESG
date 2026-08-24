@@ -242,6 +242,13 @@ class QuestionListItem(BaseModel):
     # that gap; nothing about how the link is chosen changes here.
     evidence_document_id: str | None = None
     evidence_document_name: str | None = None
+    # Which evidence_links row the four fields above describe, and whether a
+    # human has vouched for it. A screen that shows a citation but cannot name
+    # it cannot act on it: `/accept` and `/invalidate` are both addressed by
+    # this id. Acceptance is the sixth VERIFIED condition, and the only one a
+    # human owns (Main Spec 17 Gate P4).
+    evidence_link_id: str | None = None
+    evidence_accepted_by: str | None = None
     # How many *live* candidate links this question has -- REJECTED and
     # INVALIDATED ones are excluded, matching what the rule engine counts. The
     # fields above describe exactly one of them, so a UI that omits this count
@@ -266,6 +273,8 @@ class QuestionListItem(BaseModel):
         evidence_claim_supported = None
         evidence_document_id = None
         evidence_document_name = None
+        evidence_link_id = None
+        evidence_accepted_by = None
         # Only links the rule engine still counts. `rules.py` drops REJECTED
         # and INVALIDATED before it computes anything, so including them here
         # makes the screen contradict the engine that produced the status next
@@ -308,6 +317,8 @@ class QuestionListItem(BaseModel):
             # raising inside a response serialiser.
             document = getattr(latest_link, "document", None)
             evidence_document_name = getattr(document, "original_filename", None)
+            evidence_link_id = latest_link.id
+            evidence_accepted_by = latest_link.accepted_by
 
         # Short bullets, derived from the findings the engine already persisted.
         # A malformed or absent status_findings_json degrades to no bullets --
@@ -339,6 +350,8 @@ class QuestionListItem(BaseModel):
             evidence_location=evidence_loc,
             evidence_document_id=evidence_document_id,
             evidence_document_name=evidence_document_name,
+            evidence_link_id=evidence_link_id,
+            evidence_accepted_by=evidence_accepted_by,
             evidence_candidate_count=len(links),
             mapping_rationale=question.mapping_rationale,
             evidence_excerpt=evidence_excerpt,
@@ -421,6 +434,15 @@ class QuestionReviewRequest(BaseModel):
     reason: str | None = None
 
 
+class EvidenceAcceptRequest(BaseModel):
+    """Accepting an evidence link is a human verdict (AGENTS.md 3.2), so it
+    names the human. Typed as optional here and rejected in the router, so the
+    refusal is one explicit VALIDATION_ERROR rather than Pydantic's generic
+    422 shape - the same treatment question review already gives it."""
+
+    reviewer_name: str | None = None
+
+
 class AnswerRecord(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -468,6 +490,8 @@ class EvidenceLinkRecord(BaseModel):
     scope_description: str | None
     period_start: date | None
     period_end: date | None
+    accepted_by: str | None = None
+    accepted_at: datetime | None = None
 
     @classmethod
     def from_model(cls, link) -> "EvidenceLinkRecord":
@@ -480,4 +504,6 @@ class EvidenceLinkRecord(BaseModel):
             scope_description=link.scope_description,
             period_start=link.period_start,
             period_end=link.period_end,
+            accepted_by=link.accepted_by,
+            accepted_at=link.accepted_at,
         )

@@ -426,6 +426,13 @@ class EvidenceLink(Base):
     # read it, or the model would be influencing a verdict (AGENTS.md §3.2).
     # Nullable: rows written before migration 0006 have no score.
     match_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Who accepted this link, and when. VERIFIED is the strongest claim this
+    # system makes about a piece of evidence; one that cannot name its author
+    # is the kind of unprovable claim the product exists to refuse. Nullable
+    # because most links are never accepted, and because rows written before
+    # migration 0007 have no record of it.
+    accepted_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     chunk: Mapped["DocumentChunk"] = relationship(back_populates="evidence_links")
     answer: Mapped["Answer | None"] = relationship(back_populates="evidence_links")
     closing_actions: Mapped[list["Action"]] = relationship(

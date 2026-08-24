@@ -173,6 +173,7 @@ export interface CaseWorkspace {
     body: UpdateActionStatusRequest,
   ) => Promise<ActionRecord>
   invalidateEvidenceLink: (evidenceLinkId: string) => Promise<void>
+  acceptEvidenceLink: (evidenceLinkId: string, reviewerName: string) => Promise<void>
 }
 
 export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
@@ -290,6 +291,13 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
     [mutate],
   )
 
+  const acceptEvidenceLink = useCallback(
+    async (evidenceLinkId: string, reviewerName: string) => {
+      await mutate((id) => api.acceptEvidenceLink(id, evidenceLinkId, reviewerName))
+    },
+    [mutate],
+  )
+
   const invalidateEvidenceLink = useCallback(
     async (evidenceLinkId: string) => {
       await mutate((id) => api.invalidateEvidenceLink(id, evidenceLinkId))
@@ -314,6 +322,7 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
       createAction,
       updateActionStatus,
       invalidateEvidenceLink,
+      acceptEvidenceLink,
     }),
     [
       caseSummary,
@@ -331,6 +340,7 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
       createAction,
       updateActionStatus,
       invalidateEvidenceLink,
+      acceptEvidenceLink,
     ],
   )
 }

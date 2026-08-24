@@ -15,14 +15,15 @@ of input change that engine is meant to react to.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.errors import api_error, case_not_found
-from app.models import Action, Case, EvidenceLink
-from app.schemas import EvidenceLinkRecord
+from app.models import Action, Case, EvidenceLink, Question
+from app.schemas import EvidenceAcceptRequest, EvidenceLinkRecord
 from app.services import jobs
 from app.services.rules import compute_evidence_status
 
@@ -34,6 +35,114 @@ def _evidence_link_not_found(evidence_link_id: str):
         404, "EVIDENCE_LINK_NOT_FOUND", f"Evidence link '{evidence_link_id}' was not found."
     )
 
+
+
+def _recompute_answer_status(db: Session, case_id: str, link: EvidenceLink) -> None:
+    """Re-run the deterministic rule engine over the question this link belongs
+    to, after the link's status has changed.
+
+    Both endpoints below change an input the engine reads - acceptance
+    satisfies a VERIFIED condition, invalidation removes a candidate - so both
+    must recompute, and neither may write a status itself. The verdict comes
+    from `rules.compute_evidence_status` and nowhere else (AGENTS.md 3.2 - the
+    AI never owns a verdict, and neither does a router).
+    """
+    question = link.question
+    answer = question.answer
+    if answer is None:
+        return
+    result = compute_evidence_status(
+        candidates=jobs._load_evidence_candidates(db, question.id),
+        requirement=jobs._build_evidence_requirement(question),
+        unreadable_documents=jobs._build_unreadable_documents(db, case_id),
+        current_status=answer.evidence_status,
+        not_applicable_reason=answer.not_applicable_reason,
+        reviewer_name=answer.reviewer_name,
+    )
+    answer.evidence_status = result.status
+    answer.status_findings_json = json.dumps(result.status_findings)
+    if result.status != "NOT_APPLICABLE":
+        answer.status_reason = result.status_reason
+
+
+def _question_in_case(db: Session, case_id: str, question_id: str) -> Question:
+    question = db.get(Question, question_id)
+    if question is None or question.questionnaire.case_id != case_id:
+        raise api_error(
+            404, "QUESTION_NOT_FOUND", f"Question '{question_id}' was not found in this case."
+        )
+    return question
+
+
+@router.get(
+    "/{case_id}/questions/{question_id}/evidence-links",
+    response_model=list[EvidenceLinkRecord],
+)
+def list_evidence_links(
+    case_id: str, question_id: str, db: Session = Depends(get_db)
+) -> list[EvidenceLinkRecord]:
+    """Every evidence link on one question, newest match first.
+
+    This exists because `/accept` and `/invalidate` are addressed by
+    `evidence_link_id` and, until now, no endpoint handed one out - both were
+    reachable only by reading the database. `QuestionListItem` describes the
+    single best-matching link for display, deliberately, and is not a place to
+    put ids for the others.
+
+    REJECTED and INVALIDATED links are included rather than filtered. The rule
+    engine ignores them, but a reviewer deciding what to accept needs to see
+    that a link was already set aside - a list that silently omits them reads
+    as if the evidence never existed.
+    """
+    _question_in_case(db, case_id, question_id)
+    links = (
+        db.query(EvidenceLink)
+        .filter(EvidenceLink.question_id == question_id)
+        .order_by(EvidenceLink.match_score.desc().nullslast(), EvidenceLink.created_at.desc())
+        .all()
+    )
+    return [EvidenceLinkRecord.from_model(link) for link in links]
+
+
+@router.post(
+    "/{case_id}/evidence-links/{evidence_link_id}/accept",
+    response_model=EvidenceLinkRecord,
+)
+def accept_evidence_link(
+    case_id: str,
+    evidence_link_id: str,
+    payload: EvidenceAcceptRequest,
+    db: Session = Depends(get_db),
+) -> EvidenceLinkRecord:
+    """Accept an evidence link: a human vouching for this citation.
+
+    This is the sixth and last VERIFIED condition. The other five are decided
+    by the matcher and the questionnaire; this one cannot be, because an
+    unreviewed AI-proposed candidate must not satisfy VERIFIED on its own
+    (Main Spec 17 Gate P4 - AI confidence does not participate in the VERIFIED
+    determination).
+    """
+    if not payload.reviewer_name or not payload.reviewer_name.strip():
+        raise api_error(
+            422, "VALIDATION_ERROR", "reviewer_name is required to accept evidence."
+        )
+
+    case = db.get(Case, case_id)
+    if case is None:
+        raise case_not_found(case_id)
+
+    link = db.get(EvidenceLink, evidence_link_id)
+    if link is None or link.question.questionnaire.case_id != case_id:
+        raise _evidence_link_not_found(evidence_link_id)
+
+    link.link_status = "ACCEPTED"
+    link.accepted_by = payload.reviewer_name.strip()
+    link.accepted_at = datetime.now(timezone.utc)
+    db.flush()
+    _recompute_answer_status(db, case_id, link)
+    db.commit()
+    db.refresh(link)
+    return EvidenceLinkRecord.from_model(link)
 
 @router.post(
     "/{case_id}/evidence-links/{evidence_link_id}/invalidate",
@@ -71,28 +180,7 @@ def invalidate_evidence_link(
             f"{action.completion_note}\n{reopen_note}" if action.completion_note else reopen_note
         )
 
-    # Recompute the owning Answer's evidence_status via the same
-    # deterministic rule engine app/services/jobs.py uses, now that this
-    # link is excluded (rules.py already drops INVALIDATED links from
-    # `live` before conflict/status evaluation).
-    question = link.question
-    answer = question.answer
-    if answer is not None:
-        evidence_candidates = jobs._load_evidence_candidates(db, question.id)
-        requirement = jobs._build_evidence_requirement(question)
-        unreadable_documents = jobs._build_unreadable_documents(db, case_id)
-        result = compute_evidence_status(
-            candidates=evidence_candidates,
-            requirement=requirement,
-            unreadable_documents=unreadable_documents,
-            current_status=answer.evidence_status,
-            not_applicable_reason=answer.not_applicable_reason,
-            reviewer_name=answer.reviewer_name,
-        )
-        answer.evidence_status = result.status
-        answer.status_findings_json = json.dumps(result.status_findings)
-        if result.status != "NOT_APPLICABLE":
-            answer.status_reason = result.status_reason
+    _recompute_answer_status(db, case_id, link)
 
     db.commit()
     db.refresh(link)

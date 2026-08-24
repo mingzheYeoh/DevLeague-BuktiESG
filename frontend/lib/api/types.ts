@@ -226,6 +226,13 @@ export interface QuestionListItem {
    * meaningless without it. */
   evidence_document_id: string | null
   evidence_document_name: string | null
+  /** Which evidence_links row the fields above describe. `/accept` and
+   *  `/invalidate` are both addressed by it, so a screen showing a citation
+   *  it cannot name cannot act on it. */
+  evidence_link_id: string | null
+  /** Who vouched for that link, if anyone. Acceptance is the sixth
+   *  VERIFIED condition and the only one a human owns. */
+  evidence_accepted_by: string | null
   /** Total candidate links on this question. The `evidence_*` fields above
    * describe exactly one of them, so this has to be shown — otherwise the UI
    * implies the excerpt is the only evidence. */
@@ -306,6 +313,8 @@ export interface EvidenceLinkRecord {
   scope_description: string | null
   period_start: string | null
   period_end: string | null
+  accepted_by: string | null
+  accepted_at: string | null
 }
 
 // ---- Request bodies ----------------------------------------------------

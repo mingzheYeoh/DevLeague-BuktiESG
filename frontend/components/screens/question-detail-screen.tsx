@@ -68,6 +68,7 @@ export function QuestionDetailScreen({
   onEditReviewer,
   busy,
   onReview,
+  onAcceptEvidence,
   onCreateAction,
   onBack,
 }: {
@@ -77,6 +78,7 @@ export function QuestionDetailScreen({
   onEditReviewer: () => void
   busy: boolean
   onReview: (questionId: string, body: ReviewQuestionRequest) => Promise<AnswerRecord>
+  onAcceptEvidence: (evidenceLinkId: string, reviewerName: string) => Promise<void>
   onCreateAction: (question: QuestionListItem) => void
   onBack: () => void
 }) {
@@ -175,6 +177,9 @@ export function QuestionDetailScreen({
 
         <aside className="evidence-panel">
           <EvidenceSection
+            reviewerName={reviewerName}
+            onEditReviewer={onEditReviewer}
+            onAccept={onAcceptEvidence}
             question={question}
             hasEvidence={hasEvidence}
             onOpenDocument={() => setSourceOpen(true)}
@@ -381,11 +386,20 @@ function EvidenceSection({
   question,
   hasEvidence,
   onOpenDocument,
+  reviewerName,
+  onEditReviewer,
+  onAccept,
 }: {
   question: QuestionListItem
   hasEvidence: boolean
   onOpenDocument: () => void
+  reviewerName: string
+  onEditReviewer: () => void
+  onAccept: (evidenceLinkId: string, reviewerName: string) => Promise<void>
 }) {
+  const [accepting, setAccepting] = useState(false)
+  const [acceptError, setAcceptError] = useState<string | null>(null)
+  const acceptedBy = question.evidence_accepted_by
   if (!hasEvidence) {
     return (
       <section className="side-card">
@@ -407,7 +421,11 @@ function EvidenceSection({
     <section className="side-card">
       <h3>
         Evidence
-        <Pill tone="partial">Candidate</Pill>
+        {acceptedBy ? (
+          <Pill tone="verified">Accepted</Pill>
+        ) : (
+          <Pill tone="partial">Candidate</Pill>
+        )}
       </h3>
 
       {/* Filename first. The location on its own ("Paragraph 8") says nothing
@@ -431,6 +449,62 @@ function EvidenceSection({
       <button className="link" type="button" onClick={onOpenDocument}>
         Open document
       </button>
+
+      {/* Acceptance is the sixth VERIFIED condition and the only one a human
+          owns: the matcher decides the other five, but an unreviewed
+          AI-proposed candidate must not satisfy VERIFIED on its own. So this
+          control is a verdict, and it is worded as one - "vouch for", not
+          "confirm" - and it names who gave it once given. */}
+      <div className="evidence-accept">
+        {acceptedBy ? (
+          <p className="evidence-accepted-by">
+            Vouched for by <strong>{acceptedBy}</strong>
+          </p>
+        ) : (
+          <>
+            <button
+              className="secondary"
+              type="button"
+              disabled={accepting || !question.evidence_link_id}
+              onClick={async () => {
+                if (!question.evidence_link_id) return
+                if (!reviewerName.trim()) {
+                  setAcceptError(
+                    'Set your reviewer label first — the API rejects a blank reviewer_name.',
+                  )
+                  return
+                }
+                setAcceptError(null)
+                setAccepting(true)
+                try {
+                  await onAccept(question.evidence_link_id, reviewerName.trim())
+                } catch (err) {
+                  setAcceptError(errorMessage(err))
+                } finally {
+                  setAccepting(false)
+                }
+              }}
+            >
+              {accepting ? 'Accepting…' : 'Accept this evidence'}
+            </button>
+            <p className="field-hint">
+              Records that you have read the source and it supports the answer. This is what moves
+              evidence status to <strong>Verified</strong>; it is not a verdict on the draft answer,
+              which stays yours to accept or reject separately.
+            </p>
+          </>
+        )}
+        {acceptError ? (
+          <p className="field-hint error-text">
+            {acceptError}{' '}
+            {!reviewerName.trim() ? (
+              <button className="link" type="button" onClick={onEditReviewer}>
+                Set label
+              </button>
+            ) : null}
+          </p>
+        ) : null}
+      </div>
 
       {others > 0 ? (
         <p className="field-hint">

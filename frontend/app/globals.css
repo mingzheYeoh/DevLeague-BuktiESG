@@ -2180,6 +2180,28 @@ h1, h2, h3, p {
   cursor: pointer;
 }
 
+/* The acceptance control closes the evidence panel: it is the one action in
+   it, so it gets a rule above rather than floating after the excerpt. */
+.evidence-accept {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-accepted-by {
+  margin: 0;
+  font-size: 13px;
+  color: var(--subtle);
+}
+
+.evidence-accepted-by strong {
+  color: var(--ink);
+}
+
+.evidence-accept .field-hint.error-text {
+  color: var(--danger);
+}
+
 .control.active {
   border-color: var(--teal);
   color: var(--navy);

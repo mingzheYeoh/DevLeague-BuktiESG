@@ -345,6 +345,24 @@ export const api = {
 
   // ---- Evidence links --------------------------------------------------
 
+  /** POST /api/v1/cases/{case_id}/evidence-links/{id}/accept
+   *
+   * A human vouching for a citation — the sixth and last VERIFIED condition,
+   * and the only one the matcher cannot decide, because an unreviewed
+   * AI-proposed candidate must not satisfy VERIFIED on its own. The server
+   * refuses a blank `reviewerName`: an acceptance nobody signed is
+   * indistinguishable from one the AI issued. */
+  acceptEvidenceLink(
+    caseId: string,
+    evidenceLinkId: string,
+    reviewerName: string,
+  ): Promise<EvidenceLinkRecord> {
+    return request<EvidenceLinkRecord>(
+      `/api/v1/cases/${enc(caseId)}/evidence-links/${enc(evidenceLinkId)}/accept`,
+      { method: 'POST', body: JSON.stringify({ reviewer_name: reviewerName }) },
+    )
+  },
+
   /** POST /api/v1/cases/{case_id}/evidence-links/{id}/invalidate
    *
    * Cascades server-side: reopens any COMPLETED Action closed by this link

@@ -95,7 +95,7 @@ Two are still wrong, and both have understood causes that keyword matching canno
 
 Both need capability the pipeline does not have — value extraction and multi-row aggregation — rather than a better keyword score. Tuning the weights until this particular sample set looks perfect would be overfitting to it.
 
-### `OUTDATED` is reachable; three statuses still are not
+### `VERIFIED` and `OUTDATED` are reachable; two still are not
 
 Set **Evidence dated** on the Evidence screen before dropping a file and the
 engine can finally measure staleness. `C-02-energy-and-emissions-fy2022.txt`
@@ -108,12 +108,32 @@ The date is optional on purpose. A reviewer working through a batch will not
 always know it, and a required field is answered with a guess; an absent date
 and a wrong one are not equally recoverable.
 
-The other three statuses remain out of reach, for reasons separate from
+**Accept this evidence** on a question's detail screen is the sixth and last
+VERIFIED condition. The matcher already satisfies the other five — every link
+it writes carries a claim and a server-resolved location, none carries a value
+without a unit, and this questionnaire states no required period or scope — so
+acceptance alone moves the question to `VERIFIED`. It is refused without a
+reviewer label: an acceptance nobody signed is indistinguishable from one the
+AI issued.
+
+It does **not** move readiness. Readiness counts `review_status ==
+HUMAN_CONFIRMED` and ignores `evidence_status` entirely, which is the
+three-dimension model working as intended: vouching for a citation and
+confirming an answer are separate judgements, and the second is not implied by
+the first.
+
+Worth seeing for yourself: `Q-E-01` asks for Scope 1 emissions and cites
+`A-03`, the *waste* register — one of the two mis-citations described above.
+Accept it and the question reads `VERIFIED` anyway. The engine checks that a
+human vouched, never that the human was right. That is the correct division of
+authority, and it is also the clearest demonstration in this dataset of why the
+human is the one accountable for the verdict.
+
+The other two statuses remain out of reach, for reasons separate from
 matching:
 
 | Status | Why it cannot happen |
 |---|---|
-| `VERIFIED` | No endpoint moves an `evidence_links` row to `ACCEPTED`, so `REASON_NOT_ACCEPTED` always applies |
 | `CONFLICTING` | Needs two links with the same scope and period and **different values**; the matcher never extracts a value, so `A-03` vs `C-01` — 12.6 t against 18.4 t — is invisible |
 | `MISSING` | Still never occurs. The generic-term guard cut the candidate counts but a question can usually find *some* chunk sharing a distinctive word, so `Q-E-10` and `Q-S-07` — written to be unanswerable from this set — still attract candidates |
 
