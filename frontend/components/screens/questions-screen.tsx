@@ -142,8 +142,11 @@ export function QuestionsScreen({
           {stats.confirmedRequired} / {stats.totalRequiredFromServer}{' '}
           <span>required confirmed</span>
         </b>
+        {/* Readiness counts required answers; review counts every question. The
+            two sit adjacent, so the second states its own total rather than
+            borrowing the first's. */}
         <b>
-          {stats.unconfirmedDrafts} <span>awaiting human review</span>
+          {stats.unconfirmedDrafts} <span>of {stats.total} awaiting human review</span>
         </b>
         <b>
           {stats.evidenceGaps} <span>open evidence gaps</span>

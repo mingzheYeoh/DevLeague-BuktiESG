@@ -1,14 +1,17 @@
 import { expect, test, type Page } from '@playwright/test'
 
 /**
- * Evidence coverage panel on the Overview screen.
+ * Panels that count questions, and the denominators they count against.
  *
  * The panel counts questions. The warning inside it counts documents. Both
  * were labelled "needs manual review", so a case with one unreadable file and
  * no question blocked by it read as a contradiction: a row saying 0 directly
  * above a warning saying 1.
  *
- * Both numbers were correct. The panel was not.
+ * Both numbers were correct. The panel was not. The readiness tiles and the
+ * questionnaire summary strip had the same shape of defect: readiness is
+ * required-only while review is every question, so `0 of 14` sat beside a bare
+ * `20` and the pair implied a shared denominator that does not exist.
  */
 
 const CASE_ID = 'case-coverage-0001'
@@ -121,3 +124,35 @@ test.describe('Evidence coverage panel', () => {
   })
 })
 
+
+test.describe('Readiness stats', () => {
+  test('each tile names the population it counts', async ({ page }) => {
+    // 20 questions, 14 of them required, none reviewed. So "Confirmed" is out
+    // of 14 and "Awaiting review" is out of 20, and side by side without their
+    // denominators the pair reads as 0 + 20 = 20 against a stated total of 14.
+    await gotoOverview(page)
+
+    const stats = page.locator('.readiness-stats')
+    await expect(stats.getByText('of 14 required', { exact: true })).toBeVisible()
+    await expect(stats.getByText('of 20 questions', { exact: true })).toBeVisible()
+
+    // The old sub-labels named neither population.
+    await expect(stats.getByText('Required answers', { exact: true })).toHaveCount(0)
+    await expect(stats.getByText('Human review needed', { exact: true })).toHaveCount(0)
+  })
+})
+
+
+test.describe('Questionnaire summary strip', () => {
+  test('the review count names its population too', async ({ page }) => {
+    await gotoOverview(page)
+    await page.getByRole('button', { name: 'Questionnaire', exact: false }).first().click()
+    await expect(page.getByRole('heading', { name: 'Customer questionnaire' })).toBeVisible()
+
+    const strip = page.locator('.summary-strip')
+    await expect(strip.getByText('required confirmed', { exact: true })).toBeVisible()
+    // "20 awaiting human review" beside "0 / 14 required confirmed" reads as
+    // 20 out of 14. The six optional questions are the difference.
+    await expect(strip.getByText('of 20 awaiting human review', { exact: true })).toBeVisible()
+  })
+})

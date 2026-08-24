@@ -238,7 +238,9 @@ export function ExportScreen({
         <div>
           <strong>{stats.unconfirmedDrafts}</strong>
           <span>Unconfirmed answers</span>
-          <small>Human review needed</small>
+          {/* Every question, not only the required ones the readiness line
+              above counts. */}
+          <small>of {stats.total} questions</small>
         </div>
         <div>
           <strong>{openActionCount}</strong>
@@ -356,7 +358,10 @@ export function ExportScreen({
           <Key label="Partial evidence" value={`${stats.evidenceCounts.PARTIAL} questions`} />
           <Key label="Outdated evidence" value={`${stats.evidenceCounts.OUTDATED} questions`} />
           <Key label="Source conflicts" value={`${stats.sourceConflicts} need a human decision`} />
-          <Key label="Unconfirmed answers" value={`${stats.unconfirmedDrafts} need review`} />
+          <Key
+            label="Unconfirmed answers"
+            value={`${stats.unconfirmedDrafts} of ${stats.total} questions`}
+          />
           <Key label="Open actions" value={`${openActionCount} before the deadline`} />
           <Key
             label="Documents needing attention"

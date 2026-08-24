@@ -136,16 +136,21 @@ export function OverviewScreen({
             </small>
           </div>
         </div>
+        {/* These two count different populations: readiness is required-only,
+            because that is what gates export, while every question still needs
+            a human before it can be sent. Without the denominators the pair
+            reads as 0 + 20 = 20 against a stated total of 14, and the reader
+            is left to work out that the six optional questions are the gap. */}
         <div className="readiness-stats">
           <Summary
             label="Confirmed"
             value={String(stats.confirmedRequired)}
-            sub="Required answers"
+            sub={`of ${stats.totalRequiredFromServer} required`}
           />
           <Summary
             label="Awaiting review"
             value={String(stats.unconfirmedDrafts)}
-            sub="Human review needed"
+            sub={`of ${stats.total} questions`}
           />
           <Summary
             label="Open actions"
