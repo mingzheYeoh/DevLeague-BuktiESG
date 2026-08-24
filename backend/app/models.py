@@ -29,6 +29,7 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -37,7 +38,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db import Base
+from app.db import Base, UtcDateTime
 from app.enums import (
     ACTION_STATUS,
     ACTION_TYPE,
@@ -72,7 +73,7 @@ class Organization(Base):
     industry: Mapped[str | None] = mapped_column(String(255), nullable=True)
     employee_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     country: Mapped[str | None] = mapped_column(String(120), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     cases: Mapped[list["Case"]] = relationship(back_populates="organization")
 
@@ -86,13 +87,27 @@ class Case(Base):
     )
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     title: Mapped[str] = mapped_column(String(500))
-    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deadline_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     reporting_period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     reporting_period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="DRAFT")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    # Retirement. ARCHIVED is an ordinary `status` value, already in
+    # CASE_STATUS, so nothing downstream needs a new concept. These two columns
+    # exist only so the transition is dated and reversible: without
+    # status_before_archive, archiving a READY or EXPORTED Case would silently
+    # destroy the fact that it got that far. Same reasoning that produced the
+    # REOPEN review action (see enums.py REVIEW_ACTION) — a status a human can
+    # set and never clear is a trap.
+    #
+    # archived_at rather than reading updated_at: updated_at is overwritten by
+    # the next write, including the unarchive.
+    archived_at: Mapped[datetime | None] = mapped_column(
+        UtcDateTime, nullable=True
+    )
+    status_before_archive: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+        UtcDateTime, default=_utcnow, onupdate=_utcnow
     )
 
     organization: Mapped[Organization | None] = relationship(back_populates="cases")
@@ -105,8 +120,23 @@ class Case(Base):
     actions: Mapped[list["Action"]] = relationship(
         back_populates="case", cascade="all, delete-orphan"
     )
+    # processing_jobs.case_id is NOT NULL with no ON DELETE rule, so deleting a
+    # Case without this cascade leaves rows pointing at an id that is gone.
+    # Postgres refuses the DELETE outright (ForeignKeyViolation); SQLite, which
+    # does not enforce foreign keys unless asked, silently orphans them. Every
+    # Case that ever uploaded a document has at least one job row, so this is
+    # the common path through DELETE /cases/{id}, not an edge case.
+    processing_jobs: Mapped[list["ProcessingJob"]] = relationship(
+        back_populates="case", cascade="all, delete-orphan"
+    )
 
-    __table_args__ = (CheckConstraint(check_in("status", CASE_STATUS), name="ck_cases_status"),)
+    __table_args__ = (
+        CheckConstraint(check_in("status", CASE_STATUS), name="ck_cases_status"),
+        CheckConstraint(
+            f"status_before_archive IS NULL OR {check_in('status_before_archive', CASE_STATUS)}",
+            name="ck_cases_status_before_archive",
+        ),
+    )
 
 
 class Document(Base):
@@ -134,7 +164,7 @@ class Document(Base):
         ForeignKey("processing_jobs.id", use_alter=True, name="fk_documents_latest_job_id"),
         nullable=True,
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     case: Mapped[Case] = relationship(back_populates="documents")
     chunks: Mapped[list["DocumentChunk"]] = relationship(
@@ -142,6 +172,24 @@ class Document(Base):
     )
     latest_job: Mapped["ProcessingJob | None"] = relationship(
         foreign_keys=[latest_job_id], post_update=True
+    )
+    # Ordering only, deliberately without a cascade. Without this relationship
+    # the ORM cannot see that processing_jobs depends on documents, and emits
+    # `DELETE FROM documents` while job rows still reference them. A job is
+    # owned by its Case, not by a document, so deleting a document on its own
+    # clears the reference rather than destroying the job's record.
+    processing_jobs: Mapped[list["ProcessingJob"]] = relationship(
+        foreign_keys="ProcessingJob.document_id", back_populates="document"
+    )
+    evidence_links: Mapped[list["EvidenceLink"]] = relationship(
+        back_populates="document", cascade="all, delete"
+    )
+    questionnaires: Mapped[list["Questionnaire"]] = relationship(
+        back_populates="document", cascade="all, delete"
+    )
+    closing_actions: Mapped[list["Action"]] = relationship(
+        foreign_keys="Action.closure_evidence_document_id",
+        back_populates="closure_evidence_document",
     )
 
     __table_args__ = (
@@ -172,6 +220,10 @@ class DocumentChunk(Base):
     # (no evidence-matching pipeline is implemented here).
 
     document: Mapped[Document] = relationship(back_populates="chunks")
+    # Ordering + ownership, same reason as Document.evidence_links.
+    evidence_links: Mapped[list["EvidenceLink"]] = relationship(
+        back_populates="chunk", cascade="all, delete"
+    )
 
 
 class ProcessingJob(Base):
@@ -190,6 +242,7 @@ class ProcessingJob(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     case_id: Mapped[str] = mapped_column(String(36), ForeignKey("cases.id"), nullable=False)
+    case: Mapped[Case] = relationship(back_populates="processing_jobs")
     job_type: Mapped[str] = mapped_column(String(30))
     status: Mapped[str] = mapped_column(String(20), default="QUEUED")
     document_id: Mapped[str | None] = mapped_column(
@@ -198,18 +251,21 @@ class ProcessingJob(Base):
     question_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("questions.id"), nullable=True
     )
+    question: Mapped["Question | None"] = relationship(back_populates="processing_jobs")
     idempotency_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     attempt_count: Mapped[int] = mapped_column(Integer, default=0)
     lease_expires_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        UtcDateTime, nullable=True
     )
     error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
-    document: Mapped["Document | None"] = relationship(foreign_keys=[document_id])
+    document: Mapped["Document | None"] = relationship(
+        foreign_keys=[document_id], back_populates="processing_jobs"
+    )
 
     __table_args__ = (
         CheckConstraint(check_in("job_type", JOB_TYPE), name="ck_processing_jobs_job_type"),
@@ -227,9 +283,12 @@ class Questionnaire(Base):
     )
     name: Mapped[str] = mapped_column(String(500))
     version: Mapped[str | None] = mapped_column(String(60), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     case: Mapped[Case] = relationship(back_populates="questionnaires")
+    # NOT NULL, so a Questionnaire cannot outlive the Document it was parsed
+    # from. Ordering, same reason as the other document back-references.
+    document: Mapped[Document] = relationship(back_populates="questionnaires")
     questions: Mapped[list["Question"]] = relationship(
         back_populates="questionnaire", cascade="all, delete-orphan"
     )
@@ -256,15 +315,17 @@ class Question(Base):
     # import time from workbook/sheet/row traversal order. Never re-derived
     # from display strings (external_question_id, section, ...).
     question_order: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+        UtcDateTime, default=_utcnow, onupdate=_utcnow
     )
 
     questionnaire: Mapped[Questionnaire] = relationship(back_populates="questions")
     answer: Mapped["Answer | None"] = relationship(
         back_populates="question", uselist=False, cascade="all, delete-orphan"
     )
+    # Ordering only, same reason as Document.processing_jobs above.
+    processing_jobs: Mapped[list["ProcessingJob"]] = relationship(back_populates="question")
     evidence_links: Mapped[list["EvidenceLink"]] = relationship(
         back_populates="question", cascade="all, delete-orphan"
     )
@@ -294,7 +355,7 @@ class Answer(Base):
     status_findings_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     review_status: Mapped[str] = mapped_column(String(30), default="UNREVIEWED")
     reviewer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     # RULING-02 "NOT_APPLICABLE" step: human-controlled only, requires a
     # reason and a reviewer identity (reviewer_name/reviewed_at above serve
     # as the reviewer identity). The rule engine (app/services/rules.py)
@@ -312,10 +373,14 @@ class Answer(Base):
     draft_provenance: Mapped[str] = mapped_column(String(30), default="NONE")
     ai_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+        UtcDateTime, default=_utcnow, onupdate=_utcnow
     )
 
     question: Mapped[Question] = relationship(back_populates="answer")
+    # Ordering. Nullable, so deleting an Answer alone just clears the back
+    # reference; the edge exists so the ORM does not emit `DELETE FROM answers`
+    # while links still cite them.
+    evidence_links: Mapped[list["EvidenceLink"]] = relationship(back_populates="answer")
 
     __table_args__ = (
         CheckConstraint(
@@ -349,6 +414,24 @@ class EvidenceLink(Base):
     chunk_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("document_chunks.id"), nullable=False
     )
+    # Both are NOT NULL, so an EvidenceLink cannot outlive the document or
+    # chunk it cites. These relationships exist so the ORM knows that and
+    # orders the deletes; without them it emits `DELETE FROM documents` while
+    # links still point at the row. `delete-orphan` stays on
+    # Question.evidence_links alone — a link is owned by its Question, and
+    # giving one object two delete-orphan parents is what SQLAlchemy warns
+    # about.
+    # How strongly the matcher scored this link (sum of matched-keyword
+    # weights). Ranking aid for presentation only — the rule engine must never
+    # read it, or the model would be influencing a verdict (AGENTS.md §3.2).
+    # Nullable: rows written before migration 0006 have no score.
+    match_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    chunk: Mapped["DocumentChunk"] = relationship(back_populates="evidence_links")
+    answer: Mapped["Answer | None"] = relationship(back_populates="evidence_links")
+    closing_actions: Mapped[list["Action"]] = relationship(
+        foreign_keys="Action.closure_evidence_link_id",
+        back_populates="closure_evidence_link",
+    )
     location_json: Mapped[str] = mapped_column(Text)
     quoted_excerpt: Mapped[str | None] = mapped_column(Text, nullable=True)
     claim_supported: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -371,9 +454,15 @@ class EvidenceLink(Base):
     extraction_valid: Mapped[bool] = mapped_column(default=True)
     link_status: Mapped[str] = mapped_column(String(30), default="CANDIDATE")
     created_by: Mapped[str] = mapped_column(String(20), default="SYSTEM")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
 
     question: Mapped[Question] = relationship(back_populates="evidence_links")
+    # ORM mapping only -- no schema change. Without it a caller holding an
+    # EvidenceLink can reach the document's id but not its name, so a citation
+    # could only ever say "Paragraph 8" without saying paragraph 8 *of what*.
+    document: Mapped[Document] = relationship(
+        foreign_keys=[document_id], back_populates="evidence_links"
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -398,7 +487,7 @@ class Action(Base):
     owner_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     owner_role: Mapped[str | None] = mapped_column(String(120), nullable=True)
     next_step: Mapped[str | None] = mapped_column(Text, nullable=True)
-    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deadline_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="TODO")
     completion_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Phase 5: an Action addressing MISSING/CONFLICTING evidence must supply
@@ -416,14 +505,23 @@ class Action(Base):
     closure_evidence_document_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("documents.id"), nullable=True
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+        UtcDateTime, default=_utcnow, onupdate=_utcnow
     )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
 
     case: Mapped[Case] = relationship(back_populates="actions")
     question: Mapped[Question | None] = relationship(back_populates="actions")
+    # Ordering, same reason as the other closure references: without these the
+    # ORM cannot know an Action outlives neither the document nor the link its
+    # closure cites, and deletes those first.
+    closure_evidence_document: Mapped[Document | None] = relationship(
+        foreign_keys=[closure_evidence_document_id], back_populates="closing_actions"
+    )
+    closure_evidence_link: Mapped["EvidenceLink | None"] = relationship(
+        foreign_keys=[closure_evidence_link_id], back_populates="closing_actions"
+    )
 
     __table_args__ = (
         CheckConstraint(check_in("type", ACTION_TYPE), name="ck_actions_type"),
