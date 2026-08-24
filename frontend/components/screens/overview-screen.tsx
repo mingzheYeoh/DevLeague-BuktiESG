@@ -241,9 +241,17 @@ export function OverviewScreen({
               <small>Conflicting</small>
             </div>
           </div>
+          {/* Every figure above and below counts QUESTIONS. The warning that
+              follows counts DOCUMENTS. Both were once labelled "needs manual
+              review", so a case with one unreadable file and no question
+              blocked by it showed a 0 directly above a 1 and read as a
+              contradiction — both numbers correct, the panel not. */}
           <div className="coverage-secondary">
             <Key label="Outdated" value={stats.evidenceCounts.OUTDATED} />
-            <Key label="Needs manual review" value={stats.evidenceCounts.NEEDS_MANUAL_REVIEW} />
+            <Key
+              label="Questions blocked by an unreadable file"
+              value={stats.evidenceCounts.NEEDS_MANUAL_REVIEW}
+            />
             <Key label="Not applicable" value={stats.evidenceCounts.NOT_APPLICABLE} />
           </div>
           {attention.length > 0 && (
@@ -254,7 +262,15 @@ export function OverviewScreen({
                   {attention.length} document{attention.length === 1 ? '' : 's'} could not be
                   processed
                 </b>
-                <p>{attention[0].original_filename} needs manual review or a retry.</p>
+                <p>
+                  {attention[0].original_filename} could not be read, so nothing in it was
+                  indexed.{' '}
+                  {stats.evidenceCounts.NEEDS_MANUAL_REVIEW === 0
+                    ? 'No question is blocked by it — every question found evidence elsewhere, which is not the same as the file being unnecessary.'
+                    : `${stats.evidenceCounts.NEEDS_MANUAL_REVIEW} question${
+                        stats.evidenceCounts.NEEDS_MANUAL_REVIEW === 1 ? '' : 's'
+                      } above depend on it.`}
+                </p>
               </div>
               <button className="link" type="button" onClick={() => go('intake')}>
                 Inspect
