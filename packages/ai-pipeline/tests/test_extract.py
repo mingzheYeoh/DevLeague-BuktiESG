@@ -151,3 +151,53 @@ def test_a_request_built_from_each_case_is_contained(case):
     for value in case.values:
         if value is not None:
             assert value not in system, "a case value leaked into the instructions"
+
+
+# --- value-aware tie-breaking ---------------------------------------------
+
+from ai_pipeline import AnalysisQuestion, analyze_question  # noqa: E402
+from ai_pipeline import DocumentChunk as PipelineChunk  # noqa: E402
+
+_A03 = [
+    PipelineChunk(chunk_id="c0", text="Waste code / line | Description | Metric tonnes | Year | Scope"),
+    PipelineChunk(chunk_id="c5", text="Total scheduled waste | All codes above, FY2025 | 12.6 | 2025 | Klang plant"),
+    PipelineChunk(chunk_id="c7", text="Total waste generated | Hazardous plus non-hazardous | 214.7 | 2025"),
+]
+_QUESTION = AnalysisQuestion(
+    question_id="q1",
+    question_text="SEDG-E4.2: Report total scheduled waste generated in metric tonnes.",
+)
+
+
+def test_without_the_hint_the_header_row_wins_the_tie():
+    """The behaviour being changed, pinned first. All three chunks score 3 on
+    keyword overlap -- a spreadsheet header contains exactly the vocabulary a
+    question about that spreadsheet uses -- and the first one encountered
+    keeps the tie. That is the header, the one row guaranteed to hold no
+    measurement."""
+    result = analyze_question(_QUESTION, _A03)
+
+    assert result.candidate_evidence[0].chunk_id == "c0"
+
+
+def test_a_chunk_carrying_a_measurement_wins_the_tie():
+    """Only the tie. A chunk that carries a measurement is a better citation
+    for a question asking for a quantity, but this must never outrank a chunk
+    the matcher scored higher -- relevance is still decided by the question's
+    own words."""
+    result = analyze_question(_QUESTION, _A03, value_bearing_ids=frozenset({"c5", "c7"}))
+
+    assert result.candidate_evidence[0].chunk_id == "c5"
+
+
+def test_the_hint_never_overrides_a_higher_keyword_score():
+    """A value-bearing chunk that is less relevant stays less relevant. The
+    model supplies an input to a deterministic choice; it does not get to
+    decide what the question is about."""
+    chunks = [
+        PipelineChunk(chunk_id="relevant", text="Total scheduled waste generated in metric tonnes, FY2025"),
+        PipelineChunk(chunk_id="measured", text="Electricity | 148600 | kWh"),
+    ]
+    result = analyze_question(_QUESTION, chunks, value_bearing_ids=frozenset({"measured"}))
+
+    assert result.candidate_evidence[0].chunk_id == "relevant"

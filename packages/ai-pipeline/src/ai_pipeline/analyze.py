@@ -143,8 +143,13 @@ def analyze_question(
     document_chunks: list[DocumentChunk],
     *,
     keyword_weights: dict[str, float] | None = None,
+    value_bearing_ids: frozenset[str] = frozenset(),
 ) -> AnalysisResult:
     """Match `question` against `document_chunks` by keyword overlap only.
+
+    `value_bearing_ids` names the chunks a later extraction pass found a
+    measurement in. It breaks ties only: see the comment at the selection
+    below. Empty on the first pass, because nothing has been extracted yet.
 
     `keyword_weights` comes from the module-level function of the same name and
     scores each matched term by how rare it is across the questionnaire. Supply
@@ -172,6 +177,7 @@ def analyze_question(
     best_chunk: Optional[DocumentChunk] = None
     best_score = 0.0
     best_matched: set[str] = set()
+    best_carries_value = False
 
     for chunk in document_chunks:
         c_keywords = _keywords(chunk.text)
@@ -185,10 +191,26 @@ def analyze_question(
         if weights and max(_weight(term) for term in matched) < _GENERIC_TERM_WEIGHT:
             continue
         score = sum(_weight(term) for term in matched)
-        if score > best_score:
+        # A tie-break, never an override. A spreadsheet header contains exactly
+        # the vocabulary a question about that spreadsheet uses, so it ties with
+        # the data rows below it on keyword overlap - and it is the one row
+        # guaranteed to hold no measurement. Among chunks the matcher rates
+        # equally, one that carries a measurement is the better citation for a
+        # question asking for a quantity.
+        #
+        # Strictly a tie-break: a value-bearing chunk never outranks a chunk
+        # with a higher keyword score. Relevance stays decided by the question's
+        # own words, so an extracted value informs the choice without deciding
+        # what the question is about.
+        carries_value = chunk.chunk_id in value_bearing_ids
+        better = score > best_score or (
+            score == best_score and carries_value and not best_carries_value
+        )
+        if better and score > 0:
             best_score = score
             best_chunk = chunk
             best_matched = matched
+            best_carries_value = carries_value
 
     candidate_evidence: list[CandidateEvidence] = []
     missing_elements: list[str] = []

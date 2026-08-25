@@ -159,3 +159,45 @@ def test_a_chunk_the_model_could_not_measure_stays_empty_and_is_not_retried(
         .count()
         >= 1
     )
+
+
+def test_extraction_moves_the_citation_off_a_row_with_no_measurement(client, db_session):
+    """The end-to-end shape of the tie-break.
+
+    A spreadsheet's header row ties with its data rows on keyword overlap -
+    the header holds exactly the vocabulary the question uses - and wins by
+    being first. It is also the one row that can never carry a number. Once
+    extraction knows which rows do, the citation moves.
+    """
+    from app.models import DocumentChunk, EvidenceLink, Question
+    from app.services import jobs as jobs_service
+
+    case_id = client.post("/api/v1/cases", json={"title": "Tie"}).json()["id"]
+    client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={"file": ("q.xlsx", _questionnaire(
+            "Report total scheduled waste generated in metric tonnes."
+        ), "application/octet-stream")},
+        data={"document_type": "QUESTIONNAIRE"},
+    )
+    header = "Waste code | Description | Metric tonnes | Year"
+    row = "Total scheduled waste | All codes, FY2025 | 12.6 | 2025"
+    _upload(client, case_id, "a03.txt", f"{header}\n{row}\n".encode())
+
+    def cited_text() -> str:
+        question = db_session.query(Question).one()
+        link = (
+            db_session.query(EvidenceLink)
+            .filter(EvidenceLink.question_id == question.id)
+            .one()
+        )
+        return db_session.get(DocumentChunk, link.chunk_id).text
+
+    assert cited_text() == header, "the header wins the tie before extraction"
+
+    jobs_service.run_extraction_jobs(
+        db_session,
+        extractor=FakeExtractor({row: Extracted(value="12.6", unit="t")}),
+    )
+
+    assert cited_text() == row

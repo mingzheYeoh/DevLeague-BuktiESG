@@ -495,6 +495,12 @@ def run_extraction_jobs(db: Session, *, extractor=None, limit: int = 10) -> int:
         db.flush()
         completed += 1
 
+        # Re-select this document's citations now that we know which of its
+        # chunks carry a measurement. Only ties change: a spreadsheet header
+        # ties with its own data rows on keyword overlap and wins by being
+        # first, and it is the one row that can never hold a number.
+        _reselect_links_for_document(db, job.document_id)
+
         # New values are an input the rule engine reads, so the questions have
         # to be told. This is where CONFLICTING can finally appear: two chunks
         # reporting different numbers for one scope and period.
@@ -505,6 +511,79 @@ def run_extraction_jobs(db: Session, *, extractor=None, limit: int = 10) -> int:
     if completed:
         db.commit()
     return completed
+
+
+def _reselect_links_for_document(db: Session, document_id: str | None) -> None:
+    """Re-run link selection for one document, now that extraction has run.
+
+    Deletes this document's links for each question and re-creates them, which
+    is what the indexing path already does on every upload - a link is a
+    derived record, not a decision. Links a human has acted on are left alone:
+    an ACCEPTED, REJECTED or INVALIDATED link carries a verdict, and a better
+    citation is not a reason to discard one.
+    """
+    if document_id is None:
+        return
+    document = db.get(Document, document_id)
+    if document is None:
+        return
+
+    chunk_rows = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == document_id)
+        .order_by(DocumentChunk.sequence_no)
+        .all()
+    )
+    if not chunk_rows:
+        return
+
+    value_bearing = frozenset(c.id for c in chunk_rows if c.extracted_value)
+    if not value_bearing:
+        # Nothing was measured here, so nothing can break a tie differently.
+        return
+
+    pipeline_chunks = [
+        PipelineDocumentChunk(chunk_id=c.id, text=c.text) for c in chunk_rows
+    ]
+    chunk_by_id = {c.id: c for c in chunk_rows}
+
+    questions = (
+        db.query(Question)
+        .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
+        .filter(Questionnaire.case_id == document.case_id)
+        .all()
+    )
+    weights = keyword_weights([q.question_text for q in questions])
+
+    for question in questions:
+        touched = (
+            db.query(EvidenceLink)
+            .filter(
+                EvidenceLink.question_id == question.id,
+                EvidenceLink.document_id == document_id,
+                EvidenceLink.link_status != "CANDIDATE",
+            )
+            .count()
+        )
+        if touched:
+            continue
+
+        db.query(EvidenceLink).filter(
+            EvidenceLink.question_id == question.id,
+            EvidenceLink.document_id == document_id,
+        ).delete(synchronize_session=False)
+        db.flush()
+
+        _analyze_question_against_evidence(
+            db,
+            question,
+            document,
+            pipeline_chunks,
+            chunk_by_id,
+            weights,
+            value_bearing_ids=value_bearing,
+        )
+    db.flush()
 
 def _recompute_case_question_statuses(db: Session, case: Case) -> None:
     """Re-run the rule engine for every question in a Case, adding no evidence.
@@ -546,11 +625,13 @@ def _analyze_question_against_evidence(
     pipeline_chunks: list[PipelineDocumentChunk],
     chunk_by_id: dict[str, DocumentChunk],
     weights: dict[str, float] | None = None,
+    value_bearing_ids: frozenset[str] = frozenset(),
 ) -> None:
     result = analyze_question(
         AnalysisQuestion(question_id=question.id, question_text=question.question_text),
         pipeline_chunks,
         keyword_weights=weights,
+        value_bearing_ids=value_bearing_ids,
     )
     # Hard boundary (AGENTS.md §3.2/3.3): `result` never carries a status or a
     # location. Only its `chunk_id` is trusted, and only if it resolves to a
