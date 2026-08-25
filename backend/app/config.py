@@ -21,6 +21,15 @@ class Settings(BaseSettings):
     # out as a test-only substitution).
     database_url: str = "sqlite:///./buktiesg_dev.db"
 
+    # Absence is a supported configuration, not a misconfiguration. Without a
+    # key `build_extractor` returns NullExtractor and the system behaves
+    # exactly as it did before extraction existed, which is what makes
+    # introducing a model reversible and lets CI run the path with no bill.
+    #
+    # Read from the environment or `.env`, never committed: `.gitignore`
+    # covers `.env` and `.env.example` carries the name only.
+    deepseek_api_key: str | None = None
+
     app_name: str = "BuktiESG API"
 
     # 10 MB, arbitrary slice-scope limit for the demo upload path. Not the
