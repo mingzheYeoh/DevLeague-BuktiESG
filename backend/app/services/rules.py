@@ -536,7 +536,12 @@ def summarize_points(status: str, findings: list[dict]) -> list[str]:
         unique = list(dict.fromkeys(str(v) for v in values))
         if len(unique) > 1:
             add(f"sources disagree: {' vs '.join(unique)}")
-        add("two or more records report different values for the same scope and period")
+        # Same correction as `_summarize`: under the 2026-08-25 ruling the pair
+        # that triggers this need not share a scope at all - one of them may
+        # state none. Claiming they do would assert something the evidence
+        # does not say, to the one person whose job is to check that.
+        add("two or more records report different values, and nothing in them says "
+            "they cover different things")
         add("a human has to decide which source is right — this is never resolved automatically")
     elif status == "OUTDATED":
         add("evidence falls outside the required reporting period, or is more than 24 months old")
