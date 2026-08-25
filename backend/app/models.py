@@ -46,11 +46,13 @@ from app.enums import (
     DOCUMENT_PROCESSING_STATUS,
     DOCUMENT_TYPE,
     DRAFT_PROVENANCE,
+    EMAIL_TOKEN_PURPOSE,
     EVIDENCE_CREATED_BY,
     EVIDENCE_LINK_STATUS,
     EVIDENCE_STATUS,
     JOB_STATUS,
     JOB_TYPE,
+    ORG_ROLE,
     PILLAR,
     REVIEW_STATUS,
     check_in,
@@ -129,9 +131,7 @@ class OrganizationMember(Base):
     organization: Mapped["Organization"] = relationship()
 
     __table_args__ = (
-        CheckConstraint(
-            "role IN ('ADMIN', 'MEMBER')", name="ck_organization_members_role"
-        ),
+        CheckConstraint(check_in("role", ORG_ROLE), name="ck_organization_members_role"),
     )
 
 
@@ -182,7 +182,7 @@ class EmailToken(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "purpose IN ('VERIFY', 'RESET')", name="ck_email_tokens_purpose"
+            check_in("purpose", EMAIL_TOKEN_PURPOSE), name="ck_email_tokens_purpose"
         ),
     )
 
@@ -216,7 +216,7 @@ class Invitation(Base):
     invited_by: Mapped["User"] = relationship(foreign_keys=[invited_by_user_id])
 
     __table_args__ = (
-        CheckConstraint("role IN ('ADMIN', 'MEMBER')", name="ck_invitations_role"),
+        CheckConstraint(check_in("role", ORG_ROLE), name="ck_invitations_role"),
     )
 
 

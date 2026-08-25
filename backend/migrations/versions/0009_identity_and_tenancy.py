@@ -13,6 +13,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
+from app.enums import EMAIL_TOKEN_PURPOSE, ORG_ROLE, check_in
+
 revision = "0009_identity_and_tenancy"
 down_revision = "0008_chunk_extracted_values"
 branch_labels = None
@@ -46,7 +48,7 @@ def upgrade() -> None:
         sa.Column("role", sa.String(20), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.CheckConstraint(
-            "role IN ('ADMIN', 'MEMBER')", name="ck_organization_members_role"
+            check_in("role", ORG_ROLE), name="ck_organization_members_role"
         ),
     )
     op.create_table(
@@ -85,7 +87,7 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
         sa.CheckConstraint(
-            "purpose IN ('VERIFY', 'RESET')", name="ck_email_tokens_purpose"
+            check_in("purpose", EMAIL_TOKEN_PURPOSE), name="ck_email_tokens_purpose"
         ),
     )
     op.create_table(
@@ -109,7 +111,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.CheckConstraint("role IN ('ADMIN', 'MEMBER')", name="ck_invitations_role"),
+        sa.CheckConstraint(check_in("role", ORG_ROLE), name="ck_invitations_role"),
     )
 
 
