@@ -30,9 +30,10 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from app.auth import require_case
 from app.config import settings
 from app.db import get_db
-from app.errors import api_error, case_not_found
+from app.errors import api_error
 from app.enums import DOCUMENT_DELETABLE_FROM, DOCUMENT_TYPE
 from app.models import Case, Document, DocumentChunk
 from app.schemas import DocumentChunkRecord, DocumentRecord
@@ -113,15 +114,13 @@ def _parse_source_date(raw: str | None) -> date | None:
 
 @router.post("/{case_id}/documents", response_model=DocumentRecord, status_code=201)
 async def upload_document(
-    case_id: str,
     file: UploadFile = File(...),
     document_type: str = Form("OTHER"),
     source_date: str | None = Form(None),
+    case: Case = Depends(require_case),
     db: Session = Depends(get_db),
 ) -> DocumentRecord:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
+    case_id = case.id
 
     if document_type not in DOCUMENT_TYPE:
         raise api_error(
@@ -185,33 +184,31 @@ async def upload_document(
 
 
 @router.get("/{case_id}/documents", response_model=list[DocumentRecord])
-def list_documents(case_id: str, db: Session = Depends(get_db)) -> list[DocumentRecord]:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
+def list_documents(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> list[DocumentRecord]:
     documents = (
         db.query(Document)
-        .filter(Document.case_id == case_id)
+        .filter(Document.case_id == case.id)
         .order_by(Document.created_at)
         .all()
     )
     return [DocumentRecord.from_model(doc) for doc in documents]
 
 
-def _load_document(db: Session, case_id: str, document_id: str) -> Document:
-    """Fetch a Document, enforcing that it belongs to this Case.
+def _load_document(db: Session, case: Case, document_id: str) -> Document:
+    """A Document belonging to this Case, or 404.
 
-    The case check is the authorisation boundary for every endpoint that
-    addresses a Document by id: without it, knowing any document id would be
-    enough to read another Case's file - or delete it - through any Case's URL.
+    Takes the resolved `Case` rather than a `case_id: str`. The case check that
+    used to open this function has moved into `require_case`, which the caller
+    already went through - so this function can no longer be handed an
+    identifier nobody authenticated. What remains here is the second half of the
+    same boundary: the document must belong to *this* case, so that knowing a
+    document id is not enough to read it through a case that happens to be
+    yours.
     """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     document = db.get(Document, document_id)
-    if document is None or document.case_id != case_id:
+    if document is None or document.case_id != case.id:
         raise _document_not_found(document_id)
     return document
 
@@ -221,7 +218,9 @@ def _load_document(db: Session, case_id: str, document_id: str) -> Document:
     response_model=list[DocumentChunkRecord],
 )
 def list_document_chunks(
-    case_id: str, document_id: str, db: Session = Depends(get_db)
+    document_id: str,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
 ) -> list[DocumentChunkRecord]:
     """The document as the server parsed it, in order.
 
@@ -235,7 +234,7 @@ def list_document_chunks(
     Empty for a document that failed to parse; the document's `error` field
     says why.
     """
-    _load_document(db, case_id, document_id)
+    _load_document(db, case, document_id)
 
     chunks = (
         db.query(DocumentChunk)
@@ -248,9 +247,9 @@ def list_document_chunks(
 
 @router.get("/{case_id}/documents/{document_id}/content")
 def get_document_content(
-    case_id: str,
     document_id: str,
     download: bool = False,
+    case: Case = Depends(require_case),
     db: Session = Depends(get_db),
 ) -> FileResponse:
     """The stored file itself, for preview or download.
@@ -285,7 +284,7 @@ def get_document_content(
     never parsed as markup; and PDF script runs inside the viewer's own sandbox,
     with no access to the embedding origin.
     """
-    document = _load_document(db, case_id, document_id)
+    document = _load_document(db, case, document_id)
 
     try:
         path = storage.resolve(document.storage_key)
@@ -335,7 +334,11 @@ def get_document_content(
 
 
 @router.delete("/{case_id}/documents/{document_id}", status_code=204)
-def delete_document(case_id: str, document_id: str, db: Session = Depends(get_db)) -> Response:
+def delete_document(
+    document_id: str,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
+) -> Response:
     """Delete a Document the parser could not read, and its stored bytes.
 
     Refused unless the Document is in `DOCUMENT_DELETABLE_FROM`. That gate is
@@ -354,7 +357,7 @@ def delete_document(case_id: str, document_id: str, db: Session = Depends(get_db
     `delete_case`: bytes nobody references are a janitor's problem, a row
     citing a file that is gone is a correctness one.
     """
-    document = _load_document(db, case_id, document_id)
+    document = _load_document(db, case, document_id)
 
     if document.processing_status not in DOCUMENT_DELETABLE_FROM:
         raise api_error(
@@ -396,7 +399,9 @@ def delete_document(case_id: str, document_id: str, db: Session = Depends(get_db
     status_code=200,
 )
 def retry_document(
-    case_id: str, document_id: str, db: Session = Depends(get_db)
+    document_id: str,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
 ) -> DocumentRecord:
     """Re-attempt processing for a Document currently stuck in FAILED or
     NEEDS_MANUAL_REVIEW. Creates a new `processing_jobs` row (a fresh
@@ -404,13 +409,7 @@ def retry_document(
     left as an honest historical record) and runs it the same way the
     initial upload does.
     """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
-    document = db.get(Document, document_id)
-    if document is None or document.case_id != case_id:
-        raise _document_not_found(document_id)
+    document = _load_document(db, case, document_id)
 
     if document.processing_status not in _RETRYABLE_STATUSES:
         raise api_error(
@@ -427,7 +426,7 @@ def retry_document(
 
     job = jobs.create_job(
         db,
-        case_id=case_id,
+        case_id=case.id,
         job_type=_job_type_for(document.document_type),
         document_id=document.id,
     )

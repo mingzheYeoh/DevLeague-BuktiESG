@@ -20,8 +20,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.auth import require_case
 from app.db import get_db
-from app.errors import api_error, case_not_found
+from app.errors import api_error
 from app.models import Action, Case, EvidenceLink, Question
 from app.schemas import EvidenceAcceptRequest, EvidenceLinkRecord
 from app.services import jobs
@@ -65,9 +66,9 @@ def _recompute_answer_status(db: Session, case_id: str, link: EvidenceLink) -> N
         answer.status_reason = result.status_reason
 
 
-def _question_in_case(db: Session, case_id: str, question_id: str) -> Question:
+def _question_in_case(db: Session, case: Case, question_id: str) -> Question:
     question = db.get(Question, question_id)
-    if question is None or question.questionnaire.case_id != case_id:
+    if question is None or question.questionnaire.case_id != case.id:
         raise api_error(
             404, "QUESTION_NOT_FOUND", f"Question '{question_id}' was not found in this case."
         )
@@ -79,7 +80,9 @@ def _question_in_case(db: Session, case_id: str, question_id: str) -> Question:
     response_model=list[EvidenceLinkRecord],
 )
 def list_evidence_links(
-    case_id: str, question_id: str, db: Session = Depends(get_db)
+    question_id: str,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
 ) -> list[EvidenceLinkRecord]:
     """Every evidence link on one question, newest match first.
 
@@ -94,7 +97,7 @@ def list_evidence_links(
     that a link was already set aside - a list that silently omits them reads
     as if the evidence never existed.
     """
-    _question_in_case(db, case_id, question_id)
+    _question_in_case(db, case, question_id)
     links = (
         db.query(EvidenceLink)
         .filter(EvidenceLink.question_id == question_id)
@@ -109,9 +112,9 @@ def list_evidence_links(
     response_model=EvidenceLinkRecord,
 )
 def accept_evidence_link(
-    case_id: str,
     evidence_link_id: str,
     payload: EvidenceAcceptRequest,
+    case: Case = Depends(require_case),
     db: Session = Depends(get_db),
 ) -> EvidenceLinkRecord:
     """Accept an evidence link: a human vouching for this citation.
@@ -127,19 +130,15 @@ def accept_evidence_link(
             422, "VALIDATION_ERROR", "reviewer_name is required to accept evidence."
         )
 
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     link = db.get(EvidenceLink, evidence_link_id)
-    if link is None or link.question.questionnaire.case_id != case_id:
+    if link is None or link.question.questionnaire.case_id != case.id:
         raise _evidence_link_not_found(evidence_link_id)
 
     link.link_status = "ACCEPTED"
     link.accepted_by = payload.reviewer_name.strip()
     link.accepted_at = datetime.now(timezone.utc)
     db.flush()
-    _recompute_answer_status(db, case_id, link)
+    _recompute_answer_status(db, case.id, link)
     db.commit()
     db.refresh(link)
     return EvidenceLinkRecord.from_model(link)
@@ -149,14 +148,12 @@ def accept_evidence_link(
     response_model=EvidenceLinkRecord,
 )
 def invalidate_evidence_link(
-    case_id: str, evidence_link_id: str, db: Session = Depends(get_db)
+    evidence_link_id: str,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
 ) -> EvidenceLinkRecord:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     link = db.get(EvidenceLink, evidence_link_id)
-    if link is None or link.question.questionnaire.case_id != case_id:
+    if link is None or link.question.questionnaire.case_id != case.id:
         raise _evidence_link_not_found(evidence_link_id)
 
     link.link_status = "INVALIDATED"
@@ -180,7 +177,7 @@ def invalidate_evidence_link(
             f"{action.completion_note}\n{reopen_note}" if action.completion_note else reopen_note
         )
 
-    _recompute_answer_status(db, case_id, link)
+    _recompute_answer_status(db, case.id, link)
 
     db.commit()
     db.refresh(link)
