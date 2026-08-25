@@ -53,3 +53,9 @@ def test_listing_another_organizations_evidence_links_is_404(client, client_othe
         f"/api/v1/cases/{case_id}/questions/any-question-id/evidence-links"
     )
     assert response.status_code == 404
+    # Both a correct implementation (case check fails first) and the original,
+    # entirely unguarded implementation (question lookup fails on a fabricated id)
+    # return 404. Only the error code distinguishes them: CASE_NOT_FOUND means
+    # the case was checked and rejected before attempting to resolve the question;
+    # QUESTION_NOT_FOUND means the question was resolved without authorising the case.
+    assert response.json()["detail"]["error"]["code"] == "CASE_NOT_FOUND"

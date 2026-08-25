@@ -38,7 +38,7 @@ def _evidence_link_not_found(evidence_link_id: str):
 
 
 
-def _recompute_answer_status(db: Session, case_id: str, link: EvidenceLink) -> None:
+def _recompute_answer_status(db: Session, case: Case, link: EvidenceLink) -> None:
     """Re-run the deterministic rule engine over the question this link belongs
     to, after the link's status has changed.
 
@@ -55,7 +55,7 @@ def _recompute_answer_status(db: Session, case_id: str, link: EvidenceLink) -> N
     result = compute_evidence_status(
         candidates=jobs._load_evidence_candidates(db, question.id),
         requirement=jobs._build_evidence_requirement(question),
-        unreadable_documents=jobs._build_unreadable_documents(db, case_id),
+        unreadable_documents=jobs._build_unreadable_documents(db, case.id),
         current_status=answer.evidence_status,
         not_applicable_reason=answer.not_applicable_reason,
         reviewer_name=answer.reviewer_name,
@@ -138,7 +138,7 @@ def accept_evidence_link(
     link.accepted_by = payload.reviewer_name.strip()
     link.accepted_at = datetime.now(timezone.utc)
     db.flush()
-    _recompute_answer_status(db, case.id, link)
+    _recompute_answer_status(db, case, link)
     db.commit()
     db.refresh(link)
     return EvidenceLinkRecord.from_model(link)
@@ -177,7 +177,7 @@ def invalidate_evidence_link(
             f"{action.completion_note}\n{reopen_note}" if action.completion_note else reopen_note
         )
 
-    _recompute_answer_status(db, case.id, link)
+    _recompute_answer_status(db, case, link)
 
     db.commit()
     db.refresh(link)
