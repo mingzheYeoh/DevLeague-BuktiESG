@@ -325,13 +325,28 @@ def _build_requirement_json(question_text: str) -> str:
     Only `keywords` is filled, and the omissions are deliberate:
 
     * `required_period_start`/`_end` would look natural to inherit from the
-      Case's reporting period, and would be a regression. The VERIFIED
+      Case's reporting period, and would still be a regression. The VERIFIED
       period-coverage check demands `link.period_start <= required_start and
-      link.period_end >= required_end`, and no link carries a period, because
-      nothing extracts one from a chunk. Every VERIFIED would fall back to
-      PARTIAL. OUTDATED would go with it: the `source_date` fallback in
+      link.period_end >= required_end`.
+
+      This bullet used to say no link carries a period because nothing
+      extracts one from a chunk. That stopped being true when extraction
+      landed: `_load_evidence_candidates` now prefers
+      `chunk.extracted_period_start`/`_end` over the link's own. The
+      conclusion outlived its reason, so here are the two that replace it.
+      Extraction runs only when a provider key is configured — under
+      `NullExtractor` every period is still NULL and every VERIFIED still
+      falls back to PARTIAL, exactly as before. And where it does run, period
+      and scope are the two fields the model is least stable on: two runs over
+      identical input returned the same numbers while disagreeing on whether a
+      chunk's period could be inferred at all (see `services/extractor.py` on
+      `temperature`). Coverage resting on that would make one document
+      VERIFIED on one run and PARTIAL on the next, from the same bytes.
+
+      OUTDATED goes with it either way: the `source_date` fallback in
       `_is_outdated` only applies when the question states no period.
-    * `required_scope` fails the same way against a NULL `scope_description`.
+    * `required_scope` fails the same way, for the same two reasons, against
+      a `scope_description` that is NULL or inferred inconsistently.
     * `accepted_document_types` is not inferable from question text without
       guessing, and a wrong guess silently narrows the C-15 gate below.
 
