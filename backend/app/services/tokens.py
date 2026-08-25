@@ -16,7 +16,6 @@ SHA-256 rather than a password hash is therefore a deliberate difference from
 from __future__ import annotations
 
 import hashlib
-import hmac
 import secrets
 
 #: 32 bytes of entropy, URL-safe so it can travel in an email link unescaped.
@@ -29,13 +28,3 @@ def new_token() -> str:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def tokens_match(token: str, stored_hash: str) -> bool:
-    """Constant-time comparison.
-
-    `==` on a hex digest leaks its answer through timing: it returns at the
-    first differing character, so an attacker can recover a valid hash one
-    character at a time. `compare_digest` always reads both operands whole.
-    """
-    return hmac.compare_digest(hash_token(token), stored_hash)
