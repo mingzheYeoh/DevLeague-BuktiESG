@@ -201,3 +201,29 @@ def test_extraction_moves_the_citation_off_a_row_with_no_measurement(client, db_
     )
 
     assert cited_text() == row
+
+
+def test_the_conflict_the_reviewer_reads_names_both_documents(client, db_session, waste_case):
+    """End to end. Two numbers without provenance is what this product exists
+    to refuse, and the question payload is where a reviewer meets them."""
+    from app.services import jobs as jobs_service
+
+    _upload(client, waste_case, "a03.txt", b"Total scheduled waste FY2025: 12.6 tonnes.\n")
+    _upload(client, waste_case, "c01.txt", b"Total scheduled waste FY2025: 18.4 metric tonnes.\n")
+    jobs_service.run_extraction_jobs(
+        db_session,
+        extractor=FakeExtractor(
+            {
+                "Total scheduled waste FY2025: 12.6 tonnes.": Extracted(value="12.6", unit="t"),
+                "Total scheduled waste FY2025: 18.4 metric tonnes.": Extracted(value="18.4", unit="t"),
+            }
+        ),
+    )
+
+    payload = client.get(f"/api/v1/cases/{waste_case}/questions").json()
+    question = (payload["items"] if isinstance(payload, dict) else payload)[0]
+    assert question["evidence_status"] == "CONFLICTING"
+
+    disagree = next(p for p in question["status_points"] if p.startswith("sources disagree"))
+    assert "a03.txt says 12.6 t" in disagree
+    assert "c01.txt says 18.4 t" in disagree

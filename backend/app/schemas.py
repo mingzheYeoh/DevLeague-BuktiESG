@@ -330,7 +330,22 @@ class QuestionListItem(BaseModel):
             except (ValueError, TypeError):
                 findings = None
             if isinstance(findings, list):
-                status_points = summarize_points(answer.evidence_status, findings)
+                # Resolved here rather than in the rule engine, which is
+                # DB-free by design (BLOCKER-04). A conflict bullet naming two
+                # numbers and neither source is the unprovable claim this
+                # product refuses to help anyone make; the filename is what a
+                # reviewer needs to act on it.
+                #
+                # Every link, not only the live ones: a finding can name a link
+                # that has since been rejected, and "12.6" with no source is
+                # worse than a source the reviewer already set aside.
+                source_labels = {
+                    link.id: getattr(link.document, "original_filename", None) or link.id
+                    for link in (question.evidence_links or [])
+                }
+                status_points = summarize_points(
+                    answer.evidence_status, findings, source_labels=source_labels
+                )
 
         return cls(
             id=question.id,

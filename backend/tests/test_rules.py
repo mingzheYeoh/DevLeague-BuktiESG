@@ -753,3 +753,42 @@ def test_a_candidate_with_no_value_is_not_reported_as_conflicting():
     assert result.status == "CONFLICTING"
     conflicting = {f["link_id"] for f in result.status_findings if f["condition"] == "CONFLICTING"}
     assert conflicting == {"a", "b"}
+
+
+def test_a_conflict_bullet_names_which_source_said_which_value():
+    """`sources disagree: 12.6 vs 18.4` is two numbers with no provenance -
+    the thing this product exists to refuse. A reviewer's first question is
+    which document said which, and the bullet is where they read it.
+
+    `rules.py` is DB-free (BLOCKER-04), so the caller supplies the labels; the
+    engine never looks a filename up for itself.
+    """
+    findings = [
+        {"condition": "CONFLICTING", "link_id": "a03", "value": "12.6", "unit": "t"},
+        {"condition": "CONFLICTING", "link_id": "c01", "value": "18.4", "unit": "t"},
+    ]
+
+    points = summarize_points(
+        "CONFLICTING",
+        findings,
+        source_labels={"a03": "A-03-scheduled-waste.xlsx", "c01": "C-01-weighbridge.txt"},
+    )
+
+    disagree = next(p for p in points if p.startswith("sources disagree"))
+    assert "A-03-scheduled-waste.xlsx says 12.6 t" in disagree
+    assert "C-01-weighbridge.txt says 18.4 t" in disagree
+
+
+def test_without_labels_the_bullet_still_reports_the_values():
+    """The labels are an improvement, not a dependency. A caller that cannot
+    resolve them - or a finding written before this existed - must still get
+    the disagreement, because a bullet that vanishes is worse than a bare one.
+    """
+    findings = [
+        {"condition": "CONFLICTING", "link_id": "a", "value": "12.6", "unit": "t"},
+        {"condition": "CONFLICTING", "link_id": "b", "value": "18.4", "unit": "t"},
+    ]
+
+    points = summarize_points("CONFLICTING", findings)
+
+    assert any("12.6 t" in p and "18.4 t" in p for p in points)

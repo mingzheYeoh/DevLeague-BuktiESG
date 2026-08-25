@@ -331,6 +331,9 @@ def compute_evidence_status(
                 "condition": "CONFLICTING",
                 "link_id": c.link_id,
                 "value": c.value,
+                # Carried so a summary can say "12.6 t" rather than "12.6".
+                # A bare number is not a measurement.
+                "unit": c.unit,
                 "scope_description": c.scope_description,
                 "period_start": c.period_start.isoformat() if c.period_start else None,
                 "period_end": c.period_end.isoformat() if c.period_end else None,
@@ -501,7 +504,12 @@ def _find_relevant_unreadable(
     return None
 
 
-def summarize_points(status: str, findings: list[dict]) -> list[str]:
+def summarize_points(
+    status: str,
+    findings: list[dict],
+    *,
+    source_labels: dict[str, str] | None = None,
+) -> list[str]:
     """Short, action-oriented bullets explaining one `evidence_status`.
 
     The companion to `_summarize()`. That one produces `status_reason`, a prose
@@ -513,6 +521,12 @@ def summarize_points(status: str, findings: list[dict]) -> list[str]:
     `EvidenceStatusResult`, so it works equally on a freshly computed result and
     on a persisted `answers.status_findings_json`. That is what lets the API
     expose these without a new column.
+
+    `source_labels` maps `link_id` to something a reviewer recognises, usually
+    a filename. Supplied by the caller because this module is DB-free
+    (BLOCKER-04) and must never look one up itself. Optional: a caller that
+    cannot resolve them still gets the values, because a bullet that
+    disappears is worse than a bullet without a name.
     """
     points: list[str] = []
 
@@ -532,10 +546,26 @@ def summarize_points(status: str, findings: list[dict]) -> list[str]:
         )
     elif status == "CONFLICTING":
         conflicting = by_condition("CONFLICTING")
-        values = [f.get("value") for f in conflicting if f.get("value")]
-        unique = list(dict.fromkeys(str(v) for v in values))
-        if len(unique) > 1:
-            add(f"sources disagree: {' vs '.join(unique)}")
+        labels = source_labels or {}
+
+        # "12.6 vs 18.4" is two numbers with no provenance, which is the thing
+        # this product exists to refuse. A reviewer's first question is which
+        # document said which, and this bullet is where they read it.
+        seen: list[str] = []
+        for f in conflicting:
+            value = f.get("value")
+            if not value:
+                continue
+            measurement = f"{value} {f['unit']}".strip() if f.get("unit") else str(value)
+            label = labels.get(f.get("link_id", ""))
+            phrase = f"{label} says {measurement}" if label else measurement
+            if phrase not in seen:
+                seen.append(phrase)
+
+        distinct_values = {str(f.get("value")) for f in conflicting if f.get("value")}
+        if len(distinct_values) > 1 and seen:
+            add("sources disagree: " + ", ".join(seen) if labels else
+                "sources disagree: " + " vs ".join(seen))
         # Same correction as `_summarize`: under the 2026-08-25 ruling the pair
         # that triggers this need not share a scope at all - one of them may
         # state none. Claiming they do would assert something the evidence
