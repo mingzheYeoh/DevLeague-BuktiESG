@@ -653,3 +653,103 @@ def test_single_finding_reason_is_unchanged_in_wording():
     assert result.status_reason == (
         "Evidence exists but coverage is incomplete. " + partial["detail"]
     )
+
+
+# --- unknown scope and period, per the 2026-08-25 ruling -------------------
+#
+# Main Spec 6.2 says CONFLICTING needs "two records for the same metric,
+# scope, and period". It does not say what an *unstated* scope means, and the
+# implementation treated `None` as a distinct value - so "unknown" behaved as
+# "different" and two records could never conflict unless both spelled the
+# same string.
+#
+# Ruled by the repository owner on 2026-08-25: unknown is compatible with
+# anything. A record that does not say which site it covers is silent, not
+# asserting a different site, and every candidate here is already an answer to
+# the same question. Recorded in `sample/README.md` with the clause it departs
+# from.
+#
+# Compatibility is not transitive - A(Klang) ~ B(silent) ~ C(Shah Alam) but
+# A !~ C - so this is a pairwise test, not a grouping.
+
+
+def _measured(link_id: str, value: str, **overrides) -> EvidenceCandidate:
+    fields = dict(
+        link_id=link_id,
+        link_status="ACCEPTED",
+        claim_supported="Scheduled waste tonnage.",
+        value=value,
+        unit="t",
+        source_location='{"type": "row"}',
+        scope_description=None,
+        period_start=None,
+        period_end=None,
+    )
+    fields.update(overrides)
+    return EvidenceCandidate(**fields)
+
+
+def test_a_record_that_states_no_scope_still_conflicts_with_one_that_does():
+    """The sample contradiction. A-03 is tabular and names Klang plant; C-01
+    is prose that says only "in FY2025". They disagree about the same figure,
+    and the engine could not see it because one of them was silent."""
+    result = compute_evidence_status(
+        candidates=[
+            _measured("a03", "12.6", scope_description="Klang plant",
+                      period_start=date(2025, 1, 1), period_end=date(2025, 12, 31)),
+            _measured("c01", "18.4"),
+        ],
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status == "CONFLICTING"
+    conflicting = {f["link_id"] for f in result.status_findings if f["condition"] == "CONFLICTING"}
+    assert conflicting == {"a03", "c01"}
+
+
+def test_two_records_naming_different_scopes_do_not_conflict():
+    """The limit of the ruling. Silence is compatible with anything; a stated
+    difference is still a difference, and one plant reporting more waste than
+    another is not a contradiction."""
+    result = compute_evidence_status(
+        candidates=[
+            _measured("klang", "12.6", scope_description="Klang plant"),
+            _measured("ipoh", "18.4", scope_description="Ipoh plant"),
+        ],
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status != "CONFLICTING"
+
+
+def test_two_records_covering_different_periods_do_not_conflict():
+    """A month and a year are different measurements. This is the case the
+    strictest deterministic extractor got wrong, and it must stay right."""
+    result = compute_evidence_status(
+        candidates=[
+            _measured("jan", "148600", unit="kWh",
+                      period_start=date(2025, 1, 1), period_end=date(2025, 1, 31)),
+            _measured("year", "1847300", unit="kWh",
+                      period_start=date(2025, 1, 1), period_end=date(2025, 12, 31)),
+        ],
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status != "CONFLICTING"
+
+
+def test_a_candidate_with_no_value_is_not_reported_as_conflicting():
+    """Only records that actually disagree are named. A silent candidate
+    sitting beside a conflict is not part of it."""
+    result = compute_evidence_status(
+        candidates=[
+            _measured("a", "12.6"),
+            _measured("b", "18.4"),
+            _measured("silent", None),
+        ],
+        reference_date=REFERENCE_DATE,
+    )
+
+    assert result.status == "CONFLICTING"
+    conflicting = {f["link_id"] for f in result.status_findings if f["condition"] == "CONFLICTING"}
+    assert conflicting == {"a", "b"}

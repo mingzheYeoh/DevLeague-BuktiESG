@@ -276,32 +276,69 @@ def compute_evidence_status(
         )
 
     # Step 3: evaluate the remaining readable evidence.
-    conflict_groups: dict[tuple, list[EvidenceCandidate]] = {}
-    for c in readable:
-        key = (_scope_key(c.scope_description), c.period_start, c.period_end)
-        conflict_groups.setdefault(key, []).append(c)
+    #
+    # Main Spec §6.2 requires "two records for the same metric, scope, and
+    # period". It does not say what an *unstated* scope or period means, and
+    # this engine used to treat `None` as a distinct key value -- so "unknown"
+    # behaved as "different", and two records could not conflict unless both
+    # spelled out matching strings. On the sample set that silently hid the
+    # one real contradiction: `A-03` is tabular and names Klang plant, `C-01`
+    # is prose that says only "in FY2025".
+    #
+    # Ruled by the repository owner on 2026-08-25: **unknown is compatible
+    # with anything**. A record that does not name its site is silent, not
+    # asserting a different one, and every candidate here is already an answer
+    # to the same question -- which is what stands in for "same metric", as
+    # the module docstring notes. A stated difference still separates them.
+    #
+    # This is a deliberate, recorded departure from the literal reading of
+    # §6.2, made because the alternative failure is worse for this product: a
+    # false CONFLICTING costs a reviewer one look, a missed one lets a
+    # contradiction reach a customer. See `sample/README.md`.
+    #
+    # Compatibility is not transitive -- A(Klang) and B(silent) are
+    # compatible, B and C(Ipoh) are compatible, A and C are not -- so this
+    # cannot be a partition into groups. It is a pairwise test, which is also
+    # what §6.2's "two records" describes.
+    def _separated(a: EvidenceCandidate, b: EvidenceCandidate) -> bool:
+        """True when something positively distinguishes these two records."""
+        if a.scope_description and b.scope_description:
+            if _scope_key(a.scope_description) != _scope_key(b.scope_description):
+                return True
+        if a.period_start and b.period_start and a.period_start != b.period_start:
+            return True
+        if a.period_end and b.period_end and a.period_end != b.period_end:
+            return True
+        return False
 
-    has_conflict = False
-    for group in conflict_groups.values():
-        distinct_values = {
-            _normalize_value(c.value) for c in group if c.value is not None and c.value.strip()
-        }
-        if len(distinct_values) > 1:
-            has_conflict = True
-            for c in group:
-                findings.append(
-                    {
-                        "condition": "CONFLICTING",
-                        "link_id": c.link_id,
-                        "value": c.value,
-                        "scope_description": c.scope_description,
-                        "period_start": c.period_start.isoformat() if c.period_start else None,
-                        "period_end": c.period_end.isoformat() if c.period_end else None,
-                        "detail": "Two or more records for the same scope and period "
-                        "report different values; not auto-resolved to a "
-                        "'more credible' one (RULING-02).",
-                    }
-                )
+    measured = [c for c in readable if c.value is not None and c.value.strip()]
+    conflicting_candidates: dict[str, EvidenceCandidate] = {}
+    for i, first in enumerate(measured):
+        for second in measured[i + 1 :]:
+            if _normalize_value(first.value) == _normalize_value(second.value):
+                continue
+            if _separated(first, second):
+                continue
+            # Only the records that actually disagree are named. A silent
+            # candidate sitting beside a conflict is not part of it.
+            conflicting_candidates[first.link_id] = first
+            conflicting_candidates[second.link_id] = second
+
+    has_conflict = bool(conflicting_candidates)
+    for c in conflicting_candidates.values():
+        findings.append(
+            {
+                "condition": "CONFLICTING",
+                "link_id": c.link_id,
+                "value": c.value,
+                "scope_description": c.scope_description,
+                "period_start": c.period_start.isoformat() if c.period_start else None,
+                "period_end": c.period_end.isoformat() if c.period_end else None,
+                "detail": "Two or more records report different values and nothing "
+                "distinguishes what they cover; not auto-resolved to a "
+                "'more credible' one (RULING-02).",
+            }
+        )
 
     def _is_outdated(c: EvidenceCandidate) -> bool:
         if requirement.required_period_start and requirement.required_period_end:
@@ -552,9 +589,13 @@ def _collapse_identical(details: list[str]) -> list[tuple[str, int]]:
 def _summarize(status: str, findings: list[dict]) -> str:
     if status == "CONFLICTING":
         n = sum(1 for f in findings if f["condition"] == "CONFLICTING")
+        # Not "share the same scope and period": under the 2026-08-25 ruling a
+        # record that states neither still conflicts, and saying they share a
+        # scope when one of them is silent would put a claim in front of a
+        # reviewer that the evidence does not support.
         return (
-            f"{n} evidence record(s) share the same scope and period but report "
-            "different values; both are shown rather than auto-resolved."
+            f"{n} evidence record(s) report different values, and nothing in them "
+            "distinguishes what they cover; all are shown rather than auto-resolved."
         )
     if status == "OUTDATED":
         return (

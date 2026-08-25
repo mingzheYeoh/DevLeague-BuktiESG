@@ -218,9 +218,35 @@ left both null. **The second answer is the better one** — the text really does
 not say where — and it is the one that makes the conflict invisible.
 `temperature: 0` reduces this variation; it does not remove it.
 
-So the remaining work is not a better extractor. It is deciding what "the same
-metric" means when the documents themselves do not say, which is a modelling
-question about the data, not about the model.
+### The ruling that closed it
+
+Main Spec §6.2 requires "two records for the same metric, **scope**, and
+**period**". It does not say what an *unstated* scope means, and the engine
+treated `None` as a distinct key value — so "unknown" behaved as "different",
+and two records could not conflict unless both spelled out matching strings.
+That is what hid the contradiction: `A-03` names Klang plant, `C-01` says only
+"in FY2025".
+
+`AGENTS.md` §3.5 lists Evidence Status rules as protected — *"the
+implementation is wrong until a human rules otherwise"* — so this was
+escalated rather than adjusted. Two Main Spec clauses also disagree: §4.2 says
+plainly *"Two files contain different values: Mark them CONFLICTING"*, with no
+scope or period qualifier at all.
+
+**Ruled by the repository owner, 2026-08-25: unknown is compatible with
+anything.** A record that does not name its site is silent, not asserting a
+different one, and every candidate on a question is already an answer to that
+one question. A *stated* difference still separates them: Klang and Ipoh do
+not conflict, and January does not conflict with the full year.
+
+The reasoning is asymmetry of failure. A false CONFLICTING costs a reviewer
+one look. A missed one lets a contradiction reach a customer, which is the
+thing this product exists to prevent.
+
+One consequence worth knowing: compatibility is not transitive. Klang and a
+silent record are compatible, the silent record and Ipoh are compatible, Klang
+and Ipoh are not. So the engine compares pairs rather than grouping — which is
+also what §6.2's own phrase, "two records", describes.
 
 
 ## Suggested walkthrough
