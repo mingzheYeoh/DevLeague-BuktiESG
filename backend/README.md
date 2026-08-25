@@ -170,11 +170,14 @@ document download, no `priority_score`, and no `PATCH`/`DELETE` anywhere.
 
 ## Security posture
 
-There is **no authentication and no authorisation** on this service, and CORS
-is open to the local dev origins only. It is a local, single-tenant slice: do
-not expose it beyond localhost, and do not put real personal data in it (see
-`AGENTS.md` §3.1). Adding pagination and auth is a prerequisite for anything
-beyond local use.
+Every endpoint requires an authenticated actor; a signed-out caller gets 401.
+Case-rooted endpoints resolve their Case through `require_case`, which loads
+it scoped to the caller's organization — another organization's Case, or
+anything nested under it, answers 404, never 403, so a case id nobody owns is
+indistinguishable from one that doesn't exist. CORS is open to the local dev
+origins only. It is still a local slice: do not expose it beyond localhost,
+and real personal data is governed by `AGENTS.md` §3.1. Adding pagination is
+a prerequisite for anything beyond local use.
 
 ## Consumed by
 

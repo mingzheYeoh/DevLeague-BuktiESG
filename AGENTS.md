@@ -184,7 +184,7 @@ Stop and report rather than proceeding when:
 2. A required decision has no recorded owner or value.
 3. A change would alter a protected value listed in §3.5.
 4. A change would exceed the current authorization in §1.
-5. Real personal data appears in any input.
+5. Real personal data appears in any input and §3.1's conditions for processing it are not all confirmed to hold.
 6. An action would be hard to reverse — force push, history rewrite, hard reset, deleting user work.
 7. A push, authentication, or permission failure occurs. Do not bypass it.
 

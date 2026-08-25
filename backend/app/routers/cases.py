@@ -64,7 +64,7 @@ def list_cases(
     The frontend's Cases screen is the entry point of the whole workflow, so
     it needs a server-side list — otherwise a reloaded browser loses every
     Case id and the workspace looks empty even though the data is there. No
-    pagination: this slice is single-tenant, local-only, and the Case count
+    pagination: this slice is organization-scoped, local-only, and the Case count
     is small (Main Spec §16). Add pagination before this is ever exposed
     beyond localhost.
     """
