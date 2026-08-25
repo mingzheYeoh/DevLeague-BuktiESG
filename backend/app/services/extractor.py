@@ -34,10 +34,11 @@ logger = logging.getLogger(__name__)
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_MODEL = "deepseek-v4-pro"
 
-# Extraction runs inside the upload request. A provider that is merely slow
-# must not hold a document hostage, so the timeout is short and its expiry is
-# an ordinary "no values" outcome rather than an error.
-REQUEST_TIMEOUT_SECONDS = 30.0
+# Extraction runs in `worker.py`, not in the upload request, so nothing is
+# waiting on this. The ceiling is generous because the measured cost of
+# expiring is a batch of nulls that will not be retried; a batch of 20 chunks
+# has been seen to take over a minute.
+REQUEST_TIMEOUT_SECONDS = 180.0
 
 # Chunks per request. Batching amortises the ~400-token instruction prefix,
 # which is the whole cost lever: it repeats verbatim, so it caches. Kept small
@@ -99,9 +100,18 @@ class DeepSeekExtractor:
                     # can join the instructions (AGENTS.md 3.4 / TB-3).
                     {"role": "user", "content": user},
                 ],
-                # Extraction, not generation: the same fragment must give the
-                # same value on Tuesday as it did on Monday, or a re-analysis
-                # would invent a contradiction with its own earlier answer.
+                # Extraction, not generation. This reduces variation; it does
+                # not remove it. Two live runs over identical input returned
+                # the same numbers but different `scope` and `period` - once
+                # inferring "Klang plant" and FY2025 for a chunk that names
+                # neither, once honestly leaving both null. The second answer
+                # is the better one, which is exactly why this cannot be
+                # treated as a guarantee.
+                #
+                # Anything that depends on two independent extractions
+                # agreeing on a *string* is therefore unsafe. Conflict
+                # grouping does, and that is a known open problem, not
+                # something temperature settles.
                 "temperature": 0,
                 "response_format": {"type": "json_object"},
             },
