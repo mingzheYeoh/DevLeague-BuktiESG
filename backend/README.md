@@ -30,11 +30,18 @@ uv sync
 PostgreSQL 16, from the repository root:
 
 ```bash
-docker compose up -d          # postgres:16 on 127.0.0.1:5432
+cp .env.example .env                       # repository root: set POSTGRES_PASSWORD
+docker compose up -d                       # postgres:16 on 127.0.0.1:5432
 cd backend
-cp .env.example .env          # DATABASE_URL, already pointing at that container
+cp .env.example .env                       # put the same password in DATABASE_URL
 uv run alembic upgrade head
 ```
+
+Two `.env` files, both git-ignored: Compose reads the one beside
+`docker-compose.yml`, the app reads `backend/.env`. Any password works — the
+database is local, disposable, and rebuilt by `docker compose down -v`. Compose
+has no default for it, so an unset value stops with a message naming it rather
+than starting a database whose password is public.
 
 `.env.example` uses `127.0.0.1` rather than `localhost` on purpose: Compose binds
 the port to the IPv4 loopback only, and on Windows `localhost` resolves to `::1`

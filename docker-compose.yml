@@ -11,7 +11,16 @@ services:
     container_name: buktiesg-postgres
     environment:
       POSTGRES_USER: buktiesg
-      POSTGRES_PASSWORD: buktiesg_dev
+      # From the repository-root `.env`, which is git-ignored. No default, so
+      # an unset value stops Compose with a message naming it rather than
+      # silently starting a database whose password is published.
+      #
+      # The value that used to sit here was `buktiesg_dev`, committed to a
+      # public repository. It guarded a container bound to 127.0.0.1 holding
+      # only synthetic data, so little was at risk - but a committed
+      # POSTGRES_PASSWORD is a shape that gets copied, and the next database
+      # it is copied onto may not be local. It has been rotated.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it in .env - see .env.example}
       POSTGRES_DB: buktiesg
     ports:
       # Bound to the loopback interface deliberately. This slice has no

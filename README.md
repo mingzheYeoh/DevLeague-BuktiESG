@@ -20,6 +20,7 @@ Two processes. The frontend talks to the backend over HTTP and holds no data of 
 
 ```bash
 # The database — PostgreSQL 16, from the repository root
+cp .env.example .env      # set POSTGRES_PASSWORD; any value, it is local and disposable
 docker compose up -d
 
 # Terminal 1 — API on :8000
