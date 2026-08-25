@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import actions, cases, documents, evidence, questions
+from app.routers import auth as auth_router
 
 app = FastAPI(title=settings.app_name, version="0.1.0")
 
@@ -24,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router.router)
 app.include_router(cases.router)
 app.include_router(documents.router)
 app.include_router(questions.router)

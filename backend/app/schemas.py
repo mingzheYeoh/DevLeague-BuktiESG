@@ -12,11 +12,30 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # Safe direction: app.services.rules imports only the standard library, so it
 # never imports back into this module.
 from app.services.rules import summarize_points
+
+
+class RegistrationRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12)
+    organization_name: str = Field(min_length=1, max_length=255)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class ActorSummary(BaseModel):
+    user_id: str
+    email: str
+    organization_id: str
+    organization_name: str
+    role: str
 
 
 class ErrorDetail(BaseModel):
