@@ -12,8 +12,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from app.auth import require_case
 from app.db import get_db
-from app.errors import api_error, case_not_found
+from app.errors import api_error
 from app.enums import REVIEW_ACTION
 from app.models import Case, Question, Questionnaire
 from app.schemas import AnswerRecord, QuestionListItem, QuestionReviewRequest
@@ -28,17 +29,15 @@ def _utcnow() -> datetime:
 
 
 @router.get("/{case_id}/questions", response_model=list[QuestionListItem])
-def list_questions(case_id: str, db: Session = Depends(get_db)) -> list[QuestionListItem]:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
+def list_questions(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> list[QuestionListItem]:
     # SPEC-AMD-007 / RULING-04: ORDER BY question_order ASC, id ASC.
     stmt = (
         select(Question)
         .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
         .options(joinedload(Question.answer), joinedload(Question.evidence_links))
-        .where(Questionnaire.case_id == case_id)
+        .where(Questionnaire.case_id == case.id)
         .order_by(Question.question_order.asc(), Question.id.asc())
     )
     questions = db.execute(stmt).unique().scalars().all()
@@ -54,9 +53,9 @@ def _question_not_found(question_id: str):
     response_model=AnswerRecord,
 )
 def review_question(
-    case_id: str,
     question_id: str,
     payload: QuestionReviewRequest,
+    case: Case = Depends(require_case),
     db: Session = Depends(get_db),
 ) -> AnswerRecord:
     """Human Review transitions on an Answer — Main Spec §17 Phase 5.
@@ -79,12 +78,8 @@ def review_question(
       uploading genuinely relevant evidence, because the engine returns
       NOT_APPLICABLE unchanged by design (rules.py step 1).
     """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     question = db.get(Question, question_id)
-    if question is None or question.questionnaire.case_id != case_id:
+    if question is None or question.questionnaire.case_id != case.id:
         raise _question_not_found(question_id)
 
     answer = question.answer
@@ -205,7 +200,7 @@ def review_question(
             result = compute_evidence_status(
                 candidates=jobs._load_evidence_candidates(db, question.id),
                 requirement=jobs._build_evidence_requirement(question),
-                unreadable_documents=jobs._build_unreadable_documents(db, case_id),
+                unreadable_documents=jobs._build_unreadable_documents(db, case.id),
                 current_status=answer.evidence_status,
                 not_applicable_reason=None,
                 reviewer_name=None,

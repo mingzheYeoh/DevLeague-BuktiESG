@@ -25,12 +25,31 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import text
 
-from app.models import Case
+from app.models import Case, Organization
 from app.schemas import CaseSummary
 
 
+def _scaffold_org(db):
+    """A bare Organization to satisfy `Case.organization_id`.
+
+    These tests are about `UtcDateTime` round-tripping, not tenancy, and
+    construct `Case` directly rather than through `create_case` (which
+    normally supplies this). Named to read as test scaffolding, not a
+    plausible customer.
+    """
+    org = Organization(name="Datetime Test Scaffold Org")
+    db.add(org)
+    db.commit()
+    return org
+
+
 def test_datetimes_come_back_from_the_database_timezone_aware(db_session):
-    case = Case(title="Aware", deadline_at=datetime(2026, 9, 4, 0, 0, tzinfo=timezone.utc))
+    org = _scaffold_org(db_session)
+    case = Case(
+        organization_id=org.id,
+        title="Aware",
+        deadline_at=datetime(2026, 9, 4, 0, 0, tzinfo=timezone.utc),
+    )
     db_session.add(case)
     db_session.commit()
     db_session.expire_all()
@@ -46,7 +65,12 @@ def test_a_non_utc_input_is_normalised_rather_than_stored_as_written(db_session)
     """A caller may legitimately send `+08:00`. Storing the wall-clock digits
     and dropping the offset would move the instant by eight hours."""
     kuala_lumpur = timezone(timedelta(hours=8))
-    case = Case(title="Offset", deadline_at=datetime(2026, 9, 4, 8, 0, tzinfo=kuala_lumpur))
+    org = _scaffold_org(db_session)
+    case = Case(
+        organization_id=org.id,
+        title="Offset",
+        deadline_at=datetime(2026, 9, 4, 8, 0, tzinfo=kuala_lumpur),
+    )
     db_session.add(case)
     db_session.commit()
     db_session.expire_all()
@@ -59,7 +83,12 @@ def test_a_non_utc_input_is_normalised_rather_than_stored_as_written(db_session)
 def test_the_serialised_api_payload_carries_an_offset(db_session):
     """What the browser actually receives. Without an offset a browser reads
     the value as local time, which is the bug."""
-    case = Case(title="Payload", deadline_at=datetime(2026, 9, 4, 0, 0, tzinfo=timezone.utc))
+    org = _scaffold_org(db_session)
+    case = Case(
+        organization_id=org.id,
+        title="Payload",
+        deadline_at=datetime(2026, 9, 4, 0, 0, tzinfo=timezone.utc),
+    )
     db_session.add(case)
     db_session.commit()
     db_session.expire_all()
@@ -77,7 +106,8 @@ def test_a_row_written_before_this_guarantee_is_read_as_utc(db_session):
     """Existing rows hold naive text. They were always UTC — the column has
     only ever been written by `datetime.now(timezone.utc)` — so reading them
     as anything else would silently shift historical timestamps."""
-    case = Case(title="Legacy")
+    org = _scaffold_org(db_session)
+    case = Case(organization_id=org.id, title="Legacy")
     db_session.add(case)
     db_session.commit()
     # Raw SQL on purpose: going through the ORM would apply the new bind

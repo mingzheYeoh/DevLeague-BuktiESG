@@ -224,8 +224,8 @@ class Case(Base):
     __tablename__ = "cases"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    organization_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("organizations.id"), nullable=True
+    organization_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("organizations.id"), nullable=False
     )
     customer_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     title: Mapped[str] = mapped_column(String(500))
