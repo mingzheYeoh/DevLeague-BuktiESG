@@ -70,6 +70,26 @@ The test suite is the one place SQLite is used deliberately: `tests/conftest.py`
 builds an isolated in-memory database per test, with `PRAGMA foreign_keys=ON`, so
 the suite runs on a fresh clone without Docker. It never touches a dev database.
 
+### The worker
+
+Every job type except one runs inline, inside the request that created it.
+`EXTRACT_VALUES` cannot: measured against `deepseek-v4-pro`, two to three
+chunks take 12–22 seconds, so a 21-document case at 175 chunks would hold an
+upload open for roughly three minutes. Uploads queue the job and return; a
+worker drains the queue.
+
+```bash
+uv run python worker.py            # poll until stopped
+```
+
+Without a worker running, uploads still succeed and questions still get their
+evidence — values simply stay absent, which is the state the rule engine has
+always read correctly. Nothing waits on it.
+
+With no `DEEPSEEK_API_KEY` set the worker still drains the queue, using
+`NullExtractor`: jobs complete, values stay null, and no request leaves the
+machine. That is the configuration CI runs.
+
 ### Reclaiming stored bytes
 
 `var/storage` has no garbage collector. `delete_case_tree` and `delete_file`

@@ -113,7 +113,17 @@ ACTION_TYPE = ("SUBMISSION", "IMPROVEMENT")
 ACTION_STATUS = ("TODO", "IN_PROGRESS", "BLOCKED", "NEEDS_REVIEW", "COMPLETED")
 
 # JobType / JobStatus — SPEC-AMD-001, CTO-RULINGS.md RULING-01 (amended).
-JOB_TYPE = ("DOCUMENT_PARSE", "DOCUMENT_INDEX", "QUESTION_ANALYZE", "EXPORT_RENDER")
+# EXTRACT_VALUES is the first job type that genuinely cannot run inline.
+# Measured against deepseek-v4-pro, two to three chunks take 12-22 seconds,
+# so a 21-document case at 175 chunks would add roughly three minutes to an
+# upload. Every other job type has always been executed synchronously.
+JOB_TYPE = (
+    "DOCUMENT_PARSE",
+    "DOCUMENT_INDEX",
+    "QUESTION_ANALYZE",
+    "EXTRACT_VALUES",
+    "EXPORT_RENDER",
+)
 
 # Terminal states per RULING-01: SUCCEEDED, FAILED, CANCELLED. Valid
 # transitions: QUEUED -> RUNNING -> {SUCCEEDED, FAILED}; QUEUED -> CANCELLED;

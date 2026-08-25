@@ -95,10 +95,18 @@ def create_job(
     job_type: str,
     document_id: str | None = None,
     question_id: str | None = None,
+    track_as_latest: bool = True,
 ) -> ProcessingJob:
     """Create a QUEUED `processing_jobs` row and, if it's for a Document,
     point `documents.latest_job_id` at it so a refreshed client can reach
-    the Job resource (SPEC-AMD-001)."""
+    the Job resource (SPEC-AMD-001).
+
+    `track_as_latest=False` for a job that does not determine the document's
+    `processing_status`. Extraction is the first of those: it runs after
+    indexing has already settled the status, so letting it claim the pointer
+    would make a document read as though its processing were still queued
+    when it has been INDEXED for minutes.
+    """
     job = ProcessingJob(
         case_id=case_id,
         job_type=job_type,
@@ -110,7 +118,7 @@ def create_job(
     db.add(job)
     db.flush()
 
-    if document_id is not None:
+    if document_id is not None and track_as_latest:
         document = db.get(Document, document_id)
         if document is not None:
             document.latest_job_id = job.id
@@ -413,12 +421,90 @@ def _run_evidence_index(db: Session, case: Case, document: Document, data: bytes
     # asked", which is a property of the set, not of any one question.
     weights = keyword_weights([q.question_text for q in questions])
 
+    # Queued, not run. Extraction is the one job that cannot be inline:
+    # measured against deepseek-v4-pro, two to three chunks take 12-22
+    # seconds, so this document's chunks alone would hold the upload open for
+    # minutes. `worker.py` picks it up.
+    create_job(
+        db,
+        case_id=case.id,
+        job_type="EXTRACT_VALUES",
+        document_id=document.id,
+        # Indexing has already settled `processing_status`; this job does not
+        # change it, so it must not claim the pointer that reports it.
+        track_as_latest=False,
+    )
+
     for question in questions:
         _analyze_question_against_evidence(
             db, question, document, pipeline_chunks, chunk_by_id, weights
         )
 
 
+
+
+def run_extraction_jobs(db: Session, *, extractor=None, limit: int = 10) -> int:
+    """Run queued EXTRACT_VALUES jobs. Returns how many were completed.
+
+    Called by `worker.py`, and directly by tests with a fake extractor. Takes
+    the extractor as an argument rather than building one, so the network and
+    the credential stay optional at this level too.
+
+    A job that finds nothing still succeeds. A null is an answer - the chunk
+    carries no measurement - and re-asking would pay a provider to be told the
+    same thing. Completion means "we asked", not "we found something".
+    """
+    from app.config import settings
+    from app.services.extractor import build_extractor
+
+    if extractor is None:
+        extractor = build_extractor(settings)
+
+    jobs = (
+        db.query(ProcessingJob)
+        .filter(ProcessingJob.job_type == "EXTRACT_VALUES", ProcessingJob.status == "QUEUED")
+        .order_by(ProcessingJob.created_at)
+        .limit(limit)
+        .all()
+    )
+
+    completed = 0
+    for job in jobs:
+        job.status = "RUNNING"
+        job.started_at = _utcnow()
+        job.attempt_count += 1
+        db.flush()
+
+        chunks = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == job.document_id)
+            .order_by(DocumentChunk.sequence_no)
+            .all()
+        )
+        results = extractor.extract([c.text for c in chunks])
+
+        for chunk, extracted in zip(chunks, results):
+            chunk.extracted_value = extracted.value
+            chunk.extracted_unit = extracted.unit
+            chunk.extracted_scope = extracted.scope
+            chunk.extracted_period_start = extracted.period_start
+            chunk.extracted_period_end = extracted.period_end
+
+        job.status = "SUCCEEDED"
+        job.finished_at = _utcnow()
+        db.flush()
+        completed += 1
+
+        # New values are an input the rule engine reads, so the questions have
+        # to be told. This is where CONFLICTING can finally appear: two chunks
+        # reporting different numbers for one scope and period.
+        case = db.get(Case, job.case_id)
+        if case is not None:
+            _recompute_case_question_statuses(db, case)
+
+    if completed:
+        db.commit()
+    return completed
 
 def _recompute_case_question_statuses(db: Session, case: Case) -> None:
     """Re-run the rule engine for every question in a Case, adding no evidence.
@@ -571,13 +657,14 @@ def _parse_iso_date(value: str | None):
 
 def _load_evidence_candidates(db: Session, question_id: str) -> list[EvidenceCandidate]:
     rows = (
-        db.query(EvidenceLink, Document)
+        db.query(EvidenceLink, Document, DocumentChunk)
         .join(Document, EvidenceLink.document_id == Document.id)
+        .join(DocumentChunk, EvidenceLink.chunk_id == DocumentChunk.id)
         .filter(EvidenceLink.question_id == question_id)
         .all()
     )
     candidates: list[EvidenceCandidate] = []
-    for link, doc in rows:
+    for link, doc, chunk in rows:
         candidates.append(
             EvidenceCandidate(
                 link_id=link.id,
@@ -585,11 +672,17 @@ def _load_evidence_candidates(db: Session, question_id: str) -> list[EvidenceCan
                 extraction_valid=link.extraction_valid,
                 claim_supported=link.claim_supported,
                 quoted_excerpt=link.quoted_excerpt,
-                period_start=link.period_start,
-                period_end=link.period_end,
-                scope_description=link.scope_description,
-                unit=link.unit,
-                value=link.value,
+                period_start=chunk.extracted_period_start or link.period_start,
+                period_end=chunk.extracted_period_end or link.period_end,
+                # The chunk's measurement takes precedence over the link's.
+                # Extraction writes to the chunk because a measurement belongs
+                # to the text reporting it, and a link created after that
+                # extraction would otherwise carry nothing. `link.value` stays
+                # as the fallback for anything written before extraction
+                # existed, and for a value a human sets by hand later.
+                scope_description=chunk.extracted_scope or link.scope_description,
+                unit=chunk.extracted_unit or link.unit,
+                value=chunk.extracted_value or link.value,
                 source_date=doc.source_date,
                 source_location=link.location_json,
             )

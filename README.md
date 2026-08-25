@@ -89,7 +89,7 @@ packages/ai-pipeline/            Pure-function AI package (no DB, no HTTP, no cr
 sample/                          Synthetic test data — see sample/README.md
 ```
 
-`workers/`, `fixtures/` and `deployment/` are authorized by Gate P0 but do not exist yet.
+`backend/worker.py` drains the extraction queue — see [`backend/README.md`](backend/README.md). `workers/`, `fixtures/` and `deployment/` are authorized by Gate P0 but do not exist yet.
 
 > **Layout note (2026-08-23).** `apps/web` was removed and `frontend/` is now the only frontend; `apps/api` became `backend/`. `SPEC-AMD-009` recorded this as an **open, unresolved** conflict against Main Spec §16, which specifies `apps/web` + `apps/api`. Deleting that file did not close the conflict.
 

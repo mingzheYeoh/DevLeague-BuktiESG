@@ -215,6 +215,16 @@ class DocumentChunk(Base):
     sheet_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cell_range: Mapped[str | None] = mapped_column(String(60), nullable=True)
     heading_path: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON-encoded list
+    # What a model read out of this fragment. On the chunk, not on the link:
+    # a measurement belongs to the text that reports it, and links are
+    # re-created whenever another document is indexed. Nullable because most
+    # chunks are prose - a null means "no measurement", which is what the rule
+    # engine has always assumed.
+    extracted_value: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    extracted_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    extracted_scope: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    extracted_period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
+    extracted_period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     # embedding intentionally omitted: pgvector is out of scope for this slice
     # (no evidence-matching pipeline is implemented here).
