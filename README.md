@@ -8,9 +8,14 @@ An ESG customer-questionnaire **Evidence-to-Action** workspace for Malaysian SME
 
 ## Data Restriction
 
-**Synthetic data only.** This is a **T1** project. Real employee, customer, payroll, identity-card, health or safety-incident data must never be uploaded, committed or processed — doing so is a stop-and-escalate trigger, not a style preference. No real ESG data, no real customer questionnaires, no production credentials.
+**Conditional.** Until 2026-08-25 this was a synthetic-data-only project. On
+2026-08-25 the repository owner ruled that real customer personal data may be
+processed, subject to the four conditions in [`AGENTS.md`](AGENTS.md) §3.1 —
+authentication on every endpoint, organization-scoped access, a passing
+cross-tenant test matrix, and a recorded decision on cross-border model calls.
 
-**The API has no authentication.** It is a local, single-tenant slice and must not be exposed beyond localhost.
+**Until all four conditions hold, synthetic data only.** Read §3.1 before
+uploading anything real; the conditions are the authority, not this summary.
 
 ---
 
