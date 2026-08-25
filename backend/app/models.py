@@ -78,6 +78,148 @@ class Organization(Base):
     cases: Mapped[list["Case"]] = relationship(back_populates="organization")
 
 
+class User(Base):
+    """A person who signs in. Not a customer contact and not a Case subject.
+
+    `email` is stored lowercased by the registration path rather than by a
+    database-level collation, so the uniqueness constraint means what a person
+    would expect it to mean on every dialect. SQLite has no CITEXT and the test
+    suite runs on SQLite, so a citext column would be enforced in production and
+    silently absent in the tests - the class of divergence `UtcDateTime` exists
+    to prevent.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    email_verified_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        UtcDateTime, default=_utcnow, onupdate=_utcnow
+    )
+
+    memberships: Mapped[list["OrganizationMember"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    sessions: Mapped[list["SessionRow"]] = relationship(
+        cascade="all, delete-orphan", passive_deletes=True
+    )
+    email_tokens: Mapped[list["EmailToken"]] = relationship(
+        cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class OrganizationMember(Base):
+    """Which people act for which organization, and with what authority."""
+
+    __tablename__ = "organization_members"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    organization_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("organizations.id", ondelete="CASCADE"), primary_key=True
+    )
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+
+    user: Mapped["User"] = relationship(back_populates="memberships")
+    organization: Mapped["Organization"] = relationship()
+
+    __table_args__ = (
+        CheckConstraint(
+            "role IN ('ADMIN', 'MEMBER')", name="ck_organization_members_role"
+        ),
+    )
+
+
+class SessionRow(Base):
+    """One signed-in session.
+
+    Named `SessionRow` because `sqlalchemy.orm.Session` is imported in nearly
+    every module here and a second `Session` would be read as that one.
+
+    `organization_id` is on the session, not derived per request: a user who
+    belongs to two organizations acts as one of them at a time, and putting the
+    active one here means no endpoint has to infer which tenant a request speaks
+    for.
+    """
+
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    organization_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    organization: Mapped["Organization"] = relationship()
+
+
+class EmailToken(Base):
+    """A single-use link sent to an address that already has an account."""
+
+    __tablename__ = "email_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    purpose: Mapped[str] = mapped_column(String(20), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    used_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    __table_args__ = (
+        CheckConstraint(
+            "purpose IN ('VERIFY', 'RESET')", name="ck_email_tokens_purpose"
+        ),
+    )
+
+
+class Invitation(Base):
+    """An offer of membership, addressed to an email rather than to a user.
+
+    Separate from `EmailToken` for exactly one reason: the recipient may have no
+    `users` row yet, so there is no `user_id` to hang the token on. Folding the
+    two together would mean a nullable `user_id` whose NULL means something
+    entirely different from an absent value elsewhere.
+    """
+
+    __tablename__ = "invitations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    organization_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    invited_by_user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=_utcnow)
+    expires_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(UtcDateTime, nullable=True)
+
+    organization: Mapped["Organization"] = relationship()
+    invited_by: Mapped["User"] = relationship(foreign_keys=[invited_by_user_id])
+
+    __table_args__ = (
+        CheckConstraint("role IN ('ADMIN', 'MEMBER')", name="ck_invitations_role"),
+    )
+
+
 class Case(Base):
     __tablename__ = "cases"
 
