@@ -45,5 +45,16 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
+    # How long a session stays valid without re-authenticating. Fourteen days
+    # is a working fortnight either side of a weekend: long enough that a
+    # reviewer is not signed out mid-questionnaire, short enough that a
+    # forgotten laptop stops being a credential within a sprint.
+    session_ttl_hours: int = 24 * 14
+
+    # `Secure` is dropped only for local HTTP development. Any deployment that
+    # holds real data serves HTTPS, where this must be True - a session cookie
+    # sent in clear text is the whole authentication system given away.
+    cookie_secure: bool = True
+
 
 settings = Settings()
