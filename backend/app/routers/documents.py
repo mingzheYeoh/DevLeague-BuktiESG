@@ -199,7 +199,7 @@ def list_documents(
 def _load_document(db: Session, case: Case, document_id: str) -> Document:
     """A Document belonging to this Case, or 404.
 
-    Takes the resolved `Case` rather than a `case_id: str`. The case check that
+    Takes the resolved `Case` rather than a bare case id string. The case check that
     used to open this function has moved into `require_case`, which the caller
     already went through - so this function can no longer be handed an
     identifier nobody authenticated. What remains here is the second half of the
