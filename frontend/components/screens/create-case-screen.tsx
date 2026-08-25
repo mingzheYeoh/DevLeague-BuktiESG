@@ -170,8 +170,8 @@ export function CreateCaseScreen({
               </label>
             </div>
             <p className="field-hint">
-              Optional. The reporting period is stored on the Case and bounds what evidence counts
-              as current.
+              Optional. Recorded on the Case and shown on its summary. It does not decide whether
+              evidence is current — that is judged per document, from the document&rsquo;s own date.
             </p>
           </>
         )}
