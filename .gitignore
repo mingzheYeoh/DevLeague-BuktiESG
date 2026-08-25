@@ -36,3 +36,11 @@ backend/var/
 
 # Retired dev databases, kept locally for rollback
 *.db.retired-*
+
+# Working design docs. Rebuilt 2026-08-25 on the repository owner's explicit
+# authorization, deliberately untracked: `docs/` was deleted from the tree on
+# 2026-08-23 and these are scratch build plans, not the governance records that
+# lived there. The rulebook stays at the root — AGENTS.md, README.md and
+# CLAUDE.md are NOT filed here. Reasoning with a long life belongs in code
+# comments and commit messages, which survive this directory being deleted.
+docs/
