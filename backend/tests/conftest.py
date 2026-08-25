@@ -111,13 +111,6 @@ def client(db_session, default_org):
 
     app.dependency_overrides[get_db] = _override_get_db
     _, token = start_session(db_session, user.id, org.id)
-    # The session cookie is set with Secure=True (the production requirement that
-    # stops a session token from ever travelling in clear text). Over an http://
-    # origin, httpx's cookie jar silently drops it, making any test that signs in
-    # and then makes a second request see itself as signed out. Using an https://
-    # base_url keeps httpx honouring the Secure flag over ASGI transport — no
-    # real TLS or certificates needed — so the production setting stays exactly
-    # as it ships and stays actually tested.
     with TestClient(app, base_url="https://testserver") as c:
         c.cookies.set(SESSION_COOKIE_NAME, token)
         yield c
@@ -135,6 +128,12 @@ def anonymous_client(db_session):
             pass
 
     app.dependency_overrides[get_db] = _override_get_db
+    # This fixture's tests sign in for real and receive a Set-Cookie carrying
+    # Secure=True (production requirement). Over http:// httpx silently drops it,
+    # making subsequent requests fail authentication. https:// base_url makes
+    # httpx honour it over ASGI transport (no TLS/certs needed). The other two
+    # clients inject their token with cookies.set(), which httpx forces to
+    # secure=False, so https:// does nothing for them — it's here for consistency.
     with TestClient(app, base_url="https://testserver") as c:
         yield c
     app.dependency_overrides.clear()
