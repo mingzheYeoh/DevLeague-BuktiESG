@@ -5,8 +5,10 @@ import {
   ArrowRight,
   Check,
   CircleHelp,
+  Eye,
   RefreshCw,
   Table2,
+  Trash2,
   UploadCloud,
 } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
@@ -17,8 +19,10 @@ import {
   documentTypeLabel,
   documentsNeedingAttention,
   errorMessage,
+  isDeletable,
   isRetryable,
 } from '@/lib/api'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { MAX_UPLOAD_BYTES } from '@/lib/constants'
 import { formatBytes, getFileKind, relativeTimeLabel } from '@/lib/format'
 
@@ -34,6 +38,12 @@ import {
   PageTitle,
   SearchField,
 } from '../primitives'
+import { DocumentPreview } from '../document-preview'
+
+// Evidence cannot be dated in the future. A mistyped year — 2062 for 2026 —
+// would otherwise read as the freshest document in the case forever, which is
+// the one direction of error the staleness rule cannot catch.
+const TODAY = new Date().toISOString().slice(0, 10)
 
 const ACCEPTED =
   '.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.png,.jpg,.jpeg,.gif,.webp,application/pdf,text/csv,text/plain,image/*'
@@ -47,6 +57,7 @@ const ACCEPTED =
  * silently.
  */
 export function EvidenceScreen({
+  caseId,
   documents,
   loading,
   error,
@@ -54,33 +65,37 @@ export function EvidenceScreen({
   refresh,
   onUpload,
   onRetry,
-  sessionUrls,
+  onDelete,
   lastUpload,
   onDismissMapping,
 }: {
+  caseId: string
   documents: DocumentRecord[]
   loading: boolean
   error: unknown
   busy: boolean
   refresh: () => void
-  onUpload: (file: File, documentType: DocumentType) => Promise<void>
+  onUpload: (file: File, documentType: DocumentType, sourceDate?: string) => Promise<void>
   onRetry: (documentId: string) => Promise<void>
-  /** Object URLs for files uploaded in this browser session only. There is no
-   * document-download endpoint, so nothing else can be previewed. */
-  sessionUrls: Record<string, string>
+  onDelete: (documentId: string) => Promise<void>
   /** The most recent upload response, kept for its transient
    * `detected_columns` read-back. */
   lastUpload: DocumentRecord | null
   onDismissMapping: () => void
 }) {
   const [documentType, setDocumentType] = useState<DocumentType>('OTHER')
+  // Applies to the next batch, like `documentType` above — the date is a
+  // property of the documents you are about to drop, not of the screen.
+  const [sourceDate, setSourceDate] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
   const [query, setQuery] = useState('')
   const [uploadError, setUploadError] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   const selected = documents.find((d) => d.id === selectedId) ?? null
+  const previewDoc = documents.find((d) => d.id === previewId) ?? null
   const attention = documentsNeedingAttention(documents)
 
   const filtered = useMemo(() => {
@@ -107,7 +122,7 @@ export function EvidenceScreen({
         continue
       }
       try {
-        await onUpload(file, documentType)
+        await onUpload(file, documentType, sourceDate || undefined)
       } catch (err) {
         setUploadError(`${file.name}: ${errorMessage(err)}`)
       }
@@ -158,6 +173,16 @@ export function EvidenceScreen({
             ))}
           </select>
         </label>
+        <label className="control date-control">
+          Evidence dated
+          <input
+            type="date"
+            value={sourceDate}
+            max={TODAY}
+            onChange={(e) => setSourceDate(e.target.value)}
+            aria-describedby="source-date-hint"
+          />
+        </label>
         <SearchField placeholder="Search documents" value={query} onChange={setQuery} grow />
       </div>
 
@@ -198,8 +223,13 @@ export function EvidenceScreen({
         <div>
           <b>Drop supporting documents here</b>
           <span>
-            Uploading as <strong>{documentTypeLabel(documentType)}</strong> · identical files are
-            de-duplicated by checksum
+            Uploading as <strong>{documentTypeLabel(documentType)}</strong> ·{' '}
+            <span id="source-date-hint">
+              {sourceDate
+                ? `dated ${sourceDate}`
+                : 'undated — staleness cannot be assessed'}
+            </span>{' '}
+            · identical files are de-duplicated by checksum
           </span>
         </div>
       </div>
@@ -271,12 +301,22 @@ export function EvidenceScreen({
       {selected && (
         <DocumentDrawer
           doc={selected}
-          localUrl={sessionUrls[selected.id]}
           busy={busy}
           onRetry={onRetry}
+          onDelete={onDelete}
+          onPreview={() => setPreviewId(selected.id)}
           close={() => setSelectedId(null)}
         />
       )}
+
+      {previewDoc ? (
+        <DocumentPreview
+          caseId={caseId}
+          documentId={previewDoc.id}
+          documentName={previewDoc.original_filename}
+          onClose={() => setPreviewId(null)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -328,41 +368,39 @@ function ColumnMappingReadback({
 
 function DocumentDrawer({
   doc,
-  localUrl,
   busy,
   onRetry,
+  onDelete,
+  onPreview,
   close,
 }: {
   doc: DocumentRecord
-  localUrl?: string
   busy: boolean
   onRetry: (documentId: string) => Promise<void>
+  onDelete: (documentId: string) => Promise<void>
+  onPreview: () => void
   close: () => void
 }) {
   const [retryError, setRetryError] = useState<string | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const kind = getFileKind(doc.original_filename, doc.mime_type)
+  const parsed = doc.processing_status === 'PARSED' || doc.processing_status === 'INDEXED'
 
   return (
     <Drawer eyebrow="Stored document" title={doc.original_filename} close={close}>
-      {localUrl && kind === 'image' ? (
-        <div className="doc-preview image-preview">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={localUrl} alt={`Preview of ${doc.original_filename}`} />
-        </div>
-      ) : localUrl && kind === 'pdf' ? (
-        <div className="doc-preview pdf-frame">
-          <iframe src={localUrl} title={`Preview of ${doc.original_filename}`} />
-        </div>
-      ) : (
-        <div className="doc-preview">
-          <FileKindIcon kind={kind} />
-          <b>No preview</b>
-          <span>
-            The API stores documents but exposes no download endpoint, so the original cannot be
-            fetched back for display.
-          </span>
-        </div>
-      )}
+      <div className="doc-preview">
+        <FileKindIcon kind={kind} />
+        <b>{parsed ? 'Open this document' : 'Nothing was extracted'}</b>
+        <span>
+          {parsed
+            ? 'See the text the server extracted, with the original file alongside it.'
+            : 'Parsing produced no text, so there is nothing to match evidence against. The original file can still be downloaded.'}
+        </span>
+        <button className="primary" type="button" onClick={onPreview}>
+          <Eye />
+          Open preview
+        </button>
+      </div>
 
       <Key label="Type" value={documentTypeLabel(doc.document_type)} />
       <Key label="Processing" value={<DocumentPill value={doc.processing_status} />} />
@@ -425,6 +463,56 @@ function DocumentDrawer({
           </div>
         </div>
       )}
+
+      {/* Deleting is offered only where the server will honour it. An indexed
+          document has chunks, and those chunks carry citations a reviewer may
+          already have accepted, so the server refuses with 409 — rendering a
+          control that always fails would be a promise the API does not keep. */}
+      {isDeletable(doc.processing_status) ? (
+        <button
+          className="danger full"
+          type="button"
+          disabled={busy}
+          onClick={() => setConfirmDelete(true)}
+        >
+          <Trash2 />
+          Delete document
+        </button>
+      ) : (
+        <p className="field-hint">
+          This document carries evidence that questions may cite, so it cannot be deleted. Only a
+          document the parser could not read can be removed.
+        </p>
+      )}
+
+      {confirmDelete ? (
+        <ConfirmDialog
+          title="Delete this document?"
+          confirmLabel="Delete document"
+          busy={busy}
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setRetryError(null)
+            try {
+              await onDelete(doc.id)
+              close()
+            } catch (err) {
+              setConfirmDelete(false)
+              setRetryError(errorMessage(err))
+            }
+          }}
+        >
+          <p>
+            <b>{doc.original_filename}</b> and its stored file will be removed. This cannot be
+            undone.
+          </p>
+          <p>
+            Nothing cites it — the parser extracted no text, so no question is answered from it.
+            Any question currently held at <em>Needs manual review</em> because of this file will
+            go back to reporting what it can actually find.
+          </p>
+        </ConfirmDialog>
+      ) : null}
     </Drawer>
   )
 }

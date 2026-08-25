@@ -67,7 +67,11 @@ export function Sidebar({
       <div className="brand">
         <Mark />
         <div>
-          <strong>BuktiESG</strong>
+          {/* Split so "ESG" can carry the logo's green, as the lockup does.
+              Still one word to a screen reader and to text selection. */}
+          <strong>
+            Bukti<span>ESG</span>
+          </strong>
           <small>Evidence operations</small>
         </div>
       </div>

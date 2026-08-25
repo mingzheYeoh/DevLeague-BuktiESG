@@ -1,0 +1,8 @@
+CUSTOMER DATA AND PRIVACY - INTERNALLY INCONSISTENT - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January 2025 to 31 December 2025). Scope: Klang plant.
+Substantiated complaints concerning breaches of customer privacy in FY2025: none.
+Losses of customer data in FY2025: none recorded.
+Incident log extract, 19 September 2025: a laptop containing a customer contact list was reported stolen from a vehicle. The customer was notified on 22 September 2025.
+Incident log extract, 4 November 2025: the September laptop incident was closed after the device was confirmed encrypted.
+CONTRADICTION WITHIN ONE FILE: the summary lines say there were no losses of customer data, and the incident log below them describes one that was notified to the customer.
+Whether the September incident is a 'loss of customer data' for disclosure purposes is a judgement call, and it is precisely the judgement a reviewer is supposed to make rather than a matcher.

@@ -19,3 +19,6 @@ tsconfig.tsbuildinfo
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Review screenshots produced on demand, not source
+screenshots/

@@ -1,0 +1,9 @@
+ENERGY EFFICIENCY INITIATIVES - NO UNIT ON THE SAVING - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January 2025 to 31 December 2025). Scope: Klang plant.
+Initiative 1: LED replacement across the production hall, completed March 2025.
+Initiative 2: compressed air leak survey and repair programme, completed July 2025.
+Initiative 3: chiller scheduling changed to avoid peak-period operation, from September 2025.
+Combined saving reported by the maintenance team: 118,000.
+AMBIGUITY: the saving above is recorded without a unit. The maintenance log does not say whether 118,000 is kWh saved or ringgit saved, and at the RP4 tariff the two readings differ by roughly a factor of two.
+No baseline year is stated, so it is also unclear what the saving is measured against.
+The question asks for a reduction in kWh. This file cannot answer it as written.

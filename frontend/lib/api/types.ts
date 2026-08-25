@@ -78,7 +78,7 @@ export type EvidenceLinkStatus =
 
 /** The human action that converts a draft into (or out of) a confirmed
  * state. The AI never owns a verdict — AGENTS.md §3.2. */
-export type ReviewAction = 'ACCEPT' | 'EDIT' | 'REJECT' | 'NOT_APPLICABLE'
+export type ReviewAction = 'ACCEPT' | 'EDIT' | 'REJECT' | 'NOT_APPLICABLE' | 'REOPEN'
 
 export type ActionType = 'SUBMISSION' | 'IMPROVEMENT'
 
@@ -145,6 +145,11 @@ export interface CaseSummary {
   deadline_at: string | null
   status: CaseStatus
   updated_at: string
+  /** Set only while `status` is `ARCHIVED`. */
+  archived_at: string | null
+  /** The status the case held when it was archived, so a restore can name its
+   * target instead of offering an unlabelled undo. Null unless archived. */
+  status_before_archive: CaseStatus | null
 }
 
 /** `GET /api/v1/cases/{id}/readiness`. Computed server-side from the
@@ -196,7 +201,19 @@ export interface QuestionListItem {
   owner_name: string | null
   /** Where the QUESTION was found in the questionnaire. */
   source_location: SourceLocation | null
+  /** The audit sentence. Complete, precise, and too long to put in front of a
+   * reviewer — use `status_points` for that and keep this for the detail view
+   * and the export. */
   status_reason: string | null
+  /**
+   * The same findings as `status_reason`, as short separate phrases.
+   *
+   * Derived server-side by the rule engine from the persisted findings, so the
+   * browser never parses prose to work out why a status was reached. Empty for
+   * `VERIFIED` (the status already says it) and empty when the server sent no
+   * findings.
+   */
+  status_points: string[]
   /** Where this question's most recent candidate EVIDENCE was found —
    * a different thing from `source_location`. */
   evidence_location: SourceLocation | null
@@ -205,6 +222,21 @@ export interface QuestionListItem {
   mapping_rationale: string | null
   evidence_excerpt: string | null
   evidence_claim_supported: string | null
+  /** Which document the excerpt came out of. A location like "Paragraph 8" is
+   * meaningless without it. */
+  evidence_document_id: string | null
+  evidence_document_name: string | null
+  /** Which evidence_links row the fields above describe. `/accept` and
+   *  `/invalidate` are both addressed by it, so a screen showing a citation
+   *  it cannot name cannot act on it. */
+  evidence_link_id: string | null
+  /** Who vouched for that link, if anyone. Acceptance is the sixth
+   *  VERIFIED condition and the only one a human owns. */
+  evidence_accepted_by: string | null
+  /** Total candidate links on this question. The `evidence_*` fields above
+   * describe exactly one of them, so this has to be shown — otherwise the UI
+   * implies the excerpt is the only evidence. */
+  evidence_candidate_count: number
 }
 
 /** Response of the review endpoint. Not the same shape as
@@ -251,6 +283,27 @@ export interface ActionRecord {
   completed_at: string | null
 }
 
+/**
+ * One parsed fragment of a stored document.
+ *
+ * Every format ends up here, which makes this the one preview that works for
+ * all of them — and it is the text the evidence matcher actually read, so it is
+ * what a citation should be checked against. A rendered original can look
+ * different from what extraction produced.
+ */
+export interface DocumentChunkRecord {
+  id: string
+  sequence_no: number
+  text: string
+  /** Set for PDFs (1-based). */
+  page_number: number | null
+  /** Set for spreadsheets. */
+  sheet_name: string | null
+  cell_range: string | null
+  /** Set for DOCX: the stack of enclosing headings. */
+  heading_path: string[]
+}
+
 export interface EvidenceLinkRecord {
   id: string
   question_id: string
@@ -260,6 +313,8 @@ export interface EvidenceLinkRecord {
   scope_description: string | null
   period_start: string | null
   period_end: string | null
+  accepted_by: string | null
+  accepted_at: string | null
 }
 
 // ---- Request bodies ----------------------------------------------------
@@ -282,7 +337,7 @@ export interface ReviewQuestionRequest {
   reviewer_name: string
   /** Required when action is EDIT. */
   edited_answer?: string
-  /** Required when action is REJECT or NOT_APPLICABLE. */
+  /** Required when action is REJECT, NOT_APPLICABLE or REOPEN. */
   reason?: string
 }
 

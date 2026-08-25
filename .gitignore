@@ -33,3 +33,6 @@ playwright/.cache/
 
 # Uploaded document storage (synthetic data, never committed)
 backend/var/
+
+# Retired dev databases, kept locally for rollback
+*.db.retired-*

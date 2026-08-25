@@ -17,21 +17,38 @@
   --teal: #1b8f86;
   --teal-soft: #e7f6f3;
   --muted: #5d6b76;
-  --subtle: #7c8993;
+  /* Was #7c8993, which is 3.59:1 on white — below the 4.5:1 AA minimum for
+     body text, and this token carries most of the app's helper text. #616d79
+     measures 5.29:1 on white and 4.83:1 on the grey page background. */
+  --subtle: #616d79;
+  /* Link text needs to clear 4.5:1 too. --teal is 3.95:1 on white, fine for
+     icons, pills and rules, not for a sentence. This is the same hue, darkened
+     until it measures 5.67:1. --teal stays the brand colour. */
+  --link-ink: #15736d;
   --line: rgba(18, 38, 58, 0.08);
   --line-strong: rgba(18, 38, 58, 0.12);
   --background: #f3f5f6;
   --surface: #ffffff;
   --warning: #8a6912;
   --warning-bg: #fff7d2;
+  /* A lighter amber wash for notices that must stay visible without shouting
+     over the decision they sit above. */
+  --warning-tint: #fffbeb;
   --warning-line: #ead58a;
   --danger: #c14a42;
   --danger-soft: #fff1f0;
+  /* The green from the product logo. 3.18:1 on white, so it is for artwork and
+     non-text accents only. */
+  --brand-green: #1aa64b;
+  /* Same hue darkened to 4.85:1, for the places the brand green has to be
+     read as text. */
+  --brand-green-ink: #12833a;
   --info: #1d6f9a;
   --info-bg: #eef6fb;
   --radius-sm: 7px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-pill: 999px;
   --shadow-sm: 0 1px 2px rgba(18, 38, 58, 0.04);
   --shadow-md: 0 10px 28px rgba(18, 38, 58, 0.08);
   --space-1: 4px;
@@ -41,6 +58,11 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  /* One focus treatment for the whole app, in the primary action colour. */
+  --focus-ring: 0 0 0 3px rgba(7, 59, 112, 0.3);
+  --focus-outline: 2px solid var(--navy);
+  /* Line length cap for explanatory paragraphs. */
+  --measure: 62ch;
   --ease: cubic-bezier(0.25, 0.1, 0.25, 1);
   --duration: 220ms;
   --sidebar: 220px;
@@ -80,16 +102,32 @@ button {
   cursor: pointer;
 }
 
+/* One focus treatment for everything. Was a pale teal (#63cbbf) that measured
+   under 2:1 against the page, below the 3:1 SC 1.4.11 needs for a focus
+   indicator. Navy at 2px offset sits outside the control, so it stays visible
+   even on the navy primary button. */
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid #63cbbf;
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: var(--focus-outline);
   outline-offset: 2px;
 }
 
 button:active:not(:disabled) {
   transform: scale(0.97);
+}
+
+/* Disabled controls had no visual state at all — a button mid-request looked
+   exactly like one waiting to be pressed. */
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 svg {
@@ -151,7 +189,12 @@ h1, h2, h3, p {
   font-size: 16px;
   line-height: 1.15;
   letter-spacing: -0.02em;
+  color: var(--ink);
 }
+
+/* "ESG" in the logo's green, as in the lockup. The text-safe variant, not the
+   artwork green: at 16px this is not large text, so it needs 4.5:1. */
+.brand strong span { color: var(--brand-green-ink); }
 
 .brand small,
 .workspace small {
@@ -163,18 +206,22 @@ h1, h2, h3, p {
   font-weight: 500;
 }
 
+/* Was a gradient disc holding a generic lucide shield. It now holds the real
+   product mark, which carries its own colours, so the disc and the forced
+   white icon colour are gone. */
 .mark {
   display: grid;
   place-items: center;
   flex: none;
   width: 32px;
   height: 32px;
-  border-radius: 50%;
-  background: linear-gradient(145deg, #6fd4b6 0 46%, #0b4f85 47%);
-  color: #fff;
 }
 
-.mark svg { width: 17px; height: 17px; }
+.mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
 
 .case-step {
   margin: 4px 8px 10px;
@@ -530,6 +577,13 @@ h1, h2, h3, p {
   border-radius: 6px;
   display: flex;
   align-items: center;
+  /* Explicit, because the shared `.primary/.secondary/.danger/...` rule sets
+     `justify-content: center` and this rule never overrode it. A menu item
+     carrying `.danger` therefore centred its icon and label inside a
+     full-width button while its plain neighbours sat at the left edge - the
+     two were following different rule sets, differing only in a property
+     neither one set on purpose. */
+  justify-content: flex-start;
   gap: 10px;
   color: var(--ink);
   font-weight: 500;
@@ -559,10 +613,14 @@ h1, h2, h3, p {
 .primary {
   background: var(--navy);
   color: #fff;
-  box-shadow: 0 4px 12px rgba(7, 59, 112, 0.16);
+  /* Was 0 4px 12px / 0.16 — a drop shadow large enough to read as a floating
+     card. A hairline is enough to lift the primary action. */
+  box-shadow: 0 1px 2px rgba(7, 59, 112, 0.22);
 }
 
-.primary:hover { background: #0a4b88; }
+.primary:hover:not(:disabled) { background: #0a4b88; }
+.primary:active:not(:disabled) { background: #083c6e; }
+.primary:disabled { box-shadow: none; }
 
 .secondary,
 .danger,
@@ -571,16 +629,36 @@ h1, h2, h3, p {
   background: var(--surface);
 }
 
+.secondary:hover:not(:disabled),
+.control:hover:not(:disabled) {
+  border-color: rgba(18, 38, 58, 0.22);
+  background: #f4f6f8;
+}
+
+.secondary:active:not(:disabled),
+.control:active:not(:disabled) { background: #eaeef2; }
+
 .danger {
   color: var(--danger);
   border-color: #efd2d0;
 }
 
+.danger:hover:not(:disabled) {
+  border-color: #e2b6b2;
+  background: #fdf4f3;
+}
+
+.danger:active:not(:disabled) { background: #fbe9e7; }
+
 .link {
-  color: var(--teal);
+  /* --teal is 3.95:1 on white: fine for an icon or a rule, short of the 4.5:1
+     a sentence of link text needs. Same hue, darkened to 5.67:1. */
+  color: var(--link-ink);
   padding: 4px 2px;
   font-weight: 650;
 }
+
+.link:hover:not(:disabled) { color: var(--navy); text-decoration: underline; }
 
 .summary-grid,
 .blocker-grid,
@@ -644,7 +722,8 @@ h1, h2, h3, p {
 .form-card select,
 .drawer input,
 .drawer select,
-.drawer textarea {
+.drawer textarea,
+.review-form textarea {
   border: 1px solid var(--line-strong);
   border-radius: 9px;
   background: var(--surface);
@@ -908,7 +987,8 @@ h1, h2, h3, p {
 }
 
 .form-card label,
-.drawer label {
+.drawer label,
+.review-form label {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -926,7 +1006,8 @@ h1, h2, h3, p {
   padding: 0 12px;
 }
 
-.drawer textarea {
+.drawer textarea,
+.review-form textarea {
   min-height: 88px;
   padding: 10px 12px;
   resize: vertical;
@@ -1294,16 +1375,105 @@ h1, h2, h3, p {
 
 .question-cell small { grid-column: 2; }
 
-.reason {
+/* ------------------------------------------------------------------ *
+ * Questionnaire table
+ *
+ * Scoped to `.questions-table` throughout. `.table-card` is shared with
+ * the Cases, Evidence and Actions tables, so nothing below may leak into
+ * them.
+ *
+ * Replaces an earlier `.reason` rule that put `display: flex` and
+ * `max-width: 240px` directly on the <td>. Making a table cell a flex
+ * container takes it out of the table layout algorithm, so the column no
+ * longer negotiated its width with the others, and a long reason wrapped
+ * into a dozen lines that stretched the whole row.
+ * ------------------------------------------------------------------ */
+
+/* Fixed layout so the percentages below are honoured rather than being
+   renegotiated from content width. The min-width plus horizontal scroll
+   keeps the status columns readable instead of crushing them. */
+.table-card.questions-table {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.questions-table table {
+  table-layout: fixed;
+  min-width: 980px;
+}
+
+.questions-table .col-question { width: 26%; }
+.questions-table .col-topic { width: 11%; }
+.questions-table .col-evidence { width: 12%; }
+.questions-table .col-review { width: 12%; }
+.questions-table .col-reason { width: 28%; min-width: 260px; }
+.questions-table .col-priority { width: 8%; }
+.questions-table .col-action { width: 56px; text-align: right; }
+
+/* Top-aligned, because a clamped two-line reason next to a single-line
+   pill looks wrong centred. */
+.questions-table .reason-cell {
+  vertical-align: top;
+}
+
+/* The wrapper owns the flex layout — not the cell. */
+.questions-table .reason-content {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  max-width: 240px;
   font-size: 13px;
   line-height: 1.4;
 }
 
-.reason svg { color: #b4932e; margin-top: 2px; }
+.questions-table .reason-content svg {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  color: #b4932e;
+}
+
+/* Two-line clamp. The complete text stays in the DOM — this is a visual
+   summary only, so selection, the CSV export and the detail screen all
+   still see the whole reason. */
+.questions-table .reason-summary {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Keyboard route into the detail screen. The row's onClick is mouse-only,
+   so this button is what makes the row reachable by Tab. */
+.questions-table .row-open-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--subtle);
+}
+
+.questions-table .row-open-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.questions-table .row-open-btn:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--navy);
+}
+
+.questions-table .row-open-btn:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+  color: var(--navy);
+}
 
 .empty {
   min-height: 220px;
@@ -1318,7 +1488,10 @@ h1, h2, h3, p {
 .detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr);
-  gap: 16px;
+  gap: var(--space-4);
+  /* Default `stretch` matched both columns to the taller one, leaving a few
+     hundred pixels of empty panel under whichever column was shorter. */
+  align-items: start;
 }
 
 .answer-head,
@@ -1420,11 +1593,14 @@ h1, h2, h3, p {
 
 .key span { color: var(--muted); }
 
+/* Used for the single-choice case (a reopened question has one action). Was
+   justified to flex-end, which is why a wrapped button ended up alone against
+   the right edge. */
 .answer-actions {
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .human-note {
@@ -1872,7 +2048,10 @@ h1, h2, h3, p {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
-    transition-duration: 200ms !important;
+    animation-iteration-count: 1 !important;
+    /* Was 200ms, which slowed transitions down rather than removing them —
+       the opposite of what the preference asks for. */
+    transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
   button:active:not(:disabled) { transform: none; }
@@ -1983,6 +2162,53 @@ h1, h2, h3, p {
   outline: none;
 }
 
+/* The evidence date sits beside "Upload as" and shares its treatment: both
+   describe the batch about to be dropped, not the screen. */
+.control.date-control {
+  gap: 8px;
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.control.date-control input[type='date'] {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  font-family: inherit;
+}
+
+/* The picker glyph is near-invisible on the dark surface at its default
+   opacity, which reads as "no picker here" rather than as a subtle one. */
+.control.date-control input[type='date']::-webkit-calendar-picker-indicator {
+  filter: invert(0.55);
+  cursor: pointer;
+}
+
+/* The acceptance control closes the evidence panel: it is the one action in
+   it, so it gets a rule above rather than floating after the excerpt. */
+.evidence-accept {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.evidence-accepted-by {
+  margin: 0;
+  font-size: 13px;
+  color: var(--subtle);
+}
+
+.evidence-accepted-by strong {
+  color: var(--ink);
+}
+
+.evidence-accept .field-hint.error-text {
+  color: var(--danger);
+}
+
 .control.active {
   border-color: var(--teal);
   color: var(--navy);
@@ -2091,4 +2317,844 @@ button.avatar {
   font-size: 12px;
   font-weight: 400;
   line-height: 1.45;
+}
+
+/* ------------------------------------------------------------------ *
+ * Question detail — status summary, side cards, review block
+ *
+ * Replaces a left column that stacked seven blocks (two of them long
+ * explanations of API limitations, one a large box whose only content was
+ * the words "Not scored") and repeated the full status_reason sentence in
+ * both columns. Now: one conclusion, the specific findings as bullets,
+ * and the rest folded away.
+ * ------------------------------------------------------------------ */
+
+/* The status summary is the panel's lead section, not a card inside it. The
+   panel is already a bordered surface; wrapping this in a second border and
+   the decision block in a third produced three nested frames. Rhythm here
+   comes from a restrained left rule, spacing, and type weight. */
+.status-summary {
+  padding-left: var(--space-4);
+  margin-bottom: var(--space-5);
+  /* Was 3px plus a full 1px border and a radius. 2px against no other frame
+     reads as an edge rather than a stripe. */
+  border-left: 2px solid var(--line-strong);
+}
+
+.status-summary-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.status-summary-head svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  color: var(--subtle);
+}
+
+.status-summary-head b {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.status-summary-head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--subtle);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Tone follows the evidence status, using the same colour tokens as the pills
+   so the summary and the pill never disagree visually. Colour is never the
+   only carrier: the icon shape changes with the status, and the line under
+   the headline names both statuses in words. */
+.status-summary.supported { border-left-color: var(--teal); }
+.status-summary.supported .status-summary-head svg { color: var(--teal); }
+.status-summary.partial,
+.status-summary.outdated { border-left-color: var(--warning-line); }
+.status-summary.partial .status-summary-head svg,
+.status-summary.outdated .status-summary-head svg { color: #b4932e; }
+.status-summary.conflict { border-left-color: #e3b6b2; }
+.status-summary.conflict .status-summary-head svg { color: var(--danger); }
+.status-summary.missing,
+.status-summary.review,
+.status-summary.unreviewed { border-left-color: var(--line-strong); }
+
+/* The findings. These read as the reason the status is what it is, so they are
+   set as explanatory prose at a capped measure rather than as disc bullets
+   floating on their own — a single finding as a lone bullet looked like a
+   dropped list item. The list markup stays for the cases with several. */
+.status-points {
+  max-width: var(--measure);
+  margin: 10px 0 0;
+  /* Indented to the icon's width plus its gap, so the reason, the disclosure
+     row and the headline all sit on one text column. */
+  padding: 0 0 0 28px;
+  list-style: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Several findings are separated by a rule instead of by markers. */
+.status-points li + li {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+/* Folded-away detail: the full audit sentence, priority, provenance.
+   Also used by the side cards, so the base stays compact. */
+.status-detail {
+  margin-top: var(--space-3);
+}
+
+/* Inside the status summary it joins the same indented text column. */
+.status-summary > .status-detail { padding-left: 28px; }
+
+.status-detail > summary {
+  cursor: pointer;
+  color: var(--link-ink);
+  font-size: 12px;
+  font-weight: 650;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* Padded into a real hit target, pulled back so the label still aligns with
+     the text above it. */
+  padding: 5px 10px 5px 8px;
+  margin-left: -8px;
+  border-radius: var(--radius-sm);
+  transition:
+    background var(--duration) var(--ease),
+    color var(--duration) var(--ease);
+}
+
+.status-detail > summary::-webkit-details-marker { display: none; }
+
+.status-detail > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3.5px solid transparent;
+  border-bottom: 3.5px solid transparent;
+  transition: transform var(--duration) var(--ease);
+}
+
+.status-detail[open] > summary::before { transform: rotate(90deg) translateX(-1px); }
+
+.status-detail > summary:hover {
+  color: var(--navy);
+  background: rgba(18, 38, 58, 0.05);
+}
+
+/* Open is a state, not just a rotated triangle. */
+.status-detail[open] > summary {
+  color: var(--navy);
+  background: rgba(18, 38, 58, 0.04);
+}
+
+.status-detail > *:not(summary) {
+  margin-top: var(--space-2);
+}
+
+.status-reason-full {
+  max-width: var(--measure);
+  margin: var(--space-2) 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.answer-recorded {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--teal-soft);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* The decision block: heading, buttons, and the caveat that belongs with
+   them rather than at the top of the page.
+   Was a bordered, rounded, white card sitting inside the white .answer-panel —
+   the third nested frame on the screen. A rule and a gap separate it now. */
+.review-block {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--line-strong);
+}
+
+.review-block h3 {
+  margin: 0 0 var(--space-4);
+  /* Kept as a caps label because it is a section marker rather than a
+     heading you read, but at 0.02em and 650 rather than 0.04em and 700 it
+     stops shouting. */
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------- *
+ * The decision bar.
+ *
+ * Two groups, so priority is carried by position as well as by button
+ * style: what you are expected to do on the left, the less frequent
+ * decisions and the withdrawal on the right. Undo used to be the fifth
+ * item of one flex row justified to flex-end, which stranded it alone on a
+ * second line whenever the row overflowed.
+ * --------------------------------------------------------------- */
+.decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.decision-primary,
+.decision-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+/* One height for every button in the bar, whichever row it wraps onto. */
+.decision-actions .primary,
+.decision-actions .secondary,
+.decision-actions .danger {
+  min-height: 38px;
+}
+
+.review-block .field-hint {
+  max-width: var(--measure);
+  margin-top: var(--space-3);
+}
+
+/* Scoped: the same class in the export screen keeps its own spacing. Was
+   pulled out to the card edges with negative margins, which existed only to
+   fake a full-bleed footer inside a card that no longer exists. */
+.review-block .human-note {
+  max-width: var(--measure);
+  margin: var(--space-5) 0 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+/* --------------------------------------------------------------- *
+ * Notice sitting inside a block whose own decision must stay dominant.
+ * Same information, less weight: no full border, a 2px amber edge and a
+ * pale wash instead of the saturated one, and the action inside it is a
+ * real secondary button rather than a text link.
+ * --------------------------------------------------------------- */
+.callout.callout-inline {
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: 0;
+  border-left: 2px solid var(--warning-line);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--warning-tint);
+  color: var(--muted);
+}
+
+/* A small basis, not the text's own width: with a large basis the whole text
+   block wrapped below the icon on a narrow screen, leaving the triangle alone
+   on a line of its own. */
+.callout.callout-inline > div {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+/* Sits on the title's baseline rather than centred on the whole block. */
+.callout.callout-inline > svg {
+  margin-top: 2px;
+  color: var(--warning);
+}
+.callout.callout-inline b { font-size: 13px; color: var(--ink); }
+
+.callout.callout-inline p {
+  max-width: var(--measure);
+  color: var(--muted);
+}
+
+.callout.callout-inline .secondary { flex: 0 0 auto; }
+
+/* --------------------------------------------------------------- *
+ * Narrow viewports.
+ *
+ * These live here rather than in the shared breakpoint block near the top
+ * of the file: that block is declared before these selectors, so at equal
+ * specificity the base `display: flex` would have won and only the
+ * grid-template-columns would have taken effect.
+ * --------------------------------------------------------------- */
+@media (max-width: 760px) {
+  /* Two even columns per group, groups stacked. Nothing shrinks below its
+     label, so no text is squeezed and the panel never scrolls sideways. */
+  .decision-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .decision-primary,
+  .decision-secondary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+  }
+
+  .decision-actions button,
+  .answer-actions button { width: 100%; }
+
+  /* "Record as <reviewer>" grows with the name, so it needs a whole row
+     rather than pushing the row past the viewport. */
+  .review-form .form-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-2);
+  }
+
+  .review-form .form-actions button { width: 100%; white-space: normal; }
+
+  /* The notice restacks: icon beside the title, then the text, then the
+     action. Side by side there was not enough room for both a readable
+     paragraph and the button. */
+  .callout.callout-inline {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .callout.callout-inline > svg { grid-row: 1; }
+  .callout.callout-inline > div,
+  .callout.callout-inline .secondary { grid-column: 2; }
+  .callout.callout-inline .secondary { justify-self: start; }
+}
+
+/* Below this, two columns start clipping "Not applicable". */
+@media (max-width: 430px) {
+  .decision-primary,
+  .decision-secondary { grid-template-columns: 1fr; }
+}
+
+.review-form h4 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.review-form label:last-of-type { margin-bottom: 0; }
+
+/* Keeps a required marker on the same line as its label text. */
+.label-row {
+  display: block;
+}
+
+.review-form .form-actions {
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+}
+
+/* Right column cards. Replaces the tab strip, which held one card per tab
+   and cost a click to reach either. */
+.side-card {
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.side-card:last-child { margin-bottom: 0; }
+
+/* Same caps-label treatment as the decision heading, so the two columns agree:
+   12px, 650, 0.02em. Was 13px/700/0.04em, which read as shouting. */
+.side-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.side-card h3 svg {
+  width: 15px;
+  height: 15px;
+  color: #b4932e;
+}
+
+.side-card h3 .pill {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.side-card p {
+  margin: 0;
+  color: #4a5966;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.side-card blockquote {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-left: 2px solid var(--teal);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--teal-soft);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.side-card .evidence-where {
+  font-weight: 650;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.side-card .evidence-locus {
+  margin-top: 2px;
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.side-card > .link {
+  margin-top: 10px;
+}
+
+.action-card h3 svg { color: var(--warning); }
+
+.action-card .primary {
+  margin-top: 12px;
+}
+
+/* ------------------------------------------------------------------ *
+ * Document preview
+ *
+ * A large modal rather than the narrow side drawer used elsewhere: the
+ * job here is reading a document, and the drawer's ~420px is too narrow
+ * for a PDF page or a spreadsheet row.
+ * ------------------------------------------------------------------ */
+
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(18, 38, 58, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.preview-dialog {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  width: min(1120px, 100%);
+  height: min(820px, 100%);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.preview-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.preview-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.preview-title svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: var(--subtle);
+}
+
+.preview-title b {
+  display: block;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.preview-title small {
+  display: block;
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.preview-tabs {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--background);
+}
+
+.preview-tabs button {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.preview-tabs button.active {
+  background: var(--surface);
+  color: var(--navy);
+  box-shadow: var(--shadow-sm);
+}
+
+.preview-tabs button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 1px;
+}
+
+.preview-body {
+  overflow: auto;
+  padding: 18px;
+  background: var(--background);
+}
+
+.preview-note {
+  margin: 0 0 12px;
+}
+
+/* Parsed fragments. One row per chunk, so the cited one can be pointed at. */
+.chunk-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.chunk {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: 14px;
+  align-items: start;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.chunk-locus {
+  color: var(--subtle);
+  font-size: 12px;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.chunk-text {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chunk.cited {
+  border-color: var(--warning-line);
+  background: var(--warning-bg);
+  box-shadow: inset 3px 0 var(--warning);
+}
+
+.chunk.cited .chunk-locus { color: var(--warning); }
+
+.chunk-badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--warning);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Original file view. */
+.preview-original {
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.preview-original iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.preview-original img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.preview-empty {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.preview-empty svg {
+  width: 26px;
+  height: 26px;
+  color: var(--subtle);
+}
+
+.preview-empty b {
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.preview-empty span {
+  max-width: 52ch;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.preview-empty .primary {
+  margin-top: 6px;
+}
+
+.preview-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.preview-foot .field-hint {
+  flex: 1;
+  margin: 0;
+}
+
+.preview-foot a.secondary {
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+@media (max-width: 760px) {
+  .preview-overlay { padding: 0; }
+  .preview-dialog {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+  }
+  .preview-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .preview-tabs { order: 3; width: 100%; }
+  .chunk { grid-template-columns: 1fr; gap: 4px; }
+}
+
+/* ------------------------------------------------------------------ *
+ * Case retirement — archived filter, row menu, destructive confirm
+ *
+ * `GET /cases` returns archived cases too, so the archive is never
+ * unreachable; this screen hides them by default and the toggle below is
+ * the labelled way back. See components/screens/cases-screen.tsx.
+ * ------------------------------------------------------------------ */
+
+.toggle-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--subtle);
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--duration) var(--ease), border-color var(--duration) var(--ease);
+}
+
+.toggle-field:hover {
+  color: var(--ink);
+}
+
+.toggle-field input {
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+
+.toggle-count {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(18, 38, 58, 0.07);
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Archived rows stay legible — they are still clickable and still open the
+   case. Dimmed, not disabled. */
+tr.is-archived td {
+  opacity: 0.62;
+}
+
+tr.is-archived:hover td {
+  opacity: 1;
+}
+
+.row-menu {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.status-dropdown-menu button.danger {
+  color: var(--danger);
+}
+
+.status-dropdown-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.status-dropdown-menu button:disabled:hover {
+  background: transparent;
+}
+
+/* The reason a Delete is unavailable, spelled out under the disabled item.
+   A `title` tooltip alone is not reachable by keyboard or touch. */
+.menu-hint {
+  display: block;
+  padding: 6px 12px 8px;
+  color: var(--subtle);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  max-width: 260px;
+}
+
+.confirm-dialog {
+  display: grid;
+  gap: 14px;
+  width: min(480px, 100%);
+  padding: 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.confirm-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.confirm-head h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.confirm-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.confirm-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.confirm-body {
+  color: var(--subtle);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.confirm-body p {
+  margin: 0 0 10px;
+}
+
+.confirm-body p:last-child {
+  margin-bottom: 0;
+}
+
+.confirm-emphasis {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* The row menu is absolutely positioned inside a table cell, and
+   `.table-card { overflow: hidden }` — which exists to clip the table's
+   rounded corners — was cutting it off entirely: present in the accessibility
+   tree, invisible on screen. Lifting the clip only while a menu is open keeps
+   the corners crisp the rest of the time, and costs no JS or portal. */
+.table-card:has(.row-menu [aria-expanded='true']) {
+  overflow: visible;
 }

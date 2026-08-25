@@ -111,6 +111,11 @@ class CandidateEvidence(BaseModel):
     chunk_id: str
     claim_supported: str
     quoted_excerpt: str
+    # How strongly this chunk matched, summed over the weight of each matched
+    # keyword. Carried so the server can rank one question's candidate links by
+    # quality; without it the only orderable field is creation time, which
+    # means "the evidence" is whichever document was uploaded last.
+    match_score: Optional[float] = None
     period_start: Optional[str] = None
     period_end: Optional[str] = None
     scope_description: Optional[str] = None

@@ -1,0 +1,48 @@
+# The database this project actually targets. PostgreSQL 16 per the decision
+# register (§4 item 003, readable at `git show bfd45ad:docs/decisions/decision-register.md`).
+#
+# The volume is declared with an explicit `name:` so Compose adopts the
+# existing `buktiesg-postgres-data` rather than creating a project-prefixed
+# one. The container is disposable; the volume is the data.
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: buktiesg-postgres
+    environment:
+      POSTGRES_USER: buktiesg
+      # From the repository-root `.env`, which is git-ignored. No default, so
+      # an unset value stops Compose with a message naming it rather than
+      # silently starting a database whose password is published.
+      #
+      # The value that used to sit here was `buktiesg_dev`, committed to a
+      # public repository. It guarded a container bound to 127.0.0.1 holding
+      # only synthetic data, so little was at risk - but a committed
+      # POSTGRES_PASSWORD is a shape that gets copied, and the next database
+      # it is copied onto may not be local. It has been rotated.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set it in .env - see .env.example}
+      POSTGRES_DB: buktiesg
+    ports:
+      # Bound to the loopback interface deliberately. This slice has no
+      # authentication anywhere in it (README, "Data Restriction"), and the
+      # database password below is a local development credential, not a
+      # secret. Publishing on 0.0.0.0 would put an unauthenticated stack on
+      # the local network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # `alembic upgrade head` fails confusingly if it connects while the
+      # server is still initialising, so make readiness explicit.
+      test: ["CMD-SHELL", "pg_isready -U buktiesg -d buktiesg"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    # An explicit name, not `external: true` - Compose adopts this volume if
+    # it already exists and creates it on a machine that has never run the
+    # project, so a fresh clone works without a manual `docker volume create`.
+    name: buktiesg-postgres-data

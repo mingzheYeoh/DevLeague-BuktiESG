@@ -43,10 +43,12 @@ from ai_pipeline import (
     DocumentChunk as PipelineDocumentChunk,
     ExtractedChunk,
     analyze_question,
+    keyword_weights,
     parse_docx_evidence,
     parse_pdf_evidence,
     parse_plain_text_evidence,
     parse_xlsx_evidence,
+    question_keywords,
 )
 
 from app.models import Case, Document, DocumentChunk, EvidenceLink, ProcessingJob, Question, Questionnaire
@@ -93,10 +95,18 @@ def create_job(
     job_type: str,
     document_id: str | None = None,
     question_id: str | None = None,
+    track_as_latest: bool = True,
 ) -> ProcessingJob:
     """Create a QUEUED `processing_jobs` row and, if it's for a Document,
     point `documents.latest_job_id` at it so a refreshed client can reach
-    the Job resource (SPEC-AMD-001)."""
+    the Job resource (SPEC-AMD-001).
+
+    `track_as_latest=False` for a job that does not determine the document's
+    `processing_status`. Extraction is the first of those: it runs after
+    indexing has already settled the status, so letting it claim the pointer
+    would make a document read as though its processing were still queued
+    when it has been INDEXED for minutes.
+    """
     job = ProcessingJob(
         case_id=case_id,
         job_type=job_type,
@@ -108,7 +118,7 @@ def create_job(
     db.add(job)
     db.flush()
 
-    if document_id is not None:
+    if document_id is not None and track_as_latest:
         document = db.get(Document, document_id)
         if document is not None:
             document.latest_job_id = job.id
@@ -233,6 +243,13 @@ def run_document_job(db: Session, job: ProcessingJob) -> None:
         document.error_code = "DOCUMENT_PARSE_FAILED"
         document.error_message = str(exc)
         _fail_job(job, "DOCUMENT_PARSE_FAILED", str(exc))
+        # A document that could not be read is an input the rule engine reacts
+        # to, not the end of the story. Returning here left every question on
+        # whatever status it already had, so the C-15 rule -- an unreadable
+        # document may materially affect a question -- could never fire, and a
+        # reviewer was told MISSING about a file they had just uploaded.
+        db.flush()
+        _recompute_case_question_statuses(db, case)
         return
 
     job.status = "SUCCEEDED"
@@ -282,6 +299,7 @@ def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: 
             sedg_disclosure_code=pq.sedg_disclosure_code,
             mapping_rationale=pq.mapping_rationale,
             question_order=pq.question_order,
+            evidence_requirement_json=_build_requirement_json(pq.question_text),
         )
         db.add(question)
         db.flush()
@@ -299,6 +317,31 @@ def _run_questionnaire_parse(db: Session, case: Case, document: Document, data: 
     # docstring for why this stays display-only rather than a new migration.
     document._detected_columns = parse_result.column_mapping  # type: ignore[attr-defined]
 
+
+
+def _build_requirement_json(question_text: str) -> str:
+    """What this question requires of its evidence, as the rule engine reads it.
+
+    Only `keywords` is filled, and the omissions are deliberate:
+
+    * `required_period_start`/`_end` would look natural to inherit from the
+      Case's reporting period, and would be a regression. The VERIFIED
+      period-coverage check demands `link.period_start <= required_start and
+      link.period_end >= required_end`, and no link carries a period, because
+      nothing extracts one from a chunk. Every VERIFIED would fall back to
+      PARTIAL. OUTDATED would go with it: the `source_date` fallback in
+      `_is_outdated` only applies when the question states no period.
+    * `required_scope` fails the same way against a NULL `scope_description`.
+    * `accepted_document_types` is not inferable from question text without
+      guessing, and a wrong guess silently narrows the C-15 gate below.
+
+    The keywords are the question's own distinctive words, matched by exact
+    token equality only (C-15 — no fuzzy matching, no embeddings, no model).
+    They gate one rule: whether an unreadable document may materially affect
+    this question, which is the difference between "no evidence" and "evidence
+    we could not read".
+    """
+    return json.dumps({"keywords": question_keywords(question_text)})
 
 def _create_default_answer(db: Session, question: Question) -> None:
     from app.models import Answer
@@ -373,9 +416,207 @@ def _run_evidence_index(db: Session, case: Case, document: Document, data: bytes
         .all()
     )
 
-    for question in questions:
-        _analyze_question_against_evidence(db, question, document, pipeline_chunks, chunk_by_id)
+    # Computed once for the whole questionnaire, not per question: the weights
+    # answer "how distinctive is this word across the questions this customer
+    # asked", which is a property of the set, not of any one question.
+    weights = keyword_weights([q.question_text for q in questions])
 
+    # Queued, not run. Extraction is the one job that cannot be inline:
+    # measured against deepseek-v4-pro, two to three chunks take 12-22
+    # seconds, so this document's chunks alone would hold the upload open for
+    # minutes. `worker.py` picks it up.
+    create_job(
+        db,
+        case_id=case.id,
+        job_type="EXTRACT_VALUES",
+        document_id=document.id,
+        # Indexing has already settled `processing_status`; this job does not
+        # change it, so it must not claim the pointer that reports it.
+        track_as_latest=False,
+    )
+
+    for question in questions:
+        _analyze_question_against_evidence(
+            db, question, document, pipeline_chunks, chunk_by_id, weights
+        )
+
+
+
+
+def run_extraction_jobs(db: Session, *, extractor=None, limit: int = 10) -> int:
+    """Run queued EXTRACT_VALUES jobs. Returns how many were completed.
+
+    Called by `worker.py`, and directly by tests with a fake extractor. Takes
+    the extractor as an argument rather than building one, so the network and
+    the credential stay optional at this level too.
+
+    A job that finds nothing still succeeds. A null is an answer - the chunk
+    carries no measurement - and re-asking would pay a provider to be told the
+    same thing. Completion means "we asked", not "we found something".
+    """
+    from app.config import settings
+    from app.services.extractor import build_extractor
+
+    if extractor is None:
+        extractor = build_extractor(settings)
+
+    jobs = (
+        db.query(ProcessingJob)
+        .filter(ProcessingJob.job_type == "EXTRACT_VALUES", ProcessingJob.status == "QUEUED")
+        .order_by(ProcessingJob.created_at)
+        .limit(limit)
+        .all()
+    )
+
+    completed = 0
+    for job in jobs:
+        job.status = "RUNNING"
+        job.started_at = _utcnow()
+        job.attempt_count += 1
+        db.flush()
+
+        chunks = (
+            db.query(DocumentChunk)
+            .filter(DocumentChunk.document_id == job.document_id)
+            .order_by(DocumentChunk.sequence_no)
+            .all()
+        )
+        results = extractor.extract([c.text for c in chunks])
+
+        for chunk, extracted in zip(chunks, results):
+            chunk.extracted_value = extracted.value
+            chunk.extracted_unit = extracted.unit
+            chunk.extracted_scope = extracted.scope
+            chunk.extracted_period_start = extracted.period_start
+            chunk.extracted_period_end = extracted.period_end
+
+        job.status = "SUCCEEDED"
+        job.finished_at = _utcnow()
+        db.flush()
+        completed += 1
+
+        # Re-select this document's citations now that we know which of its
+        # chunks carry a measurement. Only ties change: a spreadsheet header
+        # ties with its own data rows on keyword overlap and wins by being
+        # first, and it is the one row that can never hold a number.
+        _reselect_links_for_document(db, job.document_id)
+
+        # New values are an input the rule engine reads, so the questions have
+        # to be told. This is where CONFLICTING can finally appear: two chunks
+        # reporting different numbers for one scope and period.
+        case = db.get(Case, job.case_id)
+        if case is not None:
+            _recompute_case_question_statuses(db, case)
+
+    if completed:
+        db.commit()
+    return completed
+
+
+def _reselect_links_for_document(db: Session, document_id: str | None) -> None:
+    """Re-run link selection for one document, now that extraction has run.
+
+    Deletes this document's links for each question and re-creates them, which
+    is what the indexing path already does on every upload - a link is a
+    derived record, not a decision. Links a human has acted on are left alone:
+    an ACCEPTED, REJECTED or INVALIDATED link carries a verdict, and a better
+    citation is not a reason to discard one.
+    """
+    if document_id is None:
+        return
+    document = db.get(Document, document_id)
+    if document is None:
+        return
+
+    chunk_rows = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == document_id)
+        .order_by(DocumentChunk.sequence_no)
+        .all()
+    )
+    if not chunk_rows:
+        return
+
+    value_bearing = frozenset(c.id for c in chunk_rows if c.extracted_value)
+    if not value_bearing:
+        # Nothing was measured here, so nothing can break a tie differently.
+        return
+
+    pipeline_chunks = [
+        PipelineDocumentChunk(chunk_id=c.id, text=c.text) for c in chunk_rows
+    ]
+    chunk_by_id = {c.id: c for c in chunk_rows}
+
+    questions = (
+        db.query(Question)
+        .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
+        .filter(Questionnaire.case_id == document.case_id)
+        .all()
+    )
+    weights = keyword_weights([q.question_text for q in questions])
+
+    for question in questions:
+        touched = (
+            db.query(EvidenceLink)
+            .filter(
+                EvidenceLink.question_id == question.id,
+                EvidenceLink.document_id == document_id,
+                EvidenceLink.link_status != "CANDIDATE",
+            )
+            .count()
+        )
+        if touched:
+            continue
+
+        db.query(EvidenceLink).filter(
+            EvidenceLink.question_id == question.id,
+            EvidenceLink.document_id == document_id,
+        ).delete(synchronize_session=False)
+        db.flush()
+
+        _analyze_question_against_evidence(
+            db,
+            question,
+            document,
+            pipeline_chunks,
+            chunk_by_id,
+            weights,
+            value_bearing_ids=value_bearing,
+        )
+    db.flush()
+
+def _recompute_case_question_statuses(db: Session, case: Case) -> None:
+    """Re-run the rule engine for every question in a Case, adding no evidence.
+
+    Used when something changed that the engine reads but that produces no new
+    links -- so far, a document failing to parse. The status text comes from
+    `compute_evidence_status` unmodified: the "candidate evidence located by
+    automated keyword match against X" preamble the indexing path adds would be
+    a lie here, because nothing was matched and X could not be read.
+    """
+    questions = (
+        db.query(Question)
+        .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
+        .filter(Questionnaire.case_id == case.id)
+        .all()
+    )
+    unreadable_documents = _build_unreadable_documents(db, case.id)
+    for question in questions:
+        answer = question.answer
+        if answer is None:
+            continue
+        result = compute_evidence_status(
+            candidates=_load_evidence_candidates(db, question.id),
+            requirement=_build_evidence_requirement(question),
+            unreadable_documents=unreadable_documents,
+            current_status=answer.evidence_status,
+            not_applicable_reason=answer.not_applicable_reason,
+            reviewer_name=answer.reviewer_name,
+        )
+        answer.evidence_status = result.status
+        answer.status_findings_json = json.dumps(result.status_findings)
+        if result.status != "NOT_APPLICABLE":
+            answer.status_reason = result.status_reason
 
 def _analyze_question_against_evidence(
     db: Session,
@@ -383,10 +624,14 @@ def _analyze_question_against_evidence(
     document: Document,
     pipeline_chunks: list[PipelineDocumentChunk],
     chunk_by_id: dict[str, DocumentChunk],
+    weights: dict[str, float] | None = None,
+    value_bearing_ids: frozenset[str] = frozenset(),
 ) -> None:
     result = analyze_question(
         AnalysisQuestion(question_id=question.id, question_text=question.question_text),
         pipeline_chunks,
+        keyword_weights=weights,
+        value_bearing_ids=value_bearing_ids,
     )
     # Hard boundary (AGENTS.md §3.2/3.3): `result` never carries a status or a
     # location. Only its `chunk_id` is trusted, and only if it resolves to a
@@ -416,6 +661,7 @@ def _analyze_question_against_evidence(
         scope_description=candidate.scope_description,
         unit=candidate.unit,
         value=candidate.value,
+        match_score=candidate.match_score,
         extraction_valid=True,
         link_status="CANDIDATE",
         created_by="SYSTEM",
@@ -492,13 +738,14 @@ def _parse_iso_date(value: str | None):
 
 def _load_evidence_candidates(db: Session, question_id: str) -> list[EvidenceCandidate]:
     rows = (
-        db.query(EvidenceLink, Document)
+        db.query(EvidenceLink, Document, DocumentChunk)
         .join(Document, EvidenceLink.document_id == Document.id)
+        .join(DocumentChunk, EvidenceLink.chunk_id == DocumentChunk.id)
         .filter(EvidenceLink.question_id == question_id)
         .all()
     )
     candidates: list[EvidenceCandidate] = []
-    for link, doc in rows:
+    for link, doc, chunk in rows:
         candidates.append(
             EvidenceCandidate(
                 link_id=link.id,
@@ -506,11 +753,17 @@ def _load_evidence_candidates(db: Session, question_id: str) -> list[EvidenceCan
                 extraction_valid=link.extraction_valid,
                 claim_supported=link.claim_supported,
                 quoted_excerpt=link.quoted_excerpt,
-                period_start=link.period_start,
-                period_end=link.period_end,
-                scope_description=link.scope_description,
-                unit=link.unit,
-                value=link.value,
+                period_start=chunk.extracted_period_start or link.period_start,
+                period_end=chunk.extracted_period_end or link.period_end,
+                # The chunk's measurement takes precedence over the link's.
+                # Extraction writes to the chunk because a measurement belongs
+                # to the text reporting it, and a link created after that
+                # extraction would otherwise carry nothing. `link.value` stays
+                # as the fallback for anything written before extraction
+                # existed, and for a value a human sets by hand later.
+                scope_description=chunk.extracted_scope or link.scope_description,
+                unit=chunk.extracted_unit or link.unit,
+                value=chunk.extracted_value or link.value,
                 source_date=doc.source_date,
                 source_location=link.location_json,
             )

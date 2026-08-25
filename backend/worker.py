@@ -39,9 +39,25 @@ def run_once() -> bool:
     """Claim and run at most one job. Returns True if a job was found."""
     db = SessionLocal()
     try:
+        # Extraction first, and by its own query rather than through
+        # `claim_next_job`. That claim is written for parse/index jobs and
+        # calls `run_document_job`, which would not know what to do with an
+        # EXTRACT_VALUES row. Keeping the two paths apart is smaller than
+        # generalising a claim that has exactly one other caller.
+        if jobs.run_extraction_jobs(db, limit=1):
+            return True
+
         job = jobs.claim_next_job(db)
         if job is None:
             return False
+        if job.job_type == "EXTRACT_VALUES":
+            # Claimed by the generic path in a race with the branch above.
+            # Hand it back rather than passing it to a runner that cannot
+            # execute it: the next poll picks it up through the right door.
+            job.status = "QUEUED"
+            job.started_at = None
+            db.commit()
+            return True
         jobs.run_document_job(db, job)
         db.commit()
         return True

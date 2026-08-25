@@ -34,7 +34,9 @@ def test_list_cases_returns_every_created_case(client):
     assert {c["id"] for c in listed} == set(created_ids)
 
     # Same shape as GET /cases/{case_id} — CaseSummary, so the frontend can
-    # reuse one type for both.
+    # reuse one type for both. `archived_at` and `status_before_archive` joined
+    # the schema with the retirement endpoints (migration 0005); both are null
+    # on a Case that has not been archived.
     one = listed[0]
     assert set(one) == {
         "id",
@@ -43,8 +45,12 @@ def test_list_cases_returns_every_created_case(client):
         "deadline_at",
         "status",
         "updated_at",
+        "archived_at",
+        "status_before_archive",
     }
     assert one["status"] == "DRAFT"
+    assert one["archived_at"] is None
+    assert one["status_before_archive"] is None
 
 
 def test_list_cases_does_not_shadow_get_case_by_id(client):

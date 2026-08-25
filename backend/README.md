@@ -25,31 +25,96 @@ cd backend
 uv sync
 ```
 
-## Configuration
+## Database
 
-Set `DATABASE_URL` (e.g. `postgresql+psycopg://user:pass@localhost:5432/buktiesg`).
-If unset, the app defaults to a local SQLite file for ad-hoc manual runs only —
-**never use SQLite for real persistence**; it exists so the app can boot without a
-live Postgres instance during development. Tests use an isolated in-memory SQLite
-database (see `tests/conftest.py`), never the dev database.
+PostgreSQL 16, from the repository root:
 
-### Local SQLite schema
+```bash
+cp .env.example .env                       # repository root: set POSTGRES_PASSWORD
+docker compose up -d                       # postgres:16 on 127.0.0.1:5432
+cd backend
+cp .env.example .env                       # put the same password in DATABASE_URL
+uv run alembic upgrade head
+```
 
-The Alembic migrations are written for PostgreSQL and **cannot run on SQLite** —
-`0002_evidence_status_engine.py` adds CHECK constraints via `ALTER`, which the
-SQLite dialect rejects. So `alembic upgrade head` against the SQLite fallback
-fails, and without a schema every request dies with `no such table: cases`.
+Two `.env` files, both git-ignored: Compose reads the one beside
+`docker-compose.yml`, the app reads `backend/.env`. Any password works — the
+database is local, disposable, and rebuilt by `docker compose down -v`. Compose
+has no default for it, so an unset value stops with a message naming it rather
+than starting a database whose password is public.
 
-For the SQLite fallback, build the schema from the models instead:
+`.env.example` uses `127.0.0.1` rather than `localhost` on purpose: Compose binds
+the port to the IPv4 loopback only, and on Windows `localhost` resolves to `::1`
+first, so a `localhost` URL stalls until that attempt times out.
+
+The data lives in the named volume `buktiesg-postgres-data`, not in the
+container, so `docker compose down` and a rebuild lose nothing. `docker compose
+down -v` does delete it.
+
+### The SQLite fallback
+
+With `DATABASE_URL` unset, `app/config.py` falls back to a local SQLite file so
+the app can boot without a live database. That is for emergencies. **It is not a
+supported way to run this application**, and the difference is not cosmetic:
+
+- SQLite does not enforce foreign keys unless `PRAGMA foreign_keys=ON` is set per
+  connection. A cascade-ordering bug that Postgres rejects outright can pass
+  unnoticed on SQLite — one did, and `tests/test_schema_integrity.py` exists
+  because of it.
+- `claim_next_job` has no row-level locking on SQLite (`app/services/jobs.py`
+  documents exactly how it degrades). Never run more than one worker against it.
+- The Alembic migrations are written for PostgreSQL and **cannot run on SQLite** —
+  `0002_evidence_status_engine.py` adds CHECK constraints via `ALTER`, which the
+  SQLite dialect rejects. Its schema comes from `scripts/init_dev_db.py`
+  (`create_all`) instead, which stamps no Alembic revision:
 
 ```bash
 uv run python scripts/init_dev_db.py              # create missing tables
 uv run python scripts/init_dev_db.py --recreate   # rebuild; drops local dev data
 ```
 
-It stamps no Alembic revision and refuses to run against anything but SQLite. It
-also reports schema drift, which is what a dev database created before a model
-change looks like (`create_all` never alters an existing table).
+The test suite is the one place SQLite is used deliberately: `tests/conftest.py`
+builds an isolated in-memory database per test, with `PRAGMA foreign_keys=ON`, so
+the suite runs on a fresh clone without Docker. It never touches a dev database.
+
+### The worker
+
+Every job type except one runs inline, inside the request that created it.
+`EXTRACT_VALUES` cannot: measured against `deepseek-v4-pro`, two to three
+chunks take 12–22 seconds, so a 21-document case at 175 chunks would hold an
+upload open for roughly three minutes. Uploads queue the job and return; a
+worker drains the queue.
+
+```bash
+uv run python worker.py            # poll until stopped
+```
+
+Without a worker running, uploads still succeed and questions still get their
+evidence — values simply stay absent, which is the state the rule engine has
+always read correctly. Nothing waits on it.
+
+With no `DEEPSEEK_API_KEY` set the worker still drains the queue, using
+`NullExtractor`: jobs complete, values stay null, and no request leaves the
+machine. That is the configuration CI runs.
+
+### Reclaiming stored bytes
+
+`var/storage` has no garbage collector. `delete_case_tree` and `delete_file`
+run only on a successful delete, so anything that fails between writing a blob
+and committing its row leaves bytes nothing references — and nothing notices.
+This repository reached 1,252 orphan directories and 8.8 MB in one development
+cycle, most of it from a test suite that wrote into the real storage root
+(`tests/conftest.py` now isolates it per test).
+
+```bash
+uv run python scripts/reclaim_storage.py            # report only
+uv run python scripts/reclaim_storage.py --delete   # remove the orphans
+```
+
+The reconciliation is one-directional. A blob with no row is garbage. A row
+with no blob is evidence that cannot be produced — reported for a human, never
+deleted, because losing the record that evidence was cited is worse than the
+inconsistency.
 
 ## Run
 

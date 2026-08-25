@@ -1,0 +1,9 @@
+ENERGY AND EMISSIONS - WRONG YEAR - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2022 (1 January 2022 to 31 December 2022). THIS IS NOT THE PERIOD THE QUESTIONNAIRE ASKS ABOUT.
+Total electricity purchased in FY2022: 1,612,400 kWh.
+Scope 2 emissions FY2022: 1,247.0 tCO2e, using the 0.774 Peninsular factor for 2022.
+Scope 1 emissions FY2022: 51.3 tCO2e.
+Total waste generated FY2022: 188.2 metric tonnes.
+Average training hours per employee FY2022: 9.4.
+STALE: these figures are three years older than the FY2025 period the questionnaire covers. They are presented in the same layout as the current-year files and are easy to cite by mistake.
+The system will not mark this outdated either: documents.source_date cannot be set on upload, so the rule engine has no date to test against the 24-month threshold.
