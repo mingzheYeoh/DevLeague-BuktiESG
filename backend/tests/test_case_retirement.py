@@ -232,7 +232,7 @@ def test_deleting_a_case_takes_its_questions_answers_documents_and_actions(
 
     client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "EDIT", "reviewer_name": REVIEWER, "edited_answer": "1,200 kWh."},
+        json={"action": "EDIT", "edited_answer": "1,200 kWh."},
     )
     client.post(
         f"/api/v1/cases/{case_id}/actions",

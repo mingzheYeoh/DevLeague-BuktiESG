@@ -85,7 +85,6 @@ def test_review_edit_persists_edited_answer_and_confirms(client):
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
         json={
             "action": "EDIT",
-            "reviewer_name": "Bob",
             "edited_answer": "Our FY2025 electricity consumption was 12,840 kWh.",
         },
     )
@@ -100,7 +99,7 @@ def test_review_edit_without_edited_answer_is_rejected(client):
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "EDIT", "reviewer_name": "Bob"},
+        json={"action": "EDIT"},
     )
     assert resp.status_code == 422
     assert resp.json()["detail"]["error"]["code"] == "VALIDATION_ERROR"
@@ -111,14 +110,14 @@ def test_review_reject_requires_reason(client):
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "REJECT", "reviewer_name": "Carol"},
+        json={"action": "REJECT"},
     )
     assert resp.status_code == 422
     assert resp.json()["detail"]["error"]["code"] == "VALIDATION_ERROR"
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "REJECT", "reviewer_name": "Carol", "reason": "Not credible source."},
+        json={"action": "REJECT", "reason": "Not credible source."},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -131,7 +130,7 @@ def test_review_not_applicable_requires_reason_and_sets_evidence_status(client):
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "NOT_APPLICABLE", "reviewer_name": "Dana"},
+        json={"action": "NOT_APPLICABLE"},
     )
     assert resp.status_code == 422
 
@@ -139,7 +138,6 @@ def test_review_not_applicable_requires_reason_and_sets_evidence_status(client):
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
         json={
             "action": "NOT_APPLICABLE",
-            "reviewer_name": "Dana",
             "reason": "Business does not operate a fleet.",
         },
     )
@@ -162,7 +160,7 @@ def test_review_unknown_action_rejected(client):
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "APPROVE_FOREVER", "reviewer_name": "Alice"},
+        json={"action": "APPROVE_FOREVER"},
     )
     assert resp.status_code == 422
     assert resp.json()["detail"]["error"]["code"] == "VALIDATION_ERROR"
@@ -366,7 +364,7 @@ def test_readiness_excludes_unconfirmed_answers(client):
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "ACCEPT", "reviewer_name": "Alice"},
+        json={"action": "ACCEPT"},
     )
     assert resp.status_code == 200, resp.text
 

@@ -63,8 +63,9 @@ def review_question(
 
     ACCEPT/EDIT/REJECT/NOT_APPLICABLE/REOPEN. `review_status = HUMAN_CONFIRMED`
     and `evidence_status = NOT_APPLICABLE` are only ever set here, by an
-    explicit human action carrying a reviewer_name — never by the deterministic
-    rule engine (app/services/rules.py, AGENTS.md §3.2 / RULING-02).
+    explicit human action signed by the session that made it — never by the
+    deterministic rule engine (app/services/rules.py, AGENTS.md §3.2 /
+    RULING-02).
 
     Two rules about NOT_APPLICABLE, both learned the hard way:
 
