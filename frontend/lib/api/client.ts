@@ -82,7 +82,12 @@ export class ApiUnreachableError extends Error {
  * Extends `ApiError` so `errorMessage()` and every existing `catch` keep
  * working — this narrows the type, it does not change the shape.
  */
-export class UnauthenticatedError extends ApiError {}
+export class UnauthenticatedError extends ApiError {
+  // `ApiError`'s constructor sets `name = 'ApiError'`, so without this a
+  // thrown UnauthenticatedError announces itself as the wrong class in every
+  // stack trace. The class field runs after super() and wins.
+  readonly name = 'UnauthenticatedError'
+}
 
 let sessionLostListener: (() => void) | null = null
 
@@ -96,7 +101,14 @@ let sessionLostListener: (() => void) | null = null
 export function onSessionLost(listener: () => void): () => void {
   sessionLostListener = listener
   return () => {
-    sessionLostListener = null
+    // Only clear the slot if it still holds *this* listener. An unconditional
+    // null lets a stale cleanup silently unregister a newer listener - two
+    // registrations overlapping, which React does under StrictMode's
+    // double-invoke and whenever a new tree commits before the old unmounts.
+    // The consequence is invisible: 401s stop being announced and the app
+    // falls back to "Could not load this from the API" with a Retry that
+    // 401s forever, which is the exact bug this mechanism exists to remove.
+    if (sessionLostListener === listener) sessionLostListener = null
   }
 }
 
