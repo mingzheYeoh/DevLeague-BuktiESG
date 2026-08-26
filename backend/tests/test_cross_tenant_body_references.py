@@ -133,3 +133,30 @@ def test_an_action_on_its_own_case_question_still_works(client):
 
     assert response.status_code == 201, response.text
     assert response.json()["question_id"] == question_id
+
+
+def test_an_action_id_from_another_organization_is_not_found(client, client_other_org):
+    """The other half of the same class: a child id in the PATH.
+
+    The cross-tenant matrix swaps the case_id and keeps everything else, so it
+    never tries "my own case, someone else's action". Every child lookup in
+    every router was checked by hand and does verify ownership; this pins the
+    one that would hurt most, so the next person to add an endpoint has an
+    example rather than a promise.
+    """
+    victim_case_id, victim_question_id = _make_case_with_question(client)
+    victim_action_id = client.post(
+        f"/api/v1/cases/{victim_case_id}/actions", json=_action_body(victim_question_id)
+    ).json()["id"]
+
+    attacker_case_id = client_other_org.post(
+        "/api/v1/cases", json={"title": "Attacker's own case"}
+    ).json()["id"]
+
+    response = client_other_org.post(
+        f"/api/v1/cases/{attacker_case_id}/actions/{victim_action_id}/status",
+        json={"status": "IN_PROGRESS"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"]["error"]["code"] == "ACTION_NOT_FOUND"
