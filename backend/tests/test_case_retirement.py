@@ -30,8 +30,6 @@ from app.models import (
 )
 from app.services import storage
 
-REVIEWER = "Nur Aina"
-
 # Every status a Case can hold that is neither DRAFT nor ARCHIVED.
 WORKED_ON = ("PROCESSING", "IN_REVIEW", "READY", "EXPORTED")
 
