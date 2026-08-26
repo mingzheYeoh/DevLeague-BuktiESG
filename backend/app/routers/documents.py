@@ -22,6 +22,7 @@ server is the only thing that resolves that `chunk_id` back to a persisted
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from pathlib import Path
 from urllib.parse import quote
@@ -39,6 +40,8 @@ from app.models import Case, Document, DocumentChunk
 from app.schemas import DocumentChunkRecord, DocumentRecord
 from app.services import jobs, storage
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/v1/cases", tags=["documents"])
 
 # Types that may be rendered inline by a browser, keyed by file extension.
@@ -49,8 +52,9 @@ router = APIRouter(prefix="/api/v1/cases", tags=["documents"])
 #
 # `.svg` and `.html` are absent on purpose: both execute script when rendered
 # inline, and uploaded document content is untrusted (trust boundary TB-3). An
-# uploaded `.html` served inline would be stored XSS against an API that has no
-# authentication at all.
+# uploaded `.html` served inline would be stored XSS. Authentication raised the
+# stakes here rather than lowering them: a payload now runs inside a signed-in
+# session and can act as that user against their own organization's data.
 #
 # `.csv` maps to text/plain, not text/csv, so a browser shows it rather than
 # handing it to a spreadsheet application.
@@ -263,10 +267,10 @@ def get_document_content(
 
     Security posture, because this endpoint hands back user-uploaded bytes:
 
-    * Authorisation is the case check in `_load_document`. There is no
-      authentication anywhere in this service, so this endpoint is readable by
-      anything that can reach the port — one more reason it must stay on
-      localhost (see backend/README.md).
+    * Every caller is authenticated, and `_load_document` resolves the
+      document through the actor's organization, so this endpoint hands back
+      bytes only to a signed-in member of the owning organization. A document
+      belonging to another organization answers 404, never 403.
     * The content type is chosen from an extension allow-list, never from the
       client-supplied `mime_type`. Anything unlisted is `application/octet-stream`
       as an attachment, so an uploaded `.html` or `.svg` cannot execute script

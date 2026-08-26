@@ -144,3 +144,36 @@ def test_deleting_it_releases_the_question_it_was_holding(client):
     released = question()
     assert released["evidence_status"] == "MISSING"
     assert "injuries-register-2025.pdf" not in (released["status_reason"] or "")
+
+
+def test_a_storage_failure_does_not_turn_a_successful_delete_into_a_500(
+    client, monkeypatch
+):
+    """The row is committed before the file is unlinked, deliberately.
+
+    So a storage error must be logged and swallowed: the delete really did
+    happen, and reporting 500 for work that was done is worse than a stranded
+    file. This module used `logger.exception` in that handler while never
+    importing `logging` or defining `logger`, so the handler itself raised
+    NameError and produced exactly the 500 the design says it avoids.
+
+    Nothing caught it because no test ever made `delete_file` fail - the happy
+    path never enters the `except`.
+    """
+    from app.services import storage
+
+    case_id = _case(client, "Storage failure")
+    doc = _upload(client, case_id, "scan.pdf", BROKEN_PDF, "SAFETY_RECORD")
+
+    def _explode(_key):
+        raise OSError("the file is gone")
+
+    monkeypatch.setattr(storage, "delete_file", _explode)
+
+    response = client.delete(f"/api/v1/cases/{case_id}/documents/{doc['id']}")
+
+    assert response.status_code == 204, response.text
+
+    # And the row is really gone - the point is that the delete stands.
+    listed = client.get(f"/api/v1/cases/{case_id}/documents").json()
+    assert all(d["id"] != doc["id"] for d in listed)
