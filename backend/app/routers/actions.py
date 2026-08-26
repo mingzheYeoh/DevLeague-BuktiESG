@@ -66,11 +66,23 @@ def create_action(
     question = None
     if payload.question_id is not None:
         question = db.get(Question, payload.question_id)
-        if question is None:
+        # `require_case` authorises the Case in the PATH. It says nothing about
+        # ids the caller puts in the BODY, and neither isolation guard can see
+        # one: test_isolation_guard walks signatures, and the cross-tenant
+        # matrix enumerates routes with {case_id} in the path. Checking only
+        # existence here let an actor name another organization's question and
+        # get a 201 - an existence oracle, a foreign-key edge into another
+        # tenant's data, and one bit of their evidence_status, since
+        # requires_closure_evidence is derived from it just below.
+        #
+        # One message for absent and for not-yours, deliberately: telling them
+        # apart is the same oracle 404-never-403 exists to close, reached
+        # through the body instead of the path.
+        if question is None or question.questionnaire.case_id != case.id:
             raise api_error(
                 422,
                 "OBJECT_CASE_MISMATCH",
-                f"question_id {payload.question_id} does not exist.",
+                f"question_id {payload.question_id} is not a question in this case.",
             )
 
     requires_closure_evidence = payload.requires_closure_evidence
