@@ -2559,47 +2559,6 @@ button.avatar {
 }
 
 /* --------------------------------------------------------------- *
- * Notice sitting inside a block whose own decision must stay dominant.
- * Same information, less weight: no full border, a 2px amber edge and a
- * pale wash instead of the saturated one, and the action inside it is a
- * real secondary button rather than a text link.
- * --------------------------------------------------------------- */
-.callout.callout-inline {
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 0;
-  border-left: 2px solid var(--warning-line);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--warning-tint);
-  color: var(--muted);
-}
-
-/* A small basis, not the text's own width: with a large basis the whole text
-   block wrapped below the icon on a narrow screen, leaving the triangle alone
-   on a line of its own. */
-.callout.callout-inline > div {
-  flex: 1 1 120px;
-  min-width: 0;
-}
-
-/* Sits on the title's baseline rather than centred on the whole block. */
-.callout.callout-inline > svg {
-  margin-top: 2px;
-  color: var(--warning);
-}
-.callout.callout-inline b { font-size: 13px; color: var(--ink); }
-
-.callout.callout-inline p {
-  max-width: var(--measure);
-  color: var(--muted);
-}
-
-.callout.callout-inline .secondary { flex: 0 0 auto; }
-
-/* --------------------------------------------------------------- *
  * Narrow viewports.
  *
  * These live here rather than in the shared breakpoint block near the top
@@ -2635,20 +2594,6 @@ button.avatar {
   }
 
   .review-form .form-actions button { width: 100%; white-space: normal; }
-
-  /* The notice restacks: icon beside the title, then the text, then the
-     action. Side by side there was not enough room for both a readable
-     paragraph and the button. */
-  .callout.callout-inline {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-2) var(--space-3);
-  }
-
-  .callout.callout-inline > svg { grid-row: 1; }
-  .callout.callout-inline > div,
-  .callout.callout-inline .secondary { grid-column: 2; }
-  .callout.callout-inline .secondary { justify-self: start; }
 }
 
 /* Below this, two columns start clipping "Not applicable". */
