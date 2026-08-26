@@ -7,6 +7,7 @@
  */
 import type {
   ActionRecord,
+  ActorSummary,
   AnswerRecord,
   ApiErrorDetail,
   CaseSummary,
@@ -16,8 +17,10 @@ import type {
   DocumentRecord,
   DocumentType,
   EvidenceLinkRecord,
+  LoginRequest,
   QuestionListItem,
   ReadinessSummary,
+  RegistrationRequest,
   ReviewQuestionRequest,
   UpdateActionStatusRequest,
 } from './types'
@@ -74,6 +77,30 @@ export class ApiUnreachableError extends Error {
 }
 
 /**
+ * A 401 from an endpoint that expected a session.
+ *
+ * Extends `ApiError` so `errorMessage()` and every existing `catch` keep
+ * working — this narrows the type, it does not change the shape.
+ */
+export class UnauthenticatedError extends ApiError {}
+
+let sessionLostListener: (() => void) | null = null
+
+/**
+ * Called once when any non-auth endpoint answers 401.
+ *
+ * A module-level slot rather than a React context because `request()` is a
+ * plain function called from everywhere, including outside a component tree.
+ * `SessionProvider` registers here on mount and clears on unmount.
+ */
+export function onSessionLost(listener: () => void): () => void {
+  sessionLostListener = listener
+  return () => {
+    sessionLostListener = null
+  }
+}
+
+/**
  * The server produces three different error bodies, and the browser has to
  * cope with all of them:
  *
@@ -124,7 +151,29 @@ function normaliseError(status: number, body: unknown): ApiErrorDetail {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+interface RequestOptions {
+  /**
+   * Suppress the session-lost announcement for this call.
+   *
+   * Used by exactly two callers: `login` and `register`, the only requests
+   * made while unauthenticated by design. A wrong password answers 401
+   * `INVALID_CREDENTIALS`, and announcing that would stack a sign-in prompt
+   * on top of the sign-in form.
+   *
+   * Deliberately a flag at the call site rather than a check on the error
+   * code. Matching `code === 'NOT_AUTHENTICATED'` would encode a security
+   * rule as a string comparison: the day the server adds a third 401 code,
+   * the client would not fail, it would silently stop announcing — which is
+   * the infinite-Retry symptom this whole change exists to remove.
+   */
+  silentAuthFailure?: boolean
+}
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options: RequestOptions = {},
+): Promise<T> {
   const isFormData =
     typeof FormData !== 'undefined' && init?.body instanceof FormData
 
@@ -132,6 +181,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      // The session cookie is HttpOnly and lives on the API's origin, so
+      // nothing here can read or attach it by hand. Without this the browser
+      // omits it on a cross-origin request and every call is 401.
+      credentials: 'include',
       headers: {
         Accept: 'application/json',
         // Let the browser set the multipart boundary itself.
@@ -150,7 +203,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Leave body null; normaliseError falls back to the status code.
     }
-    throw new ApiError(res.status, normaliseError(res.status, body))
+    const detail = normaliseError(res.status, body)
+
+    if (res.status === 401) {
+      if (!options.silentAuthFailure) sessionLostListener?.()
+      throw new UnauthenticatedError(res.status, detail)
+    }
+
+    throw new ApiError(res.status, detail)
   }
 
   if (res.status === 204) return undefined as T
@@ -160,6 +220,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const enc = encodeURIComponent
 
 export const api = {
+  // ---- Authentication --------------------------------------------------
+
+  /** POST /api/v1/auth/register — 201.
+   *
+   * Returns the same body whether or not the address already exists, and sets
+   * no cookie: registering does not sign you in. The server's message says to
+   * check your email, but the verification email does not exist yet (Task 11),
+   * so the UI must say its own thing rather than repeat this one. */
+  register(body: RegistrationRequest): Promise<{ status: string }> {
+    return request<{ status: string }>(
+      '/api/v1/auth/register',
+      { method: 'POST', body: JSON.stringify(body) },
+      { silentAuthFailure: true },
+    )
+  },
+
+  /** POST /api/v1/auth/login — sets the session cookie.
+   *
+   * 401 INVALID_CREDENTIALS for a wrong password *and* for an address that
+   * does not exist: the server refuses to say which, deliberately. Do not
+   * write UI copy that guesses. */
+  login(body: LoginRequest): Promise<{ status: string }> {
+    return request<{ status: string }>(
+      '/api/v1/auth/login',
+      { method: 'POST', body: JSON.stringify(body) },
+      { silentAuthFailure: true },
+    )
+  },
+
+  /** POST /api/v1/auth/logout — revokes the session and clears the cookie. */
+  logout(): Promise<{ status: string }> {
+    return request<{ status: string }>('/api/v1/auth/logout', { method: 'POST' })
+  },
+
+  /** GET /api/v1/auth/me — 401 when there is no valid session. */
+  me(): Promise<ActorSummary> {
+    return request<ActorSummary>('/api/v1/auth/me')
+  },
+
   /** GET /health */
   health(): Promise<{ status: string }> {
     return request<{ status: string }>('/health')

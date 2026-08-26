@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS } from './support/api-stubs'
+
 /**
  * Reason column in the Questionnaire table.
  *
@@ -14,7 +16,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-reason-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,

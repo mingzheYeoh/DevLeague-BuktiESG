@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS } from './support/api-stubs'
+
 /**
  * Smoke test: cases list -> create a case -> land on an honestly empty case.
  *
@@ -25,7 +27,6 @@ const CASE_SUMMARY = {
   updated_at: new Date().toISOString(),
 }
 
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 async function stubApi(page: Page, { cases }: { cases: unknown[] }) {
   const listed = [...cases]

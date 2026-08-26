@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS } from './support/api-stubs'
+
 /**
  * Deleting a document the parser could not read.
  *
@@ -10,7 +12,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-doc-delete-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,

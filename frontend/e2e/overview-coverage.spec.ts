@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS } from './support/api-stubs'
+
 /**
  * Panels that count questions, and the denominators they count against.
  *
@@ -15,7 +17,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-coverage-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,

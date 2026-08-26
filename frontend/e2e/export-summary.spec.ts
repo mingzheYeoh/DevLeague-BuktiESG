@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS } from './support/api-stubs'
+
 /**
  * The generated `customer-response-summary.txt`.
  *
@@ -12,7 +14,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-export-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,

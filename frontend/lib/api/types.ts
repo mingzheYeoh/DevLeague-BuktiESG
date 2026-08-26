@@ -364,3 +364,31 @@ export interface UpdateActionStatusRequest {
    * COMPLETED and the Action has requires_closure_evidence. */
   closure_evidence_link_id?: string | null
 }
+
+// ---- Authentication -----------------------------------------------------
+
+/** `GET /api/v1/auth/me` — the signed-in actor, from `ActorSummary` in
+ * `backend/app/schemas.py`. */
+export interface ActorSummary {
+  user_id: string
+  email: string
+  organization_id: string
+  organization_name: string
+  role: string
+}
+
+/** `POST /api/v1/auth/login` */
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+/** `POST /api/v1/auth/register`
+ *
+ * `password` is rejected by the server below 12 characters
+ * (`RegistrationRequest.password = Field(min_length=12)`). */
+export interface RegistrationRequest {
+  email: string
+  password: string
+  organization_name: string
+}
