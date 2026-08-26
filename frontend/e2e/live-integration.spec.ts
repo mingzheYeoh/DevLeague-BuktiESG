@@ -31,15 +31,18 @@ test('register, sign in, and create a case against the real API', async ({ page 
   // exists, deliberately - so reusing one address would silently start
   // testing "sign in as a user created by an earlier run", which is a
   // different thing and would pass even if registration were broken.
-  const email = `live-${Date.now()}@tenggara.example`
+  // `Date.now()` alone is millisecond-resolution: two runs launched in the
+  // same millisecond (e.g. parallel CI jobs) would collide on it.
+  const runId = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
+  const email = `live-${runId}@tenggara.example`
   const password = 'live integration passphrase'
-  const title = `Live integration ${Date.now()}`
+  const title = `Live integration ${runId}`
 
   await page.goto('/')
 
   await page.getByTestId('show-register').click()
   await page.getByTestId('register-email').fill(email)
-  await page.getByTestId('register-org').fill(`Live Integration ${Date.now()}`)
+  await page.getByTestId('register-org').fill(`Live Integration ${runId}`)
   await page.getByTestId('register-password').fill(password)
   await page.getByTestId('register-submit').click()
 
@@ -49,11 +52,19 @@ test('register, sign in, and create a case against the real API', async ({ page 
   await page.getByTestId('sign-in-password').fill(password)
   await page.getByTestId('sign-in-submit').click()
 
-  // A brand-new organization owns nothing. If the cases list is not empty,
-  // tenant isolation is not working - this is the cheapest real assertion of
-  // it that exists anywhere in the frontend suite.
+  // A brand-new organization owns nothing yet, so the list is empty.
+  //
+  // This is deliberately NOT called a test of tenant isolation - it cannot be
+  // one. The browser has no route to another organization's data to be wrong
+  // about; a client that failed to send credentials would get 401, not
+  // someone else's cases. Isolation lives server-side and is proved by the
+  // generated cross-tenant matrix in backend/tests/test_tenant_isolation.py.
+  //
+  // What this does prove is that signing in established a session the
+  // workspace actually reads through. A list rendered from a stale response,
+  // a cached fixture, or a global unscoped query would put rows here.
   await expect(page.getByTestId('new-case-button')).toBeVisible()
-  await expect(page.getByText(title)).toHaveCount(0)
+  await expect(page.locator('[data-testid^="case-row-"]')).toHaveCount(0)
 
   await page.getByTestId('new-case-button').click()
   await page.getByTestId('case-title-input').fill(title)
