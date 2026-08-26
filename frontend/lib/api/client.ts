@@ -392,6 +392,14 @@ export const api = {
    * uploaded `.html` — it comes back as an opaque download. */
   /** A direct URL to the stored bytes.
    *
+   * The one documented exit from `request()`. What comes back is handed to
+   * `<img>`, `<iframe>` and `<a href>` in `components/document-preview.tsx`,
+   * so the browser fetches it, not this module - which means a 401 on these
+   * three never reaches `onSessionLost`. If a session dies while a preview is
+   * open, the frame renders the API's error instead of raising the re-auth
+   * overlay, and nothing prompts until some other call is made. The server
+   * still refuses the bytes; only the signal is lost.
+   *
    * Pass `download` for a save rather than a preview. The `download`
    * attribute on an `<a>` is ignored cross-origin, and this API is on a
    * different origin from the app, so a plain link to a PDF or image opens it

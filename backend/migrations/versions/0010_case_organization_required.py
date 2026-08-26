@@ -20,6 +20,12 @@ model instead of mistaking them for a customer's.
 
 Revision ID: 0010_case_organization_required
 Revises: 0009_identity_and_tenancy
+
+
+Postgres only, like `0005`: `now()` and a bare `alter_column` are not SQLite
+DDL. The SQLite fallback in `config.py` exists so the app can boot without a
+live database during ad-hoc development, and it builds its schema with
+`Base.metadata.create_all` (`scripts/init_dev_db.py`), never with Alembic.
 """
 
 from __future__ import annotations

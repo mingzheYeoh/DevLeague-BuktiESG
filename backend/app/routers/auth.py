@@ -35,6 +35,19 @@ _REGISTRATION_ACCEPTED = {"status": "check your email to finish signing up"}
 def register(payload: RegistrationRequest, db: Session = Depends(get_db)) -> dict:
     email = payload.email.strip().lower()
 
+    # Hash before the existence check, never after.
+    #
+    # The taken-address branch below returns without creating anything. If
+    # hashing happened only on the fresh path, the two responses would be
+    # byte-identical and still tell a caller apart by the clock - argon2 costs
+    # ~33ms and returning early costs ~1ms. That is the same directory of a
+    # company's staff that the identical response body exists to deny, reached
+    # through timing instead of content.
+    #
+    # `login` already pays this cost unconditionally via DUMMY_HASH. This is
+    # the same idea, and it was missing here.
+    password_hash = hash_password(payload.password)
+
     if db.query(User).filter(User.email == email).one_or_none() is not None:
         # Already registered. Say nothing, do nothing, and return the same body
         # as a successful registration. Task 11 adds the "you already have an
@@ -44,7 +57,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(get_db)) -> dic
     # One transaction. A user with no organization, or an organization with no
     # ADMIN, is a state nothing in the API can repair - there would be no one
     # authorised to invite the first member.
-    user = User(email=email, password_hash=hash_password(payload.password))
+    user = User(email=email, password_hash=password_hash)
     organization = Organization(name=payload.organization_name.strip())
     db.add_all([user, organization])
     db.flush()

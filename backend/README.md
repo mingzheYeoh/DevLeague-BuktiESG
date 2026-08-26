@@ -164,11 +164,22 @@ FastAPI's own request-validation failures use its default `{"detail": [...]}`
 array instead, so a client has to handle both.
 
 **Not implemented, and relied on by nothing:** no jobs endpoint (despite
-`latest_job_id`), no evidence-link listing, no question detail (so draft answer
-text is only ever returned by the review endpoint), no export endpoint, no
-document download, no `priority_score`, and no `PATCH`/`DELETE` anywhere.
+`latest_job_id`), no question detail (so draft answer text is only ever
+returned by the review endpoint), no export endpoint, no `priority_score`, and
+no `PATCH` anywhere.
+
+(Evidence-link listing, document download and `DELETE` were on this list after
+they had shipped. It sat ten lines above a section rewritten in the same pass
+that missed it.)
 
 ## Security posture
+
+**No rate limiting anywhere, including `/api/v1/auth/login`.** Argon2 costs
+about 33ms per attempt, so a single connection can try roughly 30 passwords a
+second against a known address. That is tolerable for a localhost development
+slice and must not survive the first deployment that faces a network. It is
+listed here rather than in a backlog because the gap is in this service, not
+in a plan.
 
 Every endpoint requires an authenticated actor; a signed-out caller gets 401.
 Sessions are server-side rows, addressed by the `bukti_session` cookie —
