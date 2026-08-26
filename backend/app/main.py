@@ -20,7 +20,13 @@ app = FastAPI(title=settings.app_name, version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_allow_origins,
-    allow_credentials=False,
+    # The session cookie is the whole authentication system. A credentialed
+    # request is blocked by the browser unless the response carries
+    # `Access-Control-Allow-Credentials: true`, and the browser additionally
+    # refuses a wildcard origin in that exchange - which is why
+    # `cors_allow_origins` is an explicit list and must never become ["*"].
+    # `tests/test_cors_credentials.py` holds both halves.
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

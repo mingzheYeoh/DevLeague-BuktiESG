@@ -37,9 +37,13 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 10 * 1024 * 1024
 
     # Local dev origins only (the Next.js dev server in `frontend/`). Not a
-    # production CORS policy decision — BLOCKER-07 already restricts this
-    # slice to local, non-public operation. Note this service has no
-    # authentication at all, so it must not be exposed beyond localhost.
+    # production CORS policy decision.
+    #
+    # This list must stay explicit and must never become ["*"]: the API now
+    # sets `allow_credentials=True` so that the browser will send the session
+    # cookie, and a browser refuses a wildcard origin in a credentialed
+    # exchange. Every entry here is an origin permitted to act as a signed-in
+    # user, so adding one is an authorization decision.
     cors_allow_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
