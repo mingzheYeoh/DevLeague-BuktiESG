@@ -67,12 +67,14 @@ def test_review_accept_sets_human_confirmed(client):
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "ACCEPT", "reviewer_name": "Alice"},
+        json={"action": "ACCEPT"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["review_status"] == "HUMAN_CONFIRMED"
-    assert body["reviewer_name"] == "Alice"
+    # The `default_org` fixture's user (backend/tests/conftest.py:83) — the
+    # server takes the reviewer from the session, not the request body.
+    assert body["reviewer_name"] == "member@tenggara.example"
     assert body["reviewed_at"]
 
 
@@ -153,17 +155,6 @@ def test_review_not_applicable_requires_reason_and_sets_evidence_status(client):
     resp = client.get(f"/api/v1/cases/{case_id}/questions")
     q = next(q for q in resp.json() if q["id"] == question_id)
     assert q["evidence_status"] == "NOT_APPLICABLE"
-
-
-def test_review_requires_reviewer_name(client):
-    case_id, question_id = _make_case_with_question(client)
-
-    resp = client.post(
-        f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "ACCEPT"},
-    )
-    assert resp.status_code == 422
-    assert resp.json()["detail"]["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_review_unknown_action_rejected(client):

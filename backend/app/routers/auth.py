@@ -15,7 +15,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
-from app.auth import SESSION_COOKIE_NAME, Actor, current_actor
+from app.auth import SESSION_COOKIE_NAME, Actor, actor_email, current_actor
 from app.config import settings
 from app.db import get_db
 from app.errors import invalid_credentials
@@ -115,11 +115,10 @@ def logout(
 
 @router.get("/me", response_model=ActorSummary)
 def me(actor: Actor = Depends(current_actor), db: Session = Depends(get_db)) -> ActorSummary:
-    user = db.get(User, actor.user_id)
     organization = db.get(Organization, actor.organization_id)
     return ActorSummary(
         user_id=actor.user_id,
-        email=user.email,
+        email=actor_email(db, actor),
         organization_id=actor.organization_id,
         organization_name=organization.name,
         role=actor.role,

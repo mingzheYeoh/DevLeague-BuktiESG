@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.errors import case_not_found, not_authenticated, not_permitted
-from app.models import Case, OrganizationMember
+from app.models import Case, OrganizationMember, User
 from app.services.sessions import resolve_session
 
 #: Read by the browser only as an opaque cookie. HttpOnly, so no script on the
@@ -105,3 +105,25 @@ def require_admin(actor: Actor = Depends(current_actor)) -> Actor:
     if actor.role != "ADMIN":
         raise not_permitted()
     return actor
+
+
+def actor_email(db: Session, actor: Actor) -> str:
+    """The signed-in user's email, for the columns that record who ruled.
+
+    Deliberately not a field on `Actor`. That dataclass is "reduced to what
+    authorization needs", and email is needed to authorize nothing - putting it
+    there would add a `User` lookup to all 21 endpoints in order to serve the
+    three that record a human verdict.
+
+    Email rather than `user_id` because these columns are read by people: a
+    reviewer looking at "who accepted this evidence" needs an answer, not a
+    ULID.
+    """
+    user = db.get(User, actor.user_id)
+    if user is None:
+        # The session resolved but its user is gone - deleted mid-request. The
+        # credential is not invalid, but there is no one to attribute the
+        # verdict to, and an unattributed verdict is the thing this function
+        # exists to prevent.
+        raise not_authenticated()
+    return user.email

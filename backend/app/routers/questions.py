@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.auth import require_case
+from app.auth import Actor, actor_email, current_actor, require_case
 from app.db import get_db
 from app.errors import api_error
 from app.enums import REVIEW_ACTION
@@ -56,6 +56,7 @@ def review_question(
     question_id: str,
     payload: QuestionReviewRequest,
     case: Case = Depends(require_case),
+    actor: Actor = Depends(current_actor),
     db: Session = Depends(get_db),
 ) -> AnswerRecord:
     """Human Review transitions on an Answer — Main Spec §17 Phase 5.
@@ -98,10 +99,8 @@ def review_question(
             allowed=list(REVIEW_ACTION),
         )
 
-    if not payload.reviewer_name or not payload.reviewer_name.strip():
-        raise api_error(
-            422, "VALIDATION_ERROR", "reviewer_name is required for every review action."
-        )
+    # The reviewer is the person holding the session, not a string they chose.
+    reviewer = actor_email(db, actor)
 
     # Recording an *answer* against a question a human has declared out of
     # scope is a contradiction, not an update. Refuse it and name the way out.
@@ -167,7 +166,7 @@ def review_question(
         answer.not_applicable_reason = payload.reason
         answer.review_status = "HUMAN_CONFIRMED"
         answer.status_reason = (
-            f"Marked NOT_APPLICABLE by {payload.reviewer_name}. Reason: {payload.reason}"
+            f"Marked NOT_APPLICABLE by {reviewer}. Reason: {payload.reason}"
         )
 
     elif payload.action == "REOPEN":
@@ -208,7 +207,7 @@ def review_question(
             answer.evidence_status = result.status
             answer.status_findings_json = json.dumps(result.status_findings)
             answer.status_reason = (
-                f"Reopened by {payload.reviewer_name}. Reason: {payload.reason} "
+                f"Reopened by {reviewer}. Reason: {payload.reason} "
                 f"{result.status_reason}"
             )
         else:
@@ -219,11 +218,11 @@ def review_question(
             # the engine's sentence until the document is analysed again.
             engine_reason = (answer.status_reason or "").strip()
             answer.status_reason = (
-                f"Reopened by {payload.reviewer_name}. Reason: {payload.reason} "
+                f"Reopened by {reviewer}. Reason: {payload.reason} "
                 f"{engine_reason}"
             ).strip()
 
-    answer.reviewer_name = payload.reviewer_name
+    answer.reviewer_name = reviewer
     answer.reviewed_at = _utcnow()
 
     db.commit()

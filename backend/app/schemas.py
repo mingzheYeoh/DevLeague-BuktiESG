@@ -462,8 +462,14 @@ class ActionRecord(BaseModel):
 
 
 class QuestionReviewRequest(BaseModel):
+    """A human review verdict.
+
+    No `reviewer_name`: the server takes the reviewer from the session
+    (`app/auth.py::actor_email`). A signature the caller chooses is not a
+    signature - see AGENTS.md 3.2.
+    """
+
     action: str
-    reviewer_name: str | None = None
     edited_answer: str | None = None
     reason: str | None = None
 
