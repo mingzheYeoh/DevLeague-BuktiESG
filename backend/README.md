@@ -174,6 +174,13 @@ that missed it.)
 
 ## Security posture
 
+**`/api/v1/auth/register` still leaks account existence through timing.** Both
+branches now pay argon2, so the gap fell from roughly 33x to 1.7x — but a fresh
+address measures ~72ms against ~42ms for one already registered, because only
+the fresh path performs the inserts and the commit. The response body is
+identical and says nothing; the clock still does. Closing it means moving
+account creation off the request path.
+
 **No rate limiting anywhere, including `/api/v1/auth/login`.** Argon2 costs
 about 33ms per attempt, so a single connection can try roughly 30 passwords a
 second against a known address. That is tolerable for a localhost development

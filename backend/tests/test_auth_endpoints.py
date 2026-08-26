@@ -105,8 +105,18 @@ def test_registration_hashes_on_both_paths(client, db_session, monkeypatch):
     clock cannot answer what the body refuses to.
 
     Counting the argon2 call rather than measuring elapsed time, because a
-    timing assertion on a shared CI box is a coin flip. The property is "both
-    paths hash once"; the 30x wall-clock gap was only its symptom.
+    timing assertion on a shared CI box is a coin flip.
+
+    Be clear about what this does NOT prove. Counting is a proxy: it pins that
+    both paths *invoke* the hash, not that both paths *cost* the same. If
+    `hash_password` ever gained a fast path - memoisation on the password, a
+    cache - this test would stay green while the timing oracle reopened.
+
+    Nor is the gap fully closed: measured after the fix, a fresh address takes
+    ~72ms and a taken one ~42ms, because only the fresh path performs three
+    inserts and a commit. This test guards the specific regression of moving
+    the hash back behind the existence check. The residual ~30ms is recorded
+    in the endpoint's comment and is not covered by anything here.
     """
     from app.routers import auth as auth_router
 

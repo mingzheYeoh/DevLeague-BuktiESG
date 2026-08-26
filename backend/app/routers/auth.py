@@ -46,6 +46,15 @@ def register(payload: RegistrationRequest, db: Session = Depends(get_db)) -> dic
     #
     # `login` already pays this cost unconditionally via DUMMY_HASH. This is
     # the same idea, and it was missing here.
+    #
+    # It narrows the gap; it does not close it. Measured after this change:
+    # a fresh address ~72ms, a taken one ~42ms. Both now pay argon2, and the
+    # remaining ~30ms is the account creation itself - three inserts and a
+    # commit that the taken path does not perform. The ratio fell from ~33x to
+    # ~1.7x, which is a much weaker signal but still a signal. Closing it
+    # entirely means doing the creation off the request path so both branches
+    # return at the same point, and that is a change with its own risks -
+    # recorded here rather than implied away.
     password_hash = hash_password(payload.password)
 
     if db.query(User).filter(User.email == email).one_or_none() is not None:
