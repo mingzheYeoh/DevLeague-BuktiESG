@@ -51,8 +51,12 @@ test('a mid-session 401 raises the overlay and leaves typed input intact', async
   await page.getByTestId('create-case-submit').click()
 
   await expect(page.getByTestId('reauth-overlay')).toBeVisible()
-  // The point of the whole design: the tree underneath is still mounted.
-  await expect(page.getByTestId('case-title-input')).toHaveValue('Half-written case title')
+  // The point of the whole design: the tree underneath is still mounted. Read
+  // the title from the review step, which renders it - rather than from step
+  // one's input, which the wizard unmounts on the way here. That the value is
+  // still being RENDERED is the stronger claim anyway: a detached DOM node
+  // holding the right string would prove less.
+  await expect(page.getByText('Half-written case title')).toBeVisible()
 })
 
 test('signing in again dismisses the overlay and leaves the user where they were', async ({
@@ -119,5 +123,5 @@ test('signing in again dismisses the overlay and leaves the user where they were
   await page.getByTestId('sign-in-submit').click()
 
   await expect(page.getByTestId('reauth-overlay')).toHaveCount(0)
-  await expect(page.getByTestId('case-title-input')).toHaveValue('Survives the overlay')
+  await expect(page.getByText('Survives the overlay')).toBeVisible()
 })

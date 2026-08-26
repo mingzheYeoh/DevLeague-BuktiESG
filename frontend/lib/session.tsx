@@ -67,10 +67,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       onSessionLost(() => {
-        // Only meaningful while we believe we are signed in. Ignoring it
-        // otherwise is the second of two opposing guards: `silentAuthFailure`
-        // in the client stops `login` announcing at all, and this stops a
-        // stray announcement raising an overlay over the sign-in screen.
+        // Only meaningful while we believe we are signed in. This does NOT
+        // guard the sign-in form against its own 401s - `login` passes
+        // `silentAuthFailure`, so a wrong password never reaches this listener
+        // at all. What it does catch is the bootstrap: `api.me()` announces
+        // like any other call, so without this every signed-out page load
+        // would set `reauthNeeded`. Nothing renders that today, which is why
+        // no test covers it; a future consumer of `reauthNeeded` outside the
+        // authenticated branch would break the moment this went away.
         if (stateRef.current === 'authenticated') setReauthNeeded(true)
       }),
     [],

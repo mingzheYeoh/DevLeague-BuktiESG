@@ -124,11 +124,10 @@ test('a wrong password is shown in the form and does not stack a second prompt',
   // it said the API could not be reached.
   await expect(page.getByText('Could not load this from the API')).toHaveCount(0)
   await expect(page.getByText('Sign-in failed')).toBeVisible()
-  // Forward-looking: ReauthOverlay does not exist until the next task, so this
-  // line cannot fail yet. It is here so that the moment an overlay CAN render,
-  // a 401 from `login` reaching the session-lost announcement is caught. The
-  // next task proves it has teeth by removing the guard and watching this go
-  // red.
+  // Cheap insurance, not a working guard: `login` uses `silentAuthFailure`, so
+  // a 401 here never reaches the session-lost listener, and the gate only
+  // renders the overlay in its authenticated branch. Both would have to change
+  // for this line to fail. Kept because it costs nothing and pins the intent.
   await expect(page.getByTestId('reauth-overlay')).toHaveCount(0)
   await expect(page.getByTestId('sign-in-form')).toHaveCount(1)
 })

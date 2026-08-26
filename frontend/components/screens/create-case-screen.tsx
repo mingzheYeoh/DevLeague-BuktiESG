@@ -99,12 +99,8 @@ export function CreateCaseScreen({
       <section className="form-card">
         {error ? <ErrorNotice message={errorMessage(error)} /> : null}
 
-        {/* Each step's fields stay mounted (merely hidden) rather than being
-            unmounted on step change. A session that dies mid-wizard raises
-            the re-auth overlay on top of whatever step is showing; an earlier
-            step's field is only proven to survive that if it is still in the
-            DOM to look at, not just held in this component's state. */}
-        <div hidden={step !== 1}>
+        {step === 1 && (
+          <>
             <h2>Case details</h2>
             <label>
               Case title <span aria-hidden="true">*</span>
@@ -149,9 +145,11 @@ export function CreateCaseScreen({
                 </p>
               </div>
             </div>
-        </div>
+          </>
+        )}
 
-        <div hidden={step !== 2}>
+        {step === 2 && (
+          <>
             <h2>Reporting scope</h2>
             <div className="form-grid">
               <label>
@@ -175,9 +173,11 @@ export function CreateCaseScreen({
               Optional. Recorded on the Case and shown on its summary. It does not decide whether
               evidence is current — that is judged per document, from the document&rsquo;s own date.
             </p>
-        </div>
+          </>
+        )}
 
-        <div hidden={step !== 3}>
+        {step === 3 && (
+          <>
             <h2>Questionnaire</h2>
             {fileError ? <ErrorNotice message={fileError} /> : null}
             {!file && (
@@ -243,9 +243,11 @@ export function CreateCaseScreen({
               extracted only from a spreadsheet with the expected header row; anything else is
               stored and flagged for manual review rather than silently producing zero questions.
             </p>
-        </div>
+          </>
+        )}
 
-        <div hidden={step !== 4}>
+        {step === 4 && (
+          <>
             <h2>Review case setup</h2>
             <div className="review-list">
               <Key label="Case title" value={title.trim() || '— required —'} />
@@ -273,7 +275,8 @@ export function CreateCaseScreen({
                 </p>
               </div>
             </div>
-        </div>
+          </>
+        )}
 
         <div className="form-actions">
           <button
