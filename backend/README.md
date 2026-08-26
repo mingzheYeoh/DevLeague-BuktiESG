@@ -171,13 +171,37 @@ document download, no `priority_score`, and no `PATCH`/`DELETE` anywhere.
 ## Security posture
 
 Every endpoint requires an authenticated actor; a signed-out caller gets 401.
+Sessions are server-side rows, addressed by the `bukti_session` cookie —
+HttpOnly, `SameSite=Lax`, and `Secure` unless `COOKIE_SECURE=false`.
 Case-rooted endpoints resolve their Case through `require_case`, which loads
 it scoped to the caller's organization — another organization's Case, or
 anything nested under it, answers 404, never 403, so a case id nobody owns is
-indistinguishable from one that doesn't exist. CORS is open to the local dev
-origins only. It is still a local slice: do not expose it beyond localhost,
-and real personal data is governed by `AGENTS.md` §3.1. Adding pagination is
-a prerequisite for anything beyond local use.
+indistinguishable from one that doesn't exist.
+
+The API sets `Access-Control-Allow-Credentials: true` so the browser will
+send the session cookie, which is why `cors_allow_origins` must stay an
+explicit list and must **never** become `["*"]` — a browser refuses a
+wildcard origin in a credentialed exchange, and every origin on the list is
+one permitted to act as a signed-in user. It is currently the local dev
+origins only.
+
+**Deployment constraint.** The cookie's `SameSite=Lax` scope is the
+registrable domain, not the origin — ports are not part of it, which is why
+`localhost:3000` and `localhost:8000` share a session in development. In any
+deployment the frontend and API must share a registrable domain (for
+example `app.example.com` and `api.example.com`); hosting them on unrelated
+domains means the browser never sends the cookie and every request 401s.
+
+`cookie_secure` (`COOKIE_SECURE`) must be `True` — the default — anywhere
+real data is held; it is disabled only for local HTTP development (see
+`app/config.py`). A session cookie sent in clear text is the whole
+authentication system given away.
+
+Real personal data is governed by `AGENTS.md` §3.1. Condition 4 of that
+section — a recorded decision on sending document text to a model provider
+outside Malaysia — is still **open**; until it is resolved, `DEEPSEEK_API_KEY`
+must be unset in any deployment holding real data. Adding pagination is a
+prerequisite for anything beyond local use.
 
 ## Consumed by
 
