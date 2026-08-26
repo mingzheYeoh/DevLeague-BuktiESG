@@ -2,7 +2,6 @@
 
 import { LogOut } from 'lucide-react'
 
-import { initials } from '@/lib/format'
 import { useSession } from '@/lib/session'
 
 import { Drawer, Key } from '../primitives'
