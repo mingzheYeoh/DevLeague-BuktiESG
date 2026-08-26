@@ -19,10 +19,12 @@ export function SignInForm({
   onDone,
   submitLabel = 'Sign in',
   initialEmail = '',
+  autoFocus = false,
 }: {
   onDone?: () => void
   submitLabel?: string
   initialEmail?: string
+  autoFocus?: boolean
 }) {
   const { signIn } = useSession()
   const [email, setEmail] = useState(initialEmail)
@@ -61,6 +63,7 @@ export function SignInForm({
           data-testid="sign-in-email"
           type="email"
           autoComplete="username"
+          autoFocus={autoFocus}
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required

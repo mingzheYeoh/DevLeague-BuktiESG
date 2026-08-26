@@ -25,7 +25,13 @@ export function ReauthOverlay() {
         <p className="field-hint">
           Sign in again to carry on. Nothing you have typed has been lost.
         </p>
-        <SignInForm initialEmail={actor?.email ?? ''} submitLabel="Sign in and continue" />
+        {/* A dialog that appears without taking focus leaves a screen-reader
+            user with no signal it exists. */}
+        <SignInForm
+          initialEmail={actor?.email ?? ''}
+          submitLabel="Sign in and continue"
+          autoFocus
+        />
       </section>
     </div>
   )

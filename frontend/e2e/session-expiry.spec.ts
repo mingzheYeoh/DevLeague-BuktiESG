@@ -51,6 +51,22 @@ test('a mid-session 401 raises the overlay and leaves typed input intact', async
   await page.getByTestId('create-case-submit').click()
 
   await expect(page.getByTestId('reauth-overlay')).toBeVisible()
+
+  // A dialog that does not take focus gives a screen-reader user no signal it
+  // opened, and the visible scrim gives a keyboard user none either.
+  await expect(page.getByTestId('sign-in-email')).toBeFocused()
+
+  // aria-modal="true" tells assistive tech the rest of the page is inert.
+  // Make that true rather than merely claimed: tab past everything the
+  // overlay offers and confirm focus never lands in the workspace behind it.
+  for (let i = 0; i < 8; i += 1) await page.keyboard.press('Tab')
+  const focusStayedInTheDialog = await page.evaluate(() => {
+    const active = document.activeElement
+    if (!active || active === document.body) return true
+    return Boolean(active.closest('[data-testid="reauth-overlay"]'))
+  })
+  expect(focusStayedInTheDialog).toBe(true)
+
   // The point of the whole design: the tree underneath is still mounted. Read
   // the title from the review step, which renders it - rather than from step
   // one's input, which the wizard unmounts on the way here. That the value is
