@@ -30,7 +30,7 @@ export function AuthScreen() {
         {mode === 'sign-in' ? (
           <>
             <h1>Sign in</h1>
-            <SignInForm initialEmail={registeredEmail} key={registeredEmail} />
+            <SignInForm initialEmail={registeredEmail} />
             <p className="field-hint">
               No account yet?{' '}
               <button

@@ -11,7 +11,7 @@
  * readable by the Next server at `localhost:3000`, which stops being true the
  * day the two live on different domains.
  */
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import type { ActorSummary, LoginRequest } from '@/lib/api'
@@ -55,6 +55,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     void load()
   }, [load])
 
+  // The listener is registered once, so a plain closure over `state` would be
+  // frozen at its mount-time value. A ref reads the live value without making
+  // the effect depend on it - and without a side effect inside a setState
+  // updater, which React may call more than once.
+  const stateRef = useRef<SessionState>('loading')
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
   useEffect(
     () =>
       onSessionLost(() => {
@@ -62,10 +71,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // otherwise is the second of two opposing guards: `silentAuthFailure`
         // in the client stops `login` announcing at all, and this stops a
         // stray announcement raising an overlay over the sign-in screen.
-        setState((current) => {
-          if (current === 'authenticated') setReauthNeeded(true)
-          return current
-        })
+        if (stateRef.current === 'authenticated') setReauthNeeded(true)
       }),
     [],
   )
