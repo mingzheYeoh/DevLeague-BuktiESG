@@ -1,0 +1,123 @@
+import { expect, test } from '@playwright/test'
+
+import { ACTOR, CORS_HEADERS, stubActor } from './support/api-stubs'
+
+/**
+ * A session dying mid-use.
+ *
+ * The behaviour under test is that the workspace is *not* unmounted: this app
+ * has long forms — a review justification, an action description — and losing
+ * them to a 14-day session expiry is a worse outcome than the expiry itself.
+ */
+test('a mid-session 401 raises the overlay and leaves typed input intact', async ({ page }) => {
+  await stubActor(page)
+  await page.route('**/health', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ status: 'ok' }),
+    }),
+  )
+
+  let casesAuthorised = true
+  await page.route('**/api/v1/cases', (route) =>
+    casesAuthorised
+      ? route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS_HEADERS,
+          body: JSON.stringify([]),
+        })
+      : route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          headers: CORS_HEADERS,
+          body: JSON.stringify({
+            detail: { error: { code: 'NOT_AUTHENTICATED', message: 'Sign in to continue.' } },
+          }),
+        }),
+  )
+
+  await page.goto('/')
+  await page.getByTestId('new-case-button').click()
+  await page.getByTestId('case-title-input').fill('Half-written case title')
+
+  // The session dies. The next request the user makes finds out.
+  casesAuthorised = false
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-submit').click()
+
+  await expect(page.getByTestId('reauth-overlay')).toBeVisible()
+  // The point of the whole design: the tree underneath is still mounted.
+  await expect(page.getByTestId('case-title-input')).toHaveValue('Half-written case title')
+})
+
+test('signing in again dismisses the overlay and leaves the user where they were', async ({
+  page,
+}) => {
+  let authorised = true
+
+  await page.route('**/api/v1/auth/me', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: CORS_HEADERS,
+      body: JSON.stringify(ACTOR),
+    }),
+  )
+  await page.route('**/api/v1/auth/login', (route) => {
+    authorised = true
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ status: 'signed in' }),
+    })
+  })
+  await page.route('**/health', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ status: 'ok' }),
+    }),
+  )
+  await page.route('**/api/v1/cases', (route) =>
+    authorised
+      ? route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: CORS_HEADERS,
+          body: JSON.stringify([]),
+        })
+      : route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          headers: CORS_HEADERS,
+          body: JSON.stringify({
+            detail: { error: { code: 'NOT_AUTHENTICATED', message: 'Sign in to continue.' } },
+          }),
+        }),
+  )
+
+  await page.goto('/')
+  await page.getByTestId('new-case-button').click()
+  await page.getByTestId('case-title-input').fill('Survives the overlay')
+
+  authorised = false
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-submit').click()
+  await expect(page.getByTestId('reauth-overlay')).toBeVisible()
+
+  await page.getByTestId('sign-in-email').fill('member@tenggara.example')
+  await page.getByTestId('sign-in-password').fill('fixture passphrase')
+  await page.getByTestId('sign-in-submit').click()
+
+  await expect(page.getByTestId('reauth-overlay')).toHaveCount(0)
+  await expect(page.getByTestId('case-title-input')).toHaveValue('Survives the overlay')
+})
