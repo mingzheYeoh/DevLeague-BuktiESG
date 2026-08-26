@@ -332,9 +332,6 @@ export interface CreateCaseRequest {
 
 export interface ReviewQuestionRequest {
   action: ReviewAction
-  /** The wire schema marks this nullable, but every action 422s without a
-   * non-blank reviewer_name, so it is required here. */
-  reviewer_name: string
   /** Required when action is EDIT. */
   edited_answer?: string
   /** Required when action is REJECT, NOT_APPLICABLE or REOPEN. */

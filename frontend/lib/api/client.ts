@@ -470,19 +470,14 @@ export const api = {
 
   /** POST /api/v1/cases/{case_id}/evidence-links/{id}/accept
    *
-   * A human vouching for a citation — the sixth and last VERIFIED condition,
-   * and the only one the matcher cannot decide, because an unreviewed
-   * AI-proposed candidate must not satisfy VERIFIED on its own. The server
-   * refuses a blank `reviewerName`: an acceptance nobody signed is
-   * indistinguishable from one the AI issued. */
-  acceptEvidenceLink(
-    caseId: string,
-    evidenceLinkId: string,
-    reviewerName: string,
-  ): Promise<EvidenceLinkRecord> {
+   * No body: the server records the signed-in actor's email in
+   * `evidence_links.accepted_by`. A caller cannot name the human who vouched,
+   * which is the point — an acceptance the caller signs is not evidence that
+   * a human vouched (AGENTS.md §3.2). */
+  acceptEvidenceLink(caseId: string, evidenceLinkId: string): Promise<EvidenceLinkRecord> {
     return request<EvidenceLinkRecord>(
       `/api/v1/cases/${enc(caseId)}/evidence-links/${enc(evidenceLinkId)}/accept`,
-      { method: 'POST', body: JSON.stringify({ reviewer_name: reviewerName }) },
+      { method: 'POST' },
     )
   },
 

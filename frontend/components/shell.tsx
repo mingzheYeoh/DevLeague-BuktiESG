@@ -123,8 +123,8 @@ export function Header({
   caseTitle,
   dueLabel,
   reviewCount,
-  reviewerName,
-  onEditReviewer,
+  accountEmail,
+  onOpenAccount,
   apiOnline,
 }: {
   onMenu: () => void
@@ -132,8 +132,8 @@ export function Header({
   caseTitle: string
   dueLabel: string
   reviewCount: number
-  reviewerName: string
-  onEditReviewer: () => void
+  accountEmail: string
+  onOpenAccount: () => void
   apiOnline: boolean | null
 }) {
   return (
@@ -171,15 +171,12 @@ export function Header({
           <button
             className="avatar"
             type="button"
-            onClick={onEditReviewer}
-            aria-label={
-              reviewerName
-                ? `Reviewer label: ${reviewerName}. Change it.`
-                : 'Set your reviewer label'
-            }
-            title={reviewerName ? `Reviewing as ${reviewerName}` : 'Set your reviewer label'}
+            data-testid="account-button"
+            onClick={onOpenAccount}
+            aria-label={`Signed in as ${accountEmail}. Open account menu.`}
+            title={`Signed in as ${accountEmail}`}
           >
-            {reviewerName ? initials(reviewerName) : '?'}
+            {initials(accountEmail)}
           </button>
         </div>
       </header>
@@ -193,8 +190,7 @@ export function Header({
       )}
       <div className="prototype">
         <Sparkles />
-        Prototype workspace · Synthetic, de-identified data only · The API has no authentication ·
-        Not an audit or certification
+        Prototype workspace · Synthetic, de-identified data only · Not an audit or certification
       </div>
     </>
   )

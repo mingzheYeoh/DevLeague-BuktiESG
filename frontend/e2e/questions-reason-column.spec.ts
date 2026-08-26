@@ -202,7 +202,6 @@ async function stubApi(page: Page, overrideQuestions?: unknown[]) {
 async function gotoQuestionnaire(page: Page, overrideQuestions?: unknown[]) {
   await page.addInitScript(() => {
     window.localStorage.clear()
-    window.localStorage.setItem('buktiesg.reviewerName', 'Nur Aina')
   })
   await stubApi(page, overrideQuestions)
   await page.goto('/')

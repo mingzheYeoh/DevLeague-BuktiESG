@@ -85,7 +85,6 @@ async function gotoOverview(page: Page) {
   })
   await page.addInitScript(() => {
     window.localStorage.clear()
-    window.localStorage.setItem('buktiesg.reviewerName', 'Nur Aina')
   })
   await stubActor(page)
   await page.route('**/health', (r) => r.fulfill(json({ status: 'ok' })))

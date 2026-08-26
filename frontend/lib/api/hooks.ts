@@ -174,7 +174,7 @@ export interface CaseWorkspace {
   ) => Promise<ActionRecord>
   deleteDocument: (documentId: string) => Promise<void>
   invalidateEvidenceLink: (evidenceLinkId: string) => Promise<void>
-  acceptEvidenceLink: (evidenceLinkId: string, reviewerName: string) => Promise<void>
+  acceptEvidenceLink: (evidenceLinkId: string) => Promise<void>
 }
 
 export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
@@ -300,8 +300,8 @@ export function useCaseWorkspace(caseId: string | null): CaseWorkspace {
   )
 
   const acceptEvidenceLink = useCallback(
-    async (evidenceLinkId: string, reviewerName: string) => {
-      await mutate((id) => api.acceptEvidenceLink(id, evidenceLinkId, reviewerName))
+    async (evidenceLinkId: string) => {
+      await mutate((id) => api.acceptEvidenceLink(id, evidenceLinkId))
     },
     [mutate],
   )
