@@ -119,6 +119,11 @@ test('a wrong password is shown in the form and does not stack a second prompt',
   await page.getByTestId('sign-in-submit').click()
 
   await expect(page.getByText('That email and password do not match.')).toBeVisible()
+  // An auth failure must not be dressed as a backend outage. The body text
+  // being right is not enough - that assertion passed while the heading above
+  // it said the API could not be reached.
+  await expect(page.getByText('Could not load this from the API')).toHaveCount(0)
+  await expect(page.getByText('Sign-in failed')).toBeVisible()
   // The regression this guards: a 401 from `login` must not reach the
   // session-lost announcement, or the sign-in screen grows a sign-in overlay.
   await expect(page.getByTestId('reauth-overlay')).toHaveCount(0)

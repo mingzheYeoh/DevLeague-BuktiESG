@@ -241,15 +241,21 @@ export function Loading({ label = 'Loading from the API…' }: { label?: string 
 export function ErrorNotice({
   message,
   onRetry,
+  title = 'Could not load this from the API',
 }: {
   message: string
   onRetry?: () => void
+  /** Overridden where the failure is not a failed load. The default is right
+   * for the fetch-and-render screens that were this component's only callers;
+   * an auth failure shown under it reads as a backend outage, which is the
+   * misreport this branch exists to remove. */
+  title?: string
 }) {
   return (
     <div className="callout warning" role="alert">
       <AlertTriangle />
       <div>
-        <b>Could not load this from the API</b>
+        <b>{title}</b>
         <p>{message}</p>
       </div>
       {onRetry && (

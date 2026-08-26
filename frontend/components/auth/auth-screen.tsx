@@ -112,7 +112,7 @@ function RegisterForm({
       }}
     >
       <h1>Create an account</h1>
-      {error ? <ErrorNotice message={error} /> : null}
+      {error ? <ErrorNotice title="Could not create the account" message={error} /> : null}
       <label>
         Email
         <input

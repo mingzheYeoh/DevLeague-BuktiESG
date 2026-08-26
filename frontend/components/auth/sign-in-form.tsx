@@ -54,7 +54,7 @@ export function SignInForm({
         void submit()
       }}
     >
-      {error ? <ErrorNotice message={error} /> : null}
+      {error ? <ErrorNotice title="Sign-in failed" message={error} /> : null}
       <label>
         Email
         <input
