@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { CORS_HEADERS as CORS } from './support/api-stubs'
+import { CORS_HEADERS as CORS, stubActor } from './support/api-stubs'
 
 /**
  * Reason column in the Questionnaire table.
@@ -172,6 +172,7 @@ async function stubApi(page: Page, overrideQuestions?: unknown[]) {
     body: JSON.stringify(body),
   })
 
+  await stubActor(page)
   await page.route('**/documents/doc-safety/chunks', (r) => r.fulfill(json(SAFETY_CHUNKS)))
   await page.route('**/documents/doc-handbook/chunks', (r) => r.fulfill(json(DOCX_CHUNKS)))
 

@@ -3158,3 +3158,41 @@ tr.is-archived:hover td {
 .table-card:has(.row-menu [aria-expanded='true']) {
   overflow: visible;
 }
+
+/* Sign-in and registration. Deliberately narrow and centred: this screen has
+   one job, and the workspace chrome would only offer places to click that do
+   not work yet. */
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: var(--background);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-card h1 {
+  font-size: 1.35rem;
+  margin: 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-notice {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  font-size: 0.9rem;
+}
