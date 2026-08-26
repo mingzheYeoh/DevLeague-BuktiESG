@@ -9,10 +9,12 @@ could set it, so `REASON_NOT_ACCEPTED` applied to all 231 links in the sample
 case and VERIFIED was unreachable.
 
 Acceptance is a human verdict, not a computed one (AGENTS.md 3.2 - the AI
-never owns a verdict), so it carries a reviewer_name like every other review
-call, and now records it: VERIFIED is the strongest claim this system makes,
-and one that cannot name its author is the kind of unprovable claim the
-product exists to refuse.
+never owns a verdict), so it carries no reviewer_name in the request at all -
+the server takes the reviewer from the signed-in session
+(`app/auth.py::actor_email`), the same source `answers.reviewer_name` now
+comes from. VERIFIED is the strongest claim this system makes, and one that
+cannot name its author is the kind of unprovable claim the product exists to
+refuse.
 """
 
 from __future__ import annotations
@@ -82,13 +84,12 @@ def test_accepting_a_link_records_who_accepted_it(client):
 
     resp = client.post(
         f"/api/v1/cases/{case_id}/evidence-links/{link_id}/accept",
-        json={"reviewer_name": "Ming Zhe"},
     )
 
     assert resp.status_code == 200, resp.text
     link = resp.json()
     assert link["link_status"] == "ACCEPTED"
-    assert link["accepted_by"] == "Ming Zhe"
+    assert link["accepted_by"] == "member@tenggara.example"
     assert link["accepted_at"] is not None
 
 
@@ -111,32 +112,9 @@ def test_accepting_the_evidence_makes_the_question_verified(client):
 
     client.post(
         f"/api/v1/cases/{case_id}/evidence-links/{link_id}/accept",
-        json={"reviewer_name": "Ming Zhe"},
     )
 
     assert _status(client, case_id) == "VERIFIED"
-
-
-def test_acceptance_without_a_reviewer_name_is_refused(client):
-    """An acceptance nobody signed is the one thing this endpoint must not
-    write. VERIFIED would then rest on a verdict with no author, which is
-    indistinguishable from the AI having issued it (AGENTS.md 3.2)."""
-    case_id, _question_id, link_id = _case_with_one_link(client)
-
-    for payload in ({}, {"reviewer_name": ""}, {"reviewer_name": "   "}):
-        resp = client.post(
-            f"/api/v1/cases/{case_id}/evidence-links/{link_id}/accept", json=payload
-        )
-        assert resp.status_code == 422, (payload, resp.text)
-        assert resp.json()["detail"]["error"]["code"] == "VALIDATION_ERROR"
-
-    # Nothing was written, and the status did not move.
-    links = client.get(
-        f"/api/v1/cases/{case_id}/questions/{_question_id}/evidence-links"
-    ).json()
-    assert links[0]["link_status"] == "CANDIDATE"
-    assert links[0]["accepted_by"] is None
-    assert _status(client, case_id) == "PARTIAL"
 
 
 def test_the_question_names_the_link_it_is_showing(client):
@@ -152,9 +130,8 @@ def test_the_question_names_the_link_it_is_showing(client):
 
     client.post(
         f"/api/v1/cases/{case_id}/evidence-links/{link_id}/accept",
-        json={"reviewer_name": "Ming Zhe"},
     )
 
     questions = client.get(f"/api/v1/cases/{case_id}/questions").json()
     question = (questions["items"] if isinstance(questions, dict) else questions)[0]
-    assert question["evidence_accepted_by"] == "Ming Zhe"
+    assert question["evidence_accepted_by"] == "member@tenggara.example"

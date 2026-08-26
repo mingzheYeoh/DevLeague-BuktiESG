@@ -20,11 +20,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.auth import require_case
+from app.auth import Actor, actor_email, current_actor, require_case
 from app.db import get_db
 from app.errors import api_error
 from app.models import Action, Case, EvidenceLink, Question
-from app.schemas import EvidenceAcceptRequest, EvidenceLinkRecord
+from app.schemas import EvidenceLinkRecord
 from app.services import jobs
 from app.services.rules import compute_evidence_status
 
@@ -113,8 +113,8 @@ def list_evidence_links(
 )
 def accept_evidence_link(
     evidence_link_id: str,
-    payload: EvidenceAcceptRequest,
     case: Case = Depends(require_case),
+    actor: Actor = Depends(current_actor),
     db: Session = Depends(get_db),
 ) -> EvidenceLinkRecord:
     """Accept an evidence link: a human vouching for this citation.
@@ -123,19 +123,15 @@ def accept_evidence_link(
     by the matcher and the questionnaire; this one cannot be, because an
     unreviewed AI-proposed candidate must not satisfy VERIFIED on its own
     (Main Spec 17 Gate P4 - AI confidence does not participate in the VERIFIED
-    determination).
+    determination). No request body: the reviewer is the signed-in session
+    (`app/auth.py::actor_email`), not a name the caller supplies.
     """
-    if not payload.reviewer_name or not payload.reviewer_name.strip():
-        raise api_error(
-            422, "VALIDATION_ERROR", "reviewer_name is required to accept evidence."
-        )
-
     link = db.get(EvidenceLink, evidence_link_id)
     if link is None or link.question.questionnaire.case_id != case.id:
         raise _evidence_link_not_found(evidence_link_id)
 
     link.link_status = "ACCEPTED"
-    link.accepted_by = payload.reviewer_name.strip()
+    link.accepted_by = actor_email(db, actor)
     link.accepted_at = datetime.now(timezone.utc)
     db.flush()
     _recompute_answer_status(db, case, link)

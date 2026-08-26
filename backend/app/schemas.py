@@ -474,15 +474,6 @@ class QuestionReviewRequest(BaseModel):
     reason: str | None = None
 
 
-class EvidenceAcceptRequest(BaseModel):
-    """Accepting an evidence link is a human verdict (AGENTS.md 3.2), so it
-    names the human. Typed as optional here and rejected in the router, so the
-    refusal is one explicit VALIDATION_ERROR rather than Pydantic's generic
-    422 shape - the same treatment question review already gives it."""
-
-    reviewer_name: str | None = None
-
-
 class AnswerRecord(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
