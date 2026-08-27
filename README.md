@@ -8,9 +8,14 @@ An ESG customer-questionnaire **Evidence-to-Action** workspace for Malaysian SME
 
 ## Data Restriction
 
-**Synthetic data only.** This is a **T1** project. Real employee, customer, payroll, identity-card, health or safety-incident data must never be uploaded, committed or processed — doing so is a stop-and-escalate trigger, not a style preference. No real ESG data, no real customer questionnaires, no production credentials.
+**Conditional.** Until 2026-08-25 this was a synthetic-data-only project. On
+2026-08-25 the repository owner ruled that real customer personal data may be
+processed, subject to the four conditions in [`AGENTS.md`](AGENTS.md) §3.1 —
+authentication on every endpoint, organization-scoped access, a passing
+cross-tenant test matrix, and a recorded decision on cross-border model calls.
 
-**The API has no authentication.** It is a local, single-tenant slice and must not be exposed beyond localhost.
+**Until all four conditions hold, synthetic data only.** Read §3.1 before
+uploading anything real; the conditions are the authority, not this summary.
 
 ---
 
@@ -100,7 +105,7 @@ sample/                          Synthetic test data — see sample/README.md
 
 Uses the files in [`sample/`](sample/README.md), which explains what each one is for and which rule it exercises. About ten minutes, with both processes up, at <http://localhost:3000>.
 
-1. **Set your reviewer label** — `?` avatar, top right. Every review call carries a `reviewer_name` and the API rejects a blank one, so review stays blocked until this is set. It is a label; there is no authentication behind it.
+1. **Sign in** — you land on a sign-in screen; create an account if you have none. Registration creates your organization and makes you its ADMIN. Every review verdict and evidence acceptance is recorded against the signed-in account's email, taken from your session — there is no reviewer field to fill in.
 2. **New case** → title, customer, deadline → reporting period `2025-01-01` to `2025-12-31` → drop in `sample/questionnaire/customer-esg-questionnaire-2026.xlsx` → **Create case**. Parsing is synchronous, so the questionnaire is already read when you land on Evidence. The **Columns detected** panel is a read-back of what the parser used, not an editable mapping.
 3. **Questionnaire** → **20 questions · 14 required**, every row `Partial / Unreviewed`, Priority `Not scored`. All three are honest: the priority formula is a protected value not implemented server-side, so the UI shows nothing rather than inventing a number.
 4. **Evidence** → upload the files from `sample/evidence/`, setting **Upload as** to the matching type. The type decides whether the server parses a file as a questionnaire or indexes it as evidence. Filenames are prefixed `A-` (sound), `B-` (uncertain) and `C-` (wrong) — [`sample/README.md`](sample/README.md) says what is wrong with each one and, importantly, which of it the product can and cannot detect today.

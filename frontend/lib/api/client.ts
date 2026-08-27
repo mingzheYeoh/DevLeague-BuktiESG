@@ -7,6 +7,7 @@
  */
 import type {
   ActionRecord,
+  ActorSummary,
   AnswerRecord,
   ApiErrorDetail,
   CaseSummary,
@@ -16,8 +17,10 @@ import type {
   DocumentRecord,
   DocumentType,
   EvidenceLinkRecord,
+  LoginRequest,
   QuestionListItem,
   ReadinessSummary,
+  RegistrationRequest,
   ReviewQuestionRequest,
   UpdateActionStatusRequest,
 } from './types'
@@ -74,6 +77,42 @@ export class ApiUnreachableError extends Error {
 }
 
 /**
+ * A 401 from an endpoint that expected a session.
+ *
+ * Extends `ApiError` so `errorMessage()` and every existing `catch` keep
+ * working — this narrows the type, it does not change the shape.
+ */
+export class UnauthenticatedError extends ApiError {
+  // `ApiError`'s constructor sets `name = 'ApiError'`, so without this a
+  // thrown UnauthenticatedError announces itself as the wrong class in every
+  // stack trace. The class field runs after super() and wins.
+  readonly name = 'UnauthenticatedError'
+}
+
+let sessionLostListener: (() => void) | null = null
+
+/**
+ * Called once when any non-auth endpoint answers 401.
+ *
+ * A module-level slot rather than a React context because `request()` is a
+ * plain function called from everywhere, including outside a component tree.
+ * `SessionProvider` registers here on mount and clears on unmount.
+ */
+export function onSessionLost(listener: () => void): () => void {
+  sessionLostListener = listener
+  return () => {
+    // Only clear the slot if it still holds *this* listener. An unconditional
+    // null lets a stale cleanup silently unregister a newer listener - two
+    // registrations overlapping, which React does under StrictMode's
+    // double-invoke and whenever a new tree commits before the old unmounts.
+    // The consequence is invisible: 401s stop being announced and the app
+    // falls back to "Could not load this from the API" with a Retry that
+    // 401s forever, which is the exact bug this mechanism exists to remove.
+    if (sessionLostListener === listener) sessionLostListener = null
+  }
+}
+
+/**
  * The server produces three different error bodies, and the browser has to
  * cope with all of them:
  *
@@ -124,7 +163,29 @@ function normaliseError(status: number, body: unknown): ApiErrorDetail {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+interface RequestOptions {
+  /**
+   * Suppress the session-lost announcement for this call.
+   *
+   * Used by exactly two callers: `login` and `register`, the only requests
+   * made while unauthenticated by design. A wrong password answers 401
+   * `INVALID_CREDENTIALS`, and announcing that would stack a sign-in prompt
+   * on top of the sign-in form.
+   *
+   * Deliberately a flag at the call site rather than a check on the error
+   * code. Matching `code === 'NOT_AUTHENTICATED'` would encode a security
+   * rule as a string comparison: the day the server adds a third 401 code,
+   * the client would not fail, it would silently stop announcing — which is
+   * the infinite-Retry symptom this whole change exists to remove.
+   */
+  silentAuthFailure?: boolean
+}
+
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  options: RequestOptions = {},
+): Promise<T> {
   const isFormData =
     typeof FormData !== 'undefined' && init?.body instanceof FormData
 
@@ -132,6 +193,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
+      // The session cookie is HttpOnly and lives on the API's origin, so
+      // nothing here can read or attach it by hand. Without this the browser
+      // omits it on a cross-origin request and every call is 401.
+      credentials: 'include',
       headers: {
         Accept: 'application/json',
         // Let the browser set the multipart boundary itself.
@@ -150,7 +215,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // Leave body null; normaliseError falls back to the status code.
     }
-    throw new ApiError(res.status, normaliseError(res.status, body))
+    const detail = normaliseError(res.status, body)
+
+    if (res.status === 401) {
+      if (!options.silentAuthFailure) sessionLostListener?.()
+      throw new UnauthenticatedError(res.status, detail)
+    }
+
+    throw new ApiError(res.status, detail)
   }
 
   if (res.status === 204) return undefined as T
@@ -160,6 +232,45 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const enc = encodeURIComponent
 
 export const api = {
+  // ---- Authentication --------------------------------------------------
+
+  /** POST /api/v1/auth/register — 201.
+   *
+   * Returns the same body whether or not the address already exists, and sets
+   * no cookie: registering does not sign you in. The server's message says to
+   * check your email, but the verification email does not exist yet (Task 11),
+   * so the UI must say its own thing rather than repeat this one. */
+  register(body: RegistrationRequest): Promise<{ status: string }> {
+    return request<{ status: string }>(
+      '/api/v1/auth/register',
+      { method: 'POST', body: JSON.stringify(body) },
+      { silentAuthFailure: true },
+    )
+  },
+
+  /** POST /api/v1/auth/login — sets the session cookie.
+   *
+   * 401 INVALID_CREDENTIALS for a wrong password *and* for an address that
+   * does not exist: the server refuses to say which, deliberately. Do not
+   * write UI copy that guesses. */
+  login(body: LoginRequest): Promise<{ status: string }> {
+    return request<{ status: string }>(
+      '/api/v1/auth/login',
+      { method: 'POST', body: JSON.stringify(body) },
+      { silentAuthFailure: true },
+    )
+  },
+
+  /** POST /api/v1/auth/logout — revokes the session and clears the cookie. */
+  logout(): Promise<{ status: string }> {
+    return request<{ status: string }>('/api/v1/auth/logout', { method: 'POST' })
+  },
+
+  /** GET /api/v1/auth/me — 401 when there is no valid session. */
+  me(): Promise<ActorSummary> {
+    return request<ActorSummary>('/api/v1/auth/me')
+  },
+
   /** GET /health */
   health(): Promise<{ status: string }> {
     return request<{ status: string }>('/health')
@@ -281,6 +392,14 @@ export const api = {
    * uploaded `.html` — it comes back as an opaque download. */
   /** A direct URL to the stored bytes.
    *
+   * The one documented exit from `request()`. What comes back is handed to
+   * `<img>`, `<iframe>` and `<a href>` in `components/document-preview.tsx`,
+   * so the browser fetches it, not this module - which means a 401 on these
+   * three never reaches `onSessionLost`. If a session dies while a preview is
+   * open, the frame renders the API's error instead of raising the re-auth
+   * overlay, and nothing prompts until some other call is made. The server
+   * still refuses the bytes; only the signal is lost.
+   *
    * Pass `download` for a save rather than a preview. The `download`
    * attribute on an `<a>` is ignored cross-origin, and this API is on a
    * different origin from the app, so a plain link to a PDF or image opens it
@@ -359,19 +478,14 @@ export const api = {
 
   /** POST /api/v1/cases/{case_id}/evidence-links/{id}/accept
    *
-   * A human vouching for a citation — the sixth and last VERIFIED condition,
-   * and the only one the matcher cannot decide, because an unreviewed
-   * AI-proposed candidate must not satisfy VERIFIED on its own. The server
-   * refuses a blank `reviewerName`: an acceptance nobody signed is
-   * indistinguishable from one the AI issued. */
-  acceptEvidenceLink(
-    caseId: string,
-    evidenceLinkId: string,
-    reviewerName: string,
-  ): Promise<EvidenceLinkRecord> {
+   * No body: the server records the signed-in actor's email in
+   * `evidence_links.accepted_by`. A caller cannot name the human who vouched,
+   * which is the point — an acceptance the caller signs is not evidence that
+   * a human vouched (AGENTS.md §3.2). */
+  acceptEvidenceLink(caseId: string, evidenceLinkId: string): Promise<EvidenceLinkRecord> {
     return request<EvidenceLinkRecord>(
       `/api/v1/cases/${enc(caseId)}/evidence-links/${enc(evidenceLinkId)}/accept`,
-      { method: 'POST', body: JSON.stringify({ reviewer_name: reviewerName }) },
+      { method: 'POST' },
     )
   },
 

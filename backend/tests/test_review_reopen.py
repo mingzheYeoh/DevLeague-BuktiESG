@@ -19,7 +19,9 @@ import io
 
 from openpyxl import Workbook
 
-REVIEWER = "Nur Aina"
+#: The `default_org` fixture's user (backend/tests/conftest.py:83). The
+#: server now takes the reviewer from the session, not the request body.
+REVIEWER = "member@tenggara.example"
 
 
 def _questionnaire(question_text: str = "Report total annual electricity consumption in kWh.") -> bytes:
@@ -53,7 +55,7 @@ def _case_with_one_question(client) -> tuple[str, str]:
 def _review(client, case_id: str, question_id: str, **body):
     return client.post(
         f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"reviewer_name": REVIEWER, **body},
+        json=body,
     )
 
 
@@ -136,7 +138,7 @@ def test_reopen_clears_not_applicable_and_hands_status_back_to_the_engine(client
     assert answer["not_applicable_reason"] is None
     assert answer["review_status"] == "UNREVIEWED"
     assert answer["confirmed_answer"] is None
-    assert "Reopened by Nur Aina" in answer["status_reason"]
+    assert f"Reopened by {REVIEWER}" in answer["status_reason"]
     assert "It does apply after all." in answer["status_reason"]
 
 
@@ -232,18 +234,6 @@ def test_reopen_requires_a_reason(client):
     )
 
 
-def test_reopen_requires_a_reviewer_name(client):
-    case_id, question_id = _case_with_one_question(client)
-    _mark_not_applicable(client, case_id, question_id)
-
-    resp = client.post(
-        f"/api/v1/cases/{case_id}/questions/{question_id}/review",
-        json={"action": "REOPEN", "reason": "Recheck.", "reviewer_name": "  "},
-    )
-    assert resp.status_code == 422
-    assert resp.json()["detail"]["error"]["code"] == "VALIDATION_ERROR"
-
-
 def test_the_full_round_trip_leaves_no_contradiction(client):
     """The exact sequence a user hit: mark N/A, try to answer, reopen, answer.
 
@@ -301,7 +291,7 @@ def test_reopening_a_normal_question_keeps_the_rule_engine_s_reason(client):
 
     assert resp.status_code == 200, resp.text
     answer = resp.json()
-    assert "Reopened by Nur Aina" in answer["status_reason"]
+    assert f"Reopened by {REVIEWER}" in answer["status_reason"]
     assert engine_reason in answer["status_reason"], (
         "the rule engine's audit sentence was destroyed by the reopen; "
         f"got {answer['status_reason']!r}"

@@ -12,11 +12,30 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # Safe direction: app.services.rules imports only the standard library, so it
 # never imports back into this module.
 from app.services.rules import summarize_points
+
+
+class RegistrationRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12)
+    organization_name: str = Field(min_length=1, max_length=255)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class ActorSummary(BaseModel):
+    user_id: str
+    email: str
+    organization_id: str
+    organization_name: str
+    role: str
 
 
 class ErrorDetail(BaseModel):
@@ -443,19 +462,16 @@ class ActionRecord(BaseModel):
 
 
 class QuestionReviewRequest(BaseModel):
+    """A human review verdict.
+
+    No `reviewer_name`: the server takes the reviewer from the session
+    (`app/auth.py::actor_email`). A signature the caller chooses is not a
+    signature - see AGENTS.md 3.2.
+    """
+
     action: str
-    reviewer_name: str | None = None
     edited_answer: str | None = None
     reason: str | None = None
-
-
-class EvidenceAcceptRequest(BaseModel):
-    """Accepting an evidence link is a human verdict (AGENTS.md 3.2), so it
-    names the human. Typed as optional here and rejected in the router, so the
-    refusal is one explicit VALIDATION_ERROR rather than Pydantic's generic
-    422 shape - the same treatment question review already gives it."""
-
-    reviewer_name: str | None = None
 
 
 class AnswerRecord(BaseModel):

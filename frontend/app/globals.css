@@ -2559,47 +2559,6 @@ button.avatar {
 }
 
 /* --------------------------------------------------------------- *
- * Notice sitting inside a block whose own decision must stay dominant.
- * Same information, less weight: no full border, a 2px amber edge and a
- * pale wash instead of the saturated one, and the action inside it is a
- * real secondary button rather than a text link.
- * --------------------------------------------------------------- */
-.callout.callout-inline {
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  border: 0;
-  border-left: 2px solid var(--warning-line);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--warning-tint);
-  color: var(--muted);
-}
-
-/* A small basis, not the text's own width: with a large basis the whole text
-   block wrapped below the icon on a narrow screen, leaving the triangle alone
-   on a line of its own. */
-.callout.callout-inline > div {
-  flex: 1 1 120px;
-  min-width: 0;
-}
-
-/* Sits on the title's baseline rather than centred on the whole block. */
-.callout.callout-inline > svg {
-  margin-top: 2px;
-  color: var(--warning);
-}
-.callout.callout-inline b { font-size: 13px; color: var(--ink); }
-
-.callout.callout-inline p {
-  max-width: var(--measure);
-  color: var(--muted);
-}
-
-.callout.callout-inline .secondary { flex: 0 0 auto; }
-
-/* --------------------------------------------------------------- *
  * Narrow viewports.
  *
  * These live here rather than in the shared breakpoint block near the top
@@ -2635,20 +2594,6 @@ button.avatar {
   }
 
   .review-form .form-actions button { width: 100%; white-space: normal; }
-
-  /* The notice restacks: icon beside the title, then the text, then the
-     action. Side by side there was not enough room for both a readable
-     paragraph and the button. */
-  .callout.callout-inline {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--space-2) var(--space-3);
-  }
-
-  .callout.callout-inline > svg { grid-row: 1; }
-  .callout.callout-inline > div,
-  .callout.callout-inline .secondary { grid-column: 2; }
-  .callout.callout-inline .secondary { justify-self: start; }
 }
 
 /* Below this, two columns start clipping "Not applicable". */
@@ -3157,4 +3102,61 @@ tr.is-archived:hover td {
    the corners crisp the rest of the time, and costs no JS or portal. */
 .table-card:has(.row-menu [aria-expanded='true']) {
   overflow: visible;
+}
+
+/* Sign-in and registration. Deliberately narrow and centred: this screen has
+   one job, and the workspace chrome would only offer places to click that do
+   not work yet. */
+.auth-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1rem;
+  background: var(--background);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 26rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.auth-card h1 {
+  font-size: 1.35rem;
+  margin: 0;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.auth-notice {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+  font-size: 0.9rem;
+}
+
+/* The re-auth overlay. Sits over the still-mounted workspace when a live
+   session dies mid-use - see components/auth/reauth-overlay.tsx. */
+.reauth-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 45%);
+}
+
+.reauth-card {
+  background: var(--background);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 25%);
 }

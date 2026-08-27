@@ -16,13 +16,13 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from app.auth import Actor, current_actor, require_admin, require_case
 from app.db import get_db
 from app.enums import CASE_DELETABLE_FROM
 from app.errors import (
     case_already_archived,
     case_not_archived,
     case_not_deletable,
-    case_not_found,
 )
 from app.models import Case, Question, Questionnaire
 from app.schemas import CaseCreate, CaseSummary, ReadinessSummary
@@ -34,8 +34,13 @@ router = APIRouter(prefix="/api/v1/cases", tags=["cases"])
 
 
 @router.post("", response_model=CaseSummary, status_code=201)
-def create_case(payload: CaseCreate, db: Session = Depends(get_db)) -> CaseSummary:
+def create_case(
+    payload: CaseCreate,
+    actor: Actor = Depends(current_actor),
+    db: Session = Depends(get_db),
+) -> CaseSummary:
     case = Case(
+        organization_id=actor.organization_id,
         title=payload.title,
         customer_name=payload.customer_name,
         deadline_at=payload.deadline_at,
@@ -50,30 +55,40 @@ def create_case(payload: CaseCreate, db: Session = Depends(get_db)) -> CaseSumma
 
 
 @router.get("", response_model=list[CaseSummary])
-def list_cases(db: Session = Depends(get_db)) -> list[CaseSummary]:
-    """List every Case, most recently updated first.
+def list_cases(
+    actor: Actor = Depends(current_actor), db: Session = Depends(get_db)
+) -> list[CaseSummary]:
+    """List every Case belonging to the actor's organization, most recently
+    updated first.
 
     The frontend's Cases screen is the entry point of the whole workflow, so
     it needs a server-side list — otherwise a reloaded browser loses every
     Case id and the workspace looks empty even though the data is there. No
-    pagination: this slice is single-tenant, local-only, and the Case count
+    pagination: this slice is organization-scoped, local-only, and the Case count
     is small (Main Spec §16). Add pagination before this is ever exposed
     beyond localhost.
     """
-    cases = db.execute(select(Case).order_by(Case.updated_at.desc())).scalars().all()
+    cases = (
+        db.execute(
+            select(Case)
+            .where(Case.organization_id == actor.organization_id)
+            .order_by(Case.updated_at.desc())
+        )
+        .scalars()
+        .all()
+    )
     return [CaseSummary.from_model(c) for c in cases]
 
 
 @router.get("/{case_id}", response_model=CaseSummary)
-def get_case(case_id: str, db: Session = Depends(get_db)) -> CaseSummary:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
+def get_case(case: Case = Depends(require_case)) -> CaseSummary:
     return CaseSummary.from_model(case)
 
 
 @router.post("/{case_id}/archive", response_model=CaseSummary)
-def archive_case(case_id: str, db: Session = Depends(get_db)) -> CaseSummary:
+def archive_case(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> CaseSummary:
     """Retire a Case without destroying anything.
 
     Allowed from every status except ARCHIVED. Notably including PROCESSING:
@@ -82,11 +97,8 @@ def archive_case(case_id: str, db: Session = Depends(get_db)) -> CaseSummary:
     It does not cancel jobs, and it does not claim to — nothing in
     processing_jobs is touched.
     """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
     if case.status == "ARCHIVED":
-        raise case_already_archived(case_id)
+        raise case_already_archived(case.id)
 
     case.status_before_archive = case.status
     case.status = "ARCHIVED"
@@ -97,13 +109,12 @@ def archive_case(case_id: str, db: Session = Depends(get_db)) -> CaseSummary:
 
 
 @router.post("/{case_id}/unarchive", response_model=CaseSummary)
-def unarchive_case(case_id: str, db: Session = Depends(get_db)) -> CaseSummary:
+def unarchive_case(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> CaseSummary:
     """Put an archived Case back exactly where it was."""
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
     if case.status != "ARCHIVED":
-        raise case_not_archived(case_id, case.status)
+        raise case_not_archived(case.id, case.status)
 
     # The fallback only applies to a row whose status was set to ARCHIVED by
     # something other than the archive endpoint — direct SQL, or a database
@@ -119,7 +130,11 @@ def unarchive_case(case_id: str, db: Session = Depends(get_db)) -> CaseSummary:
 
 
 @router.delete("/{case_id}", status_code=204)
-def delete_case(case_id: str, db: Session = Depends(get_db)) -> Response:
+def delete_case(
+    case: Case = Depends(require_case),
+    _: Actor = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> Response:
     """Delete a Case and everything under it. Refused unless the Case is in
     one of `CASE_DELETABLE_FROM`.
 
@@ -133,13 +148,14 @@ def delete_case(case_id: str, db: Session = Depends(get_db)) -> Response:
     other way round, a failure between the two steps would leave documents rows
     citing files that no longer exist — evidence that cannot be produced, which
     is worse than bytes nobody references.
-    """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-    if case.status not in CASE_DELETABLE_FROM:
-        raise case_not_deletable(case_id, case.status, CASE_DELETABLE_FROM)
 
+    ADMIN-only: deletion destroys another member's work, which is the line the
+    two roles exist to draw.
+    """
+    if case.status not in CASE_DELETABLE_FROM:
+        raise case_not_deletable(case.id, case.status, CASE_DELETABLE_FROM)
+
+    case_id = case.id
     db.delete(case)
     db.commit()
 
@@ -158,7 +174,9 @@ def delete_case(case_id: str, db: Session = Depends(get_db)) -> Response:
 
 
 @router.get("/{case_id}/readiness", response_model=ReadinessSummary)
-def get_readiness(case_id: str, db: Session = Depends(get_db)) -> ReadinessSummary:
+def get_readiness(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> ReadinessSummary:
     """Readiness Dashboard formula — Shared Integration Contract:
     ``confirmed_required_questions / total_required_questions * 100``.
 
@@ -171,15 +189,11 @@ def get_readiness(case_id: str, db: Session = Depends(get_db)) -> ReadinessSumma
     endpoint (app/routers/questions.py), so it counts as confirmed rather
     than as an unmet requirement.
     """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     stmt = (
         select(Question)
         .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
         .options(joinedload(Question.answer))
-        .where(Questionnaire.case_id == case_id, Question.is_required.is_(True))
+        .where(Questionnaire.case_id == case.id, Question.is_required.is_(True))
     )
     required_questions = db.execute(stmt).unique().scalars().all()
 

@@ -12,8 +12,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.auth import require_case
 from app.db import get_db
-from app.errors import api_error, case_not_found
+from app.errors import api_error
 from app.enums import ACTION_STATUS, ACTION_TYPE
 from app.models import Action, Case, EvidenceLink, Question
 from app.schemas import ActionCreate, ActionRecord, ActionStatusUpdate
@@ -33,12 +34,10 @@ def _utcnow() -> datetime:
 
 @router.post("/{case_id}/actions", response_model=ActionRecord, status_code=201)
 def create_action(
-    case_id: str, payload: ActionCreate, db: Session = Depends(get_db)
+    payload: ActionCreate,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
 ) -> ActionRecord:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     if payload.type not in ACTION_TYPE:
         raise api_error(
             422, "VALIDATION_ERROR", f"Unknown action type '{payload.type}'.", allowed=list(ACTION_TYPE)
@@ -67,11 +66,23 @@ def create_action(
     question = None
     if payload.question_id is not None:
         question = db.get(Question, payload.question_id)
-        if question is None:
+        # `require_case` authorises the Case in the PATH. It says nothing about
+        # ids the caller puts in the BODY, and neither isolation guard can see
+        # one: test_isolation_guard walks signatures, and the cross-tenant
+        # matrix enumerates routes with {case_id} in the path. Checking only
+        # existence here let an actor name another organization's question and
+        # get a 201 - an existence oracle, a foreign-key edge into another
+        # tenant's data, and one bit of their evidence_status, since
+        # requires_closure_evidence is derived from it just below.
+        #
+        # One message for absent and for not-yours, deliberately: telling them
+        # apart is the same oracle 404-never-403 exists to close, reached
+        # through the body instead of the path.
+        if question is None or question.questionnaire.case_id != case.id:
             raise api_error(
                 422,
                 "OBJECT_CASE_MISMATCH",
-                f"question_id {payload.question_id} does not exist.",
+                f"question_id {payload.question_id} is not a question in this case.",
             )
 
     requires_closure_evidence = payload.requires_closure_evidence
@@ -83,7 +94,7 @@ def create_action(
         )
 
     action = Action(
-        case_id=case_id,
+        case_id=case.id,
         question_id=payload.question_id,
         type=payload.type,
         title=payload.title,
@@ -101,13 +112,12 @@ def create_action(
 
 
 @router.get("/{case_id}/actions", response_model=list[ActionRecord])
-def list_actions(case_id: str, db: Session = Depends(get_db)) -> list[ActionRecord]:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
+def list_actions(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> list[ActionRecord]:
     actions = (
         db.query(Action)
-        .filter(Action.case_id == case_id)
+        .filter(Action.case_id == case.id)
         .order_by(Action.created_at.asc())
         .all()
     )
@@ -120,9 +130,9 @@ def _action_not_found(action_id: str):
 
 @router.post("/{case_id}/actions/{action_id}/status", response_model=ActionRecord)
 def update_action_status(
-    case_id: str,
     action_id: str,
     payload: ActionStatusUpdate,
+    case: Case = Depends(require_case),
     db: Session = Depends(get_db),
 ) -> ActionRecord:
     """Action lifecycle transitions (Main Spec §17 Phase 5).
@@ -133,12 +143,8 @@ def update_action_status(
     referencing a still-valid (not INVALIDATED) evidence_links row for the
     same question. Enforced server-side; never bypassable from the client.
     """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     action = db.get(Action, action_id)
-    if action is None or action.case_id != case_id:
+    if action is None or action.case_id != case.id:
         raise _action_not_found(action_id)
 
     if payload.status not in ACTION_STATUS:

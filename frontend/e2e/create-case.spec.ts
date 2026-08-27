@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS, stubActor } from './support/api-stubs'
+
 /**
  * Smoke test: cases list -> create a case -> land on an honestly empty case.
  *
@@ -25,11 +27,11 @@ const CASE_SUMMARY = {
   updated_at: new Date().toISOString(),
 }
 
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 async function stubApi(page: Page, { cases }: { cases: unknown[] }) {
   const listed = [...cases]
 
+  await stubActor(page)
   await page.route('**/health', (route) =>
     route.fulfill({
       status: 200,
@@ -151,6 +153,7 @@ test('a questionnaire with no parsed questions shows the empty state, not a fake
 })
 
 test('the backend being down is reported instead of hidden', async ({ page }) => {
+  await stubActor(page)
   await page.route('**/health', (route) => route.abort())
   await page.route('**/api/v1/cases', (route) => route.abort())
   await page.goto('/')

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS, stubActor } from './support/api-stubs'
+
 /**
  * Panels that count questions, and the denominators they count against.
  *
@@ -15,7 +17,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-coverage-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,
@@ -84,8 +85,8 @@ async function gotoOverview(page: Page) {
   })
   await page.addInitScript(() => {
     window.localStorage.clear()
-    window.localStorage.setItem('buktiesg.reviewerName', 'Nur Aina')
   })
+  await stubActor(page)
   await page.route('**/health', (r) => r.fulfill(json({ status: 'ok' })))
   await page.route('**/api/v1/cases', (r) => r.fulfill(json([CASE_SUMMARY])))
   await page.route(`**/api/v1/cases/${CASE_ID}`, (r) => r.fulfill(json(CASE_SUMMARY)))
@@ -174,6 +175,7 @@ test.describe('Cases summary tiles', () => {
   ]
 
   test('the count says it excludes archived cases', async ({ page }) => {
+    await stubActor(page)
     await page.route('**/health', (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"status":"ok"}' }),
     )
@@ -197,6 +199,7 @@ test.describe('Cases summary tiles', () => {
 
 test.describe('Row menu alignment', () => {
   test('every item in the menu starts at the same left edge', async ({ page }) => {
+    await stubActor(page)
     await page.route('**/health', (r) =>
       r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"status":"ok"}' }),
     )

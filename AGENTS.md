@@ -75,9 +75,34 @@ The Chinese Main Spec is a **non-normative translation**. Where the two conflict
 
 ## 3. Non-Negotiable Rules
 
-### 3.1 Synthetic data only
+### 3.1 Real personal data — conditions
 
-Real employee, customer, payroll, identity-card, health, safety-incident, or other personal data must never be uploaded, committed, or processed. This is a T2 escalation trigger, not a preference.
+Until 2026-08-25 this project was synthetic-data-only and any real personal
+data was a T2 escalation trigger. On 2026-08-25 the repository owner
+(`mingzheYeoh`) ruled that BuktiESG may process real customer personal data.
+That ruling is recorded here because the rule it replaces was stated here.
+
+Note that `AGENTS.md` §1 records the Gate P0 human as the COO (Lai Yoke Yau,
+`kaneki016`). This ruling was made by the repository owner, not by that role.
+If the Gate P0 governance record is still considered binding, this amendment
+wants his confirmation; the absence of it does not reverse the owner's ruling.
+
+The authorization is conditional. Real personal data may be processed only
+once **all** of the following hold:
+
+1. Every API endpoint requires an authenticated actor.
+2. Every case-rooted endpoint resolves its Case through the organization of
+   that actor, and returns 404 — never 403 — for any other organization's data.
+3. The cross-tenant test matrix in `backend/tests/test_tenant_isolation.py`
+   passes for every case-rooted route.
+4. A decision has been recorded on whether document text may be transmitted to
+   a model provider outside Malaysia. Until then `DEEPSEEK_API_KEY` must be
+   unset in any deployment holding real data, which makes `build_extractor()`
+   return `NullExtractor` and keeps document text on the server.
+
+Conditions 1–3 are delivered by the authentication and tenancy work. Condition
+4 is open. Until all four hold, synthetic data only, and real personal data
+remains a T2 stop-and-escalate trigger.
 
 ### 3.2 The AI never owns a verdict
 
@@ -159,7 +184,7 @@ Stop and report rather than proceeding when:
 2. A required decision has no recorded owner or value.
 3. A change would alter a protected value listed in §3.5.
 4. A change would exceed the current authorization in §1.
-5. Real personal data appears in any input.
+5. Real personal data appears in any input and §3.1's conditions for processing it are not all confirmed to hold.
 6. An action would be hard to reverse — force push, history rewrite, hard reset, deleting user work.
 7. A push, authentication, or permission failure occurs. Do not bypass it.
 

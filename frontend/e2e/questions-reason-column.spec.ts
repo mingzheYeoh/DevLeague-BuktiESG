@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS, stubActor } from './support/api-stubs'
+
 /**
  * Reason column in the Questionnaire table.
  *
@@ -14,7 +16,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-reason-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,
@@ -171,6 +172,7 @@ async function stubApi(page: Page, overrideQuestions?: unknown[]) {
     body: JSON.stringify(body),
   })
 
+  await stubActor(page)
   await page.route('**/documents/doc-safety/chunks', (r) => r.fulfill(json(SAFETY_CHUNKS)))
   await page.route('**/documents/doc-handbook/chunks', (r) => r.fulfill(json(DOCX_CHUNKS)))
 
@@ -200,7 +202,6 @@ async function stubApi(page: Page, overrideQuestions?: unknown[]) {
 async function gotoQuestionnaire(page: Page, overrideQuestions?: unknown[]) {
   await page.addInitScript(() => {
     window.localStorage.clear()
-    window.localStorage.setItem('buktiesg.reviewerName', 'Nur Aina')
   })
   await stubApi(page, overrideQuestions)
   await page.goto('/')

@@ -64,8 +64,6 @@ import {
 export function QuestionDetailScreen({
   caseId,
   question,
-  reviewerName,
-  onEditReviewer,
   busy,
   onReview,
   onAcceptEvidence,
@@ -74,11 +72,9 @@ export function QuestionDetailScreen({
 }: {
   caseId: string
   question: QuestionListItem
-  reviewerName: string
-  onEditReviewer: () => void
   busy: boolean
   onReview: (questionId: string, body: ReviewQuestionRequest) => Promise<AnswerRecord>
-  onAcceptEvidence: (evidenceLinkId: string, reviewerName: string) => Promise<void>
+  onAcceptEvidence: (evidenceLinkId: string) => Promise<void>
   onCreateAction: (question: QuestionListItem) => void
   onBack: () => void
 }) {
@@ -102,10 +98,6 @@ export function QuestionDetailScreen({
 
   async function submit() {
     if (!pendingAction) return
-    if (!reviewerName.trim()) {
-      setReviewError('Set your reviewer label first — the API rejects a blank reviewer_name.')
-      return
-    }
     if (pendingAction === 'EDIT' && !editedAnswer.trim()) {
       setReviewError('An edited answer is required for EDIT.')
       return
@@ -119,7 +111,6 @@ export function QuestionDetailScreen({
     try {
       const answer = await onReview(question.id, {
         action: pendingAction,
-        reviewer_name: reviewerName.trim(),
         ...(pendingAction === 'EDIT' ? { edited_answer: editedAnswer.trim() } : {}),
         ...(REASON_REQUIRED.includes(pendingAction) ? { reason: reason.trim() } : {}),
       })
@@ -161,8 +152,6 @@ export function QuestionDetailScreen({
             pendingAction={pendingAction}
             notApplicable={question.evidence_status === 'NOT_APPLICABLE'}
             confirmed={question.review_status === 'HUMAN_CONFIRMED'}
-            reviewerName={reviewerName}
-            onEditReviewer={onEditReviewer}
             editedAnswer={editedAnswer}
             setEditedAnswer={setEditedAnswer}
             reason={reason}
@@ -177,8 +166,6 @@ export function QuestionDetailScreen({
 
         <aside className="evidence-panel">
           <EvidenceSection
-            reviewerName={reviewerName}
-            onEditReviewer={onEditReviewer}
             onAccept={onAcceptEvidence}
             question={question}
             hasEvidence={hasEvidence}
@@ -386,16 +373,12 @@ function EvidenceSection({
   question,
   hasEvidence,
   onOpenDocument,
-  reviewerName,
-  onEditReviewer,
   onAccept,
 }: {
   question: QuestionListItem
   hasEvidence: boolean
   onOpenDocument: () => void
-  reviewerName: string
-  onEditReviewer: () => void
-  onAccept: (evidenceLinkId: string, reviewerName: string) => Promise<void>
+  onAccept: (evidenceLinkId: string) => Promise<void>
 }) {
   const [accepting, setAccepting] = useState(false)
   const [acceptError, setAcceptError] = useState<string | null>(null)
@@ -468,16 +451,10 @@ function EvidenceSection({
               disabled={accepting || !question.evidence_link_id}
               onClick={async () => {
                 if (!question.evidence_link_id) return
-                if (!reviewerName.trim()) {
-                  setAcceptError(
-                    'Set your reviewer label first — the API rejects a blank reviewer_name.',
-                  )
-                  return
-                }
                 setAcceptError(null)
                 setAccepting(true)
                 try {
-                  await onAccept(question.evidence_link_id, reviewerName.trim())
+                  await onAccept(question.evidence_link_id)
                 } catch (err) {
                   setAcceptError(errorMessage(err))
                 } finally {
@@ -494,16 +471,7 @@ function EvidenceSection({
             </p>
           </>
         )}
-        {acceptError ? (
-          <p className="field-hint error-text">
-            {acceptError}{' '}
-            {!reviewerName.trim() ? (
-              <button className="link" type="button" onClick={onEditReviewer}>
-                Set label
-              </button>
-            ) : null}
-          </p>
-        ) : null}
+        {acceptError ? <p className="field-hint error-text">{acceptError}</p> : null}
       </div>
 
       {others > 0 ? (
@@ -529,8 +497,6 @@ function ReviewControls({
   pendingAction,
   notApplicable,
   confirmed,
-  reviewerName,
-  onEditReviewer,
   editedAnswer,
   setEditedAnswer,
   reason,
@@ -545,8 +511,6 @@ function ReviewControls({
   /** The server refuses ACCEPT and EDIT while this is true. */
   notApplicable: boolean
   confirmed: boolean
-  reviewerName: string
-  onEditReviewer: () => void
   editedAnswer: string
   setEditedAnswer: (v: string) => void
   reason: string
@@ -562,24 +526,6 @@ function ReviewControls({
       <h3>Your decision</h3>
 
       {error ? <ErrorNotice message={error} /> : null}
-
-      {!reviewerName.trim() ? (
-        // `callout-inline` keeps this visible but lighter than the decision it
-        // sits above — the plain `warning` callout out-weighed the buttons.
-        <div className="callout warning callout-inline">
-          <AlertTriangle />
-          <div>
-            <b>Set your reviewer label first</b>
-            <p>
-              Every review is recorded against a name. It is a label only — the API has no
-              authentication and verifies nothing.
-            </p>
-          </div>
-          <button className="secondary" type="button" onClick={onEditReviewer}>
-            Set label
-          </button>
-        </div>
-      ) : null}
 
       {pendingAction === null ? (
         notApplicable ? (
@@ -759,7 +705,7 @@ function ReviewControls({
             </button>
             <button className="primary" type="button" onClick={() => void submit()} disabled={busy}>
               <Check />
-              {busy ? 'Saving…' : `Record as ${reviewerName || 'reviewer'}`}
+              {busy ? 'Saving…' : 'Record decision'}
             </button>
           </div>
         </div>

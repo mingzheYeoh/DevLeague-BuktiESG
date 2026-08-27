@@ -168,7 +168,10 @@ def test_everything_else_is_an_opaque_attachment(client, filename):
     safely, must come back as an octet-stream download.
 
     `.html` and `.svg` are the ones that matter: served inline they would be
-    stored XSS against an API with no authentication.
+    stored XSS. Authentication did not reduce that risk - it raised the
+    stakes. A payload now executes inside a signed-in session and can act as
+    that user against their own organization's data, which is exactly what
+    tenant isolation was built to protect.
     """
     case_id = _case(client)
     doc = _upload(client, case_id, filename, b"<script>alert(1)</script>")

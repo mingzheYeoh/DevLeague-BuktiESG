@@ -22,9 +22,10 @@ import {
   useSelectedCaseId,
 } from '@/lib/api'
 import { daysLeftLabel } from '@/lib/format'
-import { useReviewer } from '@/lib/reviewer'
+import { useSession } from '@/lib/session'
 
-import { Drawer, ErrorNotice, Key } from './primitives'
+import { AccountMenu } from './auth/account-menu'
+import { ErrorNotice } from './primitives'
 import { ActionsScreen, type ActionPrefill } from './screens/actions-screen'
 import { CasesScreen } from './screens/cases-screen'
 import { CreateCaseScreen } from './screens/create-case-screen'
@@ -41,7 +42,7 @@ export default function BuktiApp() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
   const [actionPrefill, setActionPrefill] = useState<ActionPrefill | null>(null)
-  const [reviewerModalOpen, setReviewerModalOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [creatingCase, setCreatingCase] = useState(false)
   const [createError, setCreateError] = useState<unknown>(null)
   const [lastUpload, setLastUpload] = useState<DocumentRecord | null>(null)
@@ -62,7 +63,7 @@ export default function BuktiApp() {
     !casesLoading && !casesError,
   )
   const workspace = useCaseWorkspace(selectedCaseId)
-  const { reviewerName, setReviewerName } = useReviewer()
+  const { actor } = useSession()
 
   const {
     caseSummary,
@@ -209,8 +210,8 @@ export default function BuktiApp() {
           caseTitle={caseTitle}
           dueLabel={selectedCaseId ? dueLabel : 'No deadline'}
           reviewCount={stats.unconfirmedDrafts}
-          reviewerName={reviewerName}
-          onEditReviewer={() => setReviewerModalOpen(true)}
+          accountEmail={actor?.email ?? ''}
+          onOpenAccount={() => setAccountOpen(true)}
           apiOnline={online}
         />
         <main className="content">
@@ -306,8 +307,6 @@ export default function BuktiApp() {
             <QuestionDetailScreen
               caseId={selectedCaseId!}
               question={activeQuestion}
-              reviewerName={reviewerName}
-              onEditReviewer={() => setReviewerModalOpen(true)}
               busy={busy}
               onReview={workspace.reviewQuestion}
               onAcceptEvidence={workspace.acceptEvidenceLink}
@@ -343,60 +342,7 @@ export default function BuktiApp() {
         </main>
       </div>
 
-      {reviewerModalOpen && (
-        <ReviewerDrawer
-          reviewerName={reviewerName}
-          setReviewerName={setReviewerName}
-          close={() => setReviewerModalOpen(false)}
-        />
-      )}
+      {accountOpen && <AccountMenu close={() => setAccountOpen(false)} />}
     </div>
-  )
-}
-
-function ReviewerDrawer({
-  reviewerName,
-  setReviewerName,
-  close,
-}: {
-  reviewerName: string
-  setReviewerName: (name: string) => void
-  close: () => void
-}) {
-  const [draft, setDraft] = useState(reviewerName)
-
-  return (
-    <Drawer eyebrow="Reviewer" title="Who is reviewing?" close={close}>
-      <label>
-        Reviewer label
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="e.g. Nur Aina, Sustainability Lead"
-          autoFocus
-        />
-      </label>
-      <div className="callout info">
-        <div>
-          <b>This is a label, not an identity</b>
-          <p>
-            The API has no authentication and no user accounts. Whatever you type is stored verbatim
-            on each review as <code>reviewer_name</code>. It proves nothing and grants nothing — real
-            attribution needs authentication on the server first.
-          </p>
-        </div>
-      </div>
-      <Key label="Stored in" value="This browser only (localStorage)" />
-      <button
-        className="primary full"
-        type="button"
-        onClick={() => {
-          setReviewerName(draft)
-          close()
-        }}
-      >
-        Save
-      </button>
-    </Drawer>
   )
 }

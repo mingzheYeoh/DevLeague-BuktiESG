@@ -12,8 +12,9 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
+from app.auth import Actor, actor_email, current_actor, require_case
 from app.db import get_db
-from app.errors import api_error, case_not_found
+from app.errors import api_error
 from app.enums import REVIEW_ACTION
 from app.models import Case, Question, Questionnaire
 from app.schemas import AnswerRecord, QuestionListItem, QuestionReviewRequest
@@ -28,17 +29,15 @@ def _utcnow() -> datetime:
 
 
 @router.get("/{case_id}/questions", response_model=list[QuestionListItem])
-def list_questions(case_id: str, db: Session = Depends(get_db)) -> list[QuestionListItem]:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
+def list_questions(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> list[QuestionListItem]:
     # SPEC-AMD-007 / RULING-04: ORDER BY question_order ASC, id ASC.
     stmt = (
         select(Question)
         .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
         .options(joinedload(Question.answer), joinedload(Question.evidence_links))
-        .where(Questionnaire.case_id == case_id)
+        .where(Questionnaire.case_id == case.id)
         .order_by(Question.question_order.asc(), Question.id.asc())
     )
     questions = db.execute(stmt).unique().scalars().all()
@@ -54,17 +53,19 @@ def _question_not_found(question_id: str):
     response_model=AnswerRecord,
 )
 def review_question(
-    case_id: str,
     question_id: str,
     payload: QuestionReviewRequest,
+    case: Case = Depends(require_case),
+    actor: Actor = Depends(current_actor),
     db: Session = Depends(get_db),
 ) -> AnswerRecord:
     """Human Review transitions on an Answer — Main Spec §17 Phase 5.
 
     ACCEPT/EDIT/REJECT/NOT_APPLICABLE/REOPEN. `review_status = HUMAN_CONFIRMED`
     and `evidence_status = NOT_APPLICABLE` are only ever set here, by an
-    explicit human action carrying a reviewer_name — never by the deterministic
-    rule engine (app/services/rules.py, AGENTS.md §3.2 / RULING-02).
+    explicit human action signed by the session that made it — never by the
+    deterministic rule engine (app/services/rules.py, AGENTS.md §3.2 /
+    RULING-02).
 
     Two rules about NOT_APPLICABLE, both learned the hard way:
 
@@ -79,12 +80,8 @@ def review_question(
       uploading genuinely relevant evidence, because the engine returns
       NOT_APPLICABLE unchanged by design (rules.py step 1).
     """
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     question = db.get(Question, question_id)
-    if question is None or question.questionnaire.case_id != case_id:
+    if question is None or question.questionnaire.case_id != case.id:
         raise _question_not_found(question_id)
 
     answer = question.answer
@@ -103,10 +100,8 @@ def review_question(
             allowed=list(REVIEW_ACTION),
         )
 
-    if not payload.reviewer_name or not payload.reviewer_name.strip():
-        raise api_error(
-            422, "VALIDATION_ERROR", "reviewer_name is required for every review action."
-        )
+    # The reviewer is the person holding the session, not a string they chose.
+    reviewer = actor_email(db, actor)
 
     # Recording an *answer* against a question a human has declared out of
     # scope is a contradiction, not an update. Refuse it and name the way out.
@@ -172,7 +167,7 @@ def review_question(
         answer.not_applicable_reason = payload.reason
         answer.review_status = "HUMAN_CONFIRMED"
         answer.status_reason = (
-            f"Marked NOT_APPLICABLE by {payload.reviewer_name}. Reason: {payload.reason}"
+            f"Marked NOT_APPLICABLE by {reviewer}. Reason: {payload.reason}"
         )
 
     elif payload.action == "REOPEN":
@@ -205,7 +200,7 @@ def review_question(
             result = compute_evidence_status(
                 candidates=jobs._load_evidence_candidates(db, question.id),
                 requirement=jobs._build_evidence_requirement(question),
-                unreadable_documents=jobs._build_unreadable_documents(db, case_id),
+                unreadable_documents=jobs._build_unreadable_documents(db, case.id),
                 current_status=answer.evidence_status,
                 not_applicable_reason=None,
                 reviewer_name=None,
@@ -213,7 +208,7 @@ def review_question(
             answer.evidence_status = result.status
             answer.status_findings_json = json.dumps(result.status_findings)
             answer.status_reason = (
-                f"Reopened by {payload.reviewer_name}. Reason: {payload.reason} "
+                f"Reopened by {reviewer}. Reason: {payload.reason} "
                 f"{result.status_reason}"
             )
         else:
@@ -224,11 +219,11 @@ def review_question(
             # the engine's sentence until the document is analysed again.
             engine_reason = (answer.status_reason or "").strip()
             answer.status_reason = (
-                f"Reopened by {payload.reviewer_name}. Reason: {payload.reason} "
+                f"Reopened by {reviewer}. Reason: {payload.reason} "
                 f"{engine_reason}"
             ).strip()
 
-    answer.reviewer_name = payload.reviewer_name
+    answer.reviewer_name = reviewer
     answer.reviewed_at = _utcnow()
 
     db.commit()

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS, stubActor } from './support/api-stubs'
+
 /**
  * The generated `customer-response-summary.txt`.
  *
@@ -12,7 +14,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-export-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,
@@ -61,8 +62,8 @@ async function gotoExport(page: Page) {
   })
   await page.addInitScript(() => {
     window.localStorage.clear()
-    window.localStorage.setItem('buktiesg.reviewerName', 'Nur Aina')
   })
+  await stubActor(page)
   await page.route('**/health', (r) => r.fulfill(json({ status: 'ok' })))
   await page.route('**/api/v1/cases', (r) => r.fulfill(json([CASE_SUMMARY])))
   await page.route(`**/api/v1/cases/${CASE_ID}`, (r) => r.fulfill(json(CASE_SUMMARY)))

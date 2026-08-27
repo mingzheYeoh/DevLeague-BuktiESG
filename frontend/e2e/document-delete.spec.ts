@@ -1,5 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { CORS_HEADERS as CORS, stubActor } from './support/api-stubs'
+
 /**
  * Deleting a document the parser could not read.
  *
@@ -10,7 +12,6 @@ import { expect, test, type Page } from '@playwright/test'
  */
 
 const CASE_ID = 'case-doc-delete-0001'
-const CORS = { 'Access-Control-Allow-Origin': '*' }
 
 const CASE_SUMMARY = {
   id: CASE_ID,
@@ -68,8 +69,8 @@ async function gotoEvidence(page: Page, documents = [BROKEN, GOOD]) {
   })
   await page.addInitScript(() => {
     window.localStorage.clear()
-    window.localStorage.setItem('buktiesg.reviewerName', 'Nur Aina')
   })
+  await stubActor(page)
   await page.route('**/health', (r) => r.fulfill(json({ status: 'ok' })))
   await page.route('**/api/v1/cases', (r) => r.fulfill(json([CASE_SUMMARY])))
   await page.route(`**/api/v1/cases/${CASE_ID}`, (r) => r.fulfill(json(CASE_SUMMARY)))

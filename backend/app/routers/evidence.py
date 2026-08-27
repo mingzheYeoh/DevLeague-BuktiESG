@@ -20,10 +20,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.auth import Actor, actor_email, current_actor, require_case
 from app.db import get_db
-from app.errors import api_error, case_not_found
+from app.errors import api_error
 from app.models import Action, Case, EvidenceLink, Question
-from app.schemas import EvidenceAcceptRequest, EvidenceLinkRecord
+from app.schemas import EvidenceLinkRecord
 from app.services import jobs
 from app.services.rules import compute_evidence_status
 
@@ -37,7 +38,7 @@ def _evidence_link_not_found(evidence_link_id: str):
 
 
 
-def _recompute_answer_status(db: Session, case_id: str, link: EvidenceLink) -> None:
+def _recompute_answer_status(db: Session, case: Case, link: EvidenceLink) -> None:
     """Re-run the deterministic rule engine over the question this link belongs
     to, after the link's status has changed.
 
@@ -54,7 +55,7 @@ def _recompute_answer_status(db: Session, case_id: str, link: EvidenceLink) -> N
     result = compute_evidence_status(
         candidates=jobs._load_evidence_candidates(db, question.id),
         requirement=jobs._build_evidence_requirement(question),
-        unreadable_documents=jobs._build_unreadable_documents(db, case_id),
+        unreadable_documents=jobs._build_unreadable_documents(db, case.id),
         current_status=answer.evidence_status,
         not_applicable_reason=answer.not_applicable_reason,
         reviewer_name=answer.reviewer_name,
@@ -65,9 +66,9 @@ def _recompute_answer_status(db: Session, case_id: str, link: EvidenceLink) -> N
         answer.status_reason = result.status_reason
 
 
-def _question_in_case(db: Session, case_id: str, question_id: str) -> Question:
+def _question_in_case(db: Session, case: Case, question_id: str) -> Question:
     question = db.get(Question, question_id)
-    if question is None or question.questionnaire.case_id != case_id:
+    if question is None or question.questionnaire.case_id != case.id:
         raise api_error(
             404, "QUESTION_NOT_FOUND", f"Question '{question_id}' was not found in this case."
         )
@@ -79,7 +80,9 @@ def _question_in_case(db: Session, case_id: str, question_id: str) -> Question:
     response_model=list[EvidenceLinkRecord],
 )
 def list_evidence_links(
-    case_id: str, question_id: str, db: Session = Depends(get_db)
+    question_id: str,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
 ) -> list[EvidenceLinkRecord]:
     """Every evidence link on one question, newest match first.
 
@@ -94,7 +97,7 @@ def list_evidence_links(
     that a link was already set aside - a list that silently omits them reads
     as if the evidence never existed.
     """
-    _question_in_case(db, case_id, question_id)
+    _question_in_case(db, case, question_id)
     links = (
         db.query(EvidenceLink)
         .filter(EvidenceLink.question_id == question_id)
@@ -109,9 +112,9 @@ def list_evidence_links(
     response_model=EvidenceLinkRecord,
 )
 def accept_evidence_link(
-    case_id: str,
     evidence_link_id: str,
-    payload: EvidenceAcceptRequest,
+    case: Case = Depends(require_case),
+    actor: Actor = Depends(current_actor),
     db: Session = Depends(get_db),
 ) -> EvidenceLinkRecord:
     """Accept an evidence link: a human vouching for this citation.
@@ -120,26 +123,18 @@ def accept_evidence_link(
     by the matcher and the questionnaire; this one cannot be, because an
     unreviewed AI-proposed candidate must not satisfy VERIFIED on its own
     (Main Spec 17 Gate P4 - AI confidence does not participate in the VERIFIED
-    determination).
+    determination). No request body: the reviewer is the signed-in session
+    (`app/auth.py::actor_email`), not a name the caller supplies.
     """
-    if not payload.reviewer_name or not payload.reviewer_name.strip():
-        raise api_error(
-            422, "VALIDATION_ERROR", "reviewer_name is required to accept evidence."
-        )
-
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     link = db.get(EvidenceLink, evidence_link_id)
-    if link is None or link.question.questionnaire.case_id != case_id:
+    if link is None or link.question.questionnaire.case_id != case.id:
         raise _evidence_link_not_found(evidence_link_id)
 
     link.link_status = "ACCEPTED"
-    link.accepted_by = payload.reviewer_name.strip()
+    link.accepted_by = actor_email(db, actor)
     link.accepted_at = datetime.now(timezone.utc)
     db.flush()
-    _recompute_answer_status(db, case_id, link)
+    _recompute_answer_status(db, case, link)
     db.commit()
     db.refresh(link)
     return EvidenceLinkRecord.from_model(link)
@@ -149,14 +144,12 @@ def accept_evidence_link(
     response_model=EvidenceLinkRecord,
 )
 def invalidate_evidence_link(
-    case_id: str, evidence_link_id: str, db: Session = Depends(get_db)
+    evidence_link_id: str,
+    case: Case = Depends(require_case),
+    db: Session = Depends(get_db),
 ) -> EvidenceLinkRecord:
-    case = db.get(Case, case_id)
-    if case is None:
-        raise case_not_found(case_id)
-
     link = db.get(EvidenceLink, evidence_link_id)
-    if link is None or link.question.questionnaire.case_id != case_id:
+    if link is None or link.question.questionnaire.case_id != case.id:
         raise _evidence_link_not_found(evidence_link_id)
 
     link.link_status = "INVALIDATED"
@@ -180,7 +173,7 @@ def invalidate_evidence_link(
             f"{action.completion_note}\n{reopen_note}" if action.completion_note else reopen_note
         )
 
-    _recompute_answer_status(db, case_id, link)
+    _recompute_answer_status(db, case, link)
 
     db.commit()
     db.refresh(link)

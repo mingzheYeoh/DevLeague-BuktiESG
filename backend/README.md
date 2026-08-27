@@ -164,17 +164,62 @@ FastAPI's own request-validation failures use its default `{"detail": [...]}`
 array instead, so a client has to handle both.
 
 **Not implemented, and relied on by nothing:** no jobs endpoint (despite
-`latest_job_id`), no evidence-link listing, no question detail (so draft answer
-text is only ever returned by the review endpoint), no export endpoint, no
-document download, no `priority_score`, and no `PATCH`/`DELETE` anywhere.
+`latest_job_id`), no question detail (so draft answer text is only ever
+returned by the review endpoint), no export endpoint, no `priority_score`, and
+no `PATCH` anywhere.
+
+(Evidence-link listing, document download and `DELETE` were on this list after
+they had shipped. It sat ten lines above a section rewritten in the same pass
+that missed it.)
 
 ## Security posture
 
-There is **no authentication and no authorisation** on this service, and CORS
-is open to the local dev origins only. It is a local, single-tenant slice: do
-not expose it beyond localhost, and do not put real personal data in it (see
-`AGENTS.md` §3.1). Adding pagination and auth is a prerequisite for anything
-beyond local use.
+**`/api/v1/auth/register` still leaks account existence through timing.** Both
+branches now pay argon2, so the gap fell from roughly 33x to 1.7x — but a fresh
+address measures ~72ms against ~42ms for one already registered, because only
+the fresh path performs the inserts and the commit. The response body is
+identical and says nothing; the clock still does. Closing it means moving
+account creation off the request path.
+
+**No rate limiting anywhere, including `/api/v1/auth/login`.** Argon2 costs
+about 33ms per attempt, so a single connection can try roughly 30 passwords a
+second against a known address. That is tolerable for a localhost development
+slice and must not survive the first deployment that faces a network. It is
+listed here rather than in a backlog because the gap is in this service, not
+in a plan.
+
+Every endpoint requires an authenticated actor; a signed-out caller gets 401.
+Sessions are server-side rows, addressed by the `bukti_session` cookie —
+HttpOnly, `SameSite=Lax`, and `Secure` unless `COOKIE_SECURE=false`.
+Case-rooted endpoints resolve their Case through `require_case`, which loads
+it scoped to the caller's organization — another organization's Case, or
+anything nested under it, answers 404, never 403, so a case id nobody owns is
+indistinguishable from one that doesn't exist.
+
+The API sets `Access-Control-Allow-Credentials: true` so the browser will
+send the session cookie, which is why `cors_allow_origins` must stay an
+explicit list and must **never** become `["*"]` — a browser refuses a
+wildcard origin in a credentialed exchange, and every origin on the list is
+one permitted to act as a signed-in user. It is currently the local dev
+origins only.
+
+**Deployment constraint.** The cookie's `SameSite=Lax` scope is the
+registrable domain, not the origin — ports are not part of it, which is why
+`localhost:3000` and `localhost:8000` share a session in development. In any
+deployment the frontend and API must share a registrable domain (for
+example `app.example.com` and `api.example.com`); hosting them on unrelated
+domains means the browser never sends the cookie and every request 401s.
+
+`cookie_secure` (`COOKIE_SECURE`) must be `True` — the default — anywhere
+real data is held; it is disabled only for local HTTP development (see
+`app/config.py`). A session cookie sent in clear text is the whole
+authentication system given away.
+
+Real personal data is governed by `AGENTS.md` §3.1. Condition 4 of that
+section — a recorded decision on sending document text to a model provider
+outside Malaysia — is still **open**; until it is resolved, `DEEPSEEK_API_KEY`
+must be unset in any deployment holding real data. Adding pagination is a
+prerequisite for anything beyond local use.
 
 ## Consumed by
 
