@@ -35,8 +35,18 @@ from app.services import jobs
 _POLL_INTERVAL_SECONDS = 2.0
 
 
-def run_once() -> bool:
-    """Claim and run at most one job. Returns True if a job was found."""
+def run_once(extractor=None) -> bool:
+    """Claim and run at most one job. Returns True if a job was found.
+
+    `extractor` is built once by `poll_forever` and passed down, rather than
+    left for `run_extraction_jobs` to build per call. Building it per call
+    re-emits its "chunk text will be sent to api.deepseek.com" warning on
+    every poll - one line every two seconds, forever - which is precisely the
+    "train people to ignore warnings" failure that `build_extractor`'s own
+    docstring says it is avoiding. It is the one line that distinguishes
+    "extraction is running" from "extraction is off", so it has to stay
+    readable.
+    """
     db = SessionLocal()
     try:
         # Extraction first, and by its own query rather than through
@@ -44,7 +54,7 @@ def run_once() -> bool:
         # calls `run_document_job`, which would not know what to do with an
         # EXTRACT_VALUES row. Keeping the two paths apart is smaller than
         # generalising a claim that has exactly one other caller.
-        if jobs.run_extraction_jobs(db, limit=1):
+        if jobs.run_extraction_jobs(db, limit=1, extractor=extractor):
             return True
 
         job = jobs.claim_next_job(db)
@@ -66,10 +76,16 @@ def run_once() -> bool:
 
 
 def poll_forever() -> None:
+    from app.config import settings
+    from app.services.extractor import build_extractor
+
+    # Once, here, so the provider warning is emitted once per worker start.
+    extractor = build_extractor(settings)
+
     print("worker: polling processing_jobs (Ctrl+C to stop)...", flush=True)
     while True:
         try:
-            found = run_once()
+            found = run_once(extractor)
         except Exception as exc:  # noqa: BLE001 — a poll-loop bug must not kill the loop
             print(f"worker: unexpected error while polling: {exc}", flush=True)
             found = False
