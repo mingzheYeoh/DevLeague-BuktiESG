@@ -93,11 +93,19 @@ Without a worker running, uploads still succeed and questions still get their
 evidence — values simply stay absent, which is the state the rule engine has
 always read correctly. Nothing waits on it.
 
-The worker always uses `NullExtractor`: jobs complete, values stay null, and no
-request leaves the machine. That is not a fallback any more — the owner's
-2026-08-27 ruling closed the offshore path in code, so it is the only
-configuration there is. Setting `DEEPSEEK_API_KEY` does not change it; it only
-logs a warning that the key is being ignored.
+With no `DEEPSEEK_API_KEY` set the worker uses `NullExtractor`: jobs complete,
+values stay null, and no request leaves the machine. That is what CI runs.
+
+With a key set it uses `DeepSeekExtractor`, chunk text goes to
+`api.deepseek.com`, and the worker logs a warning saying so — permitted for the
+demo by the owner's 2026-08-27 ruling, **on the condition that no real customer
+document is uploaded while the key is set** (`AGENTS.md` §3.1). Nothing in the
+code can check that condition.
+
+What the model buys you is `evidence_links.value`, and therefore the
+`CONFLICTING` evidence status: the rule engine compares values across links
+that share a scope and period, so with every value null there is nothing to
+compare and that one status is unreachable. The other six are unaffected.
 
 ### Reclaiming stored bytes
 
@@ -218,11 +226,15 @@ real data is held; it is disabled only for local HTTP development (see
 authentication system given away.
 
 Real personal data is governed by `AGENTS.md` §3.1, and **all four of its
-conditions now hold** — the fourth was closed on 2026-08-27 by a ruling that
-document text is **not** transmitted to a model provider outside Malaysia. That
-is permanent, not a deferral. `DEEPSEEK_API_KEY` must be unset in every
-deployment, and `build_extractor()` refuses the path in code regardless of
-configuration.
+conditions now hold** — the fourth was closed on 2026-08-27 by a cross-border
+ruling that was made, and then reversed, on the same day. DeepSeek is permitted
+for the demo **on the condition that no real customer document is uploaded
+while `DEEPSEEK_API_KEY` is set**. That condition is not checkable in code; it
+is the owner's to hold, and §3.1 records why the reason ("it is only a demo")
+and the rule are not the same shape.
+
+**Before the first real customer document: unset the key and rotate it at the
+provider.**
 
 Adding pagination is still a prerequisite for anything beyond local use.
 

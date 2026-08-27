@@ -39,20 +39,21 @@ def test_the_null_extractor_accepts_an_empty_batch():
     assert NullExtractor().extract([]) == []
 
 
-def test_a_configured_key_does_not_select_an_offshore_extractor(caplog):
-    """The repository owner ruled on 2026-08-27 that document text is not
-    transmitted to a model provider outside Malaysia. DeepSeek is one
-    (api.deepseek.com), and `DeepSeekExtractor._post` sends chunk text as the
-    user message, so that path is closed.
+def test_a_configured_key_selects_the_deepseek_extractor(caplog):
+    """A key means chunk text leaves the machine, and the log says so.
 
-    This asserts the closure is in the CODE, not in the configuration. Until
-    now the only thing standing between a document and Shenzhen was an
-    environment variable being absent - and `backend/.env` had it present.
-    A rule whose enforcement is "nobody has set that yet" is not enforced.
+    This assertion has now been written both ways. It selected DeepSeek; then
+    the owner ruled that document text may not reach a provider outside
+    Malaysia and it asserted the opposite; then the owner reversed that for the
+    demo. The test is not flip-flopping - it tracks a governance decision that
+    genuinely changed twice, and each version was correct while it stood.
 
-    It replaces `test_a_configured_key_selects_the_deepseek_extractor`, which
-    asserted the opposite. That test was not wrong; the requirement changed
-    under it.
+    What is pinned alongside the type is the warning. The condition attached to
+    the reversal - no real customer document while the key is set - is not
+    something code can check, so the least this can do is refuse to be quiet
+    about the state. A silent DeepSeekExtractor and a silent NullExtractor look
+    identical from outside, and the difference is whether documents are leaving
+    the country.
     """
     from app.config import Settings
     from app.services.extractor import DeepSeekExtractor
@@ -62,12 +63,20 @@ def test_a_configured_key_does_not_select_an_offshore_extractor(caplog):
     with caplog.at_level("WARNING"):
         extractor = build_extractor(settings)
 
-    assert isinstance(extractor, NullExtractor)
-    assert not isinstance(extractor, DeepSeekExtractor)
-    # Silently ignoring the key would leave an operator believing extraction is
-    # running. Absence of a key is the normal case and stays silent; presence
-    # is now a misconfiguration and must say so.
+    assert isinstance(extractor, DeepSeekExtractor)
     assert any("outside Malaysia" in r.message for r in caplog.records), caplog.text
+
+
+def test_no_key_stays_silent(caplog):
+    """The quiet half. A local run without a provider is the normal case, so it
+    must not warn - otherwise the warning that matters gets ignored."""
+    from app.config import Settings
+
+    with caplog.at_level("WARNING"):
+        extractor = build_extractor(Settings(deepseek_api_key=None))
+
+    assert isinstance(extractor, NullExtractor)
+    assert caplog.records == []
 
 
 def test_a_provider_failure_degrades_to_no_values_rather_than_failing_upload(monkeypatch):

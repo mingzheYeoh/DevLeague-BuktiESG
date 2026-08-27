@@ -105,30 +105,48 @@ Conditions 1–3 were delivered by the authentication and tenancy work (PR #4,
 
 #### The cross-border ruling (repository owner, 2026-08-27)
 
-**Document text is not transmitted to a model provider outside Malaysia.**
+**DeepSeek is permitted for the demo. Document text may be sent to
+api.deepseek.com, on one condition:**
 
-This is a prohibition, not a deferral. It does not expire and it is not
-conditional on a provider's terms, certifications, or contractual assurances.
+> `DEEPSEEK_API_KEY` may be set only while **no real customer document has been
+> uploaded** to that deployment.
+
+##### The ruling changed twice on the same day. Read both, in order.
+
+The owner first ruled that document text is **not** transmitted to a model
+provider outside Malaysia — a flat prohibition — and it was enforced in code:
+`build_extractor()` returned `NullExtractor` unconditionally.
+
+The owner then reversed it, with the stated reason **"反正只是 demo"** — it is
+only a demo.
+
+That reason is recorded here as a *condition* rather than as a mood, because
+the reason and the rule are not the same shape. The risk was never "is this
+project a demo"; it is **"is this document real"**. A demo's natural next move
+is to try it on a prospect's actual questionnaire, and at that moment the
+documents stop being synthetic while the key is still set. The condition above
+is what the reversal actually depends on.
+
+Nothing in the code can check that condition — it is not a property of the
+configuration — so it is the owner's to hold.
 
 Consequences, in force now:
 
-- `DEEPSEEK_API_KEY` must be unset in every deployment, not only those holding
-  real data. api.deepseek.com is outside Malaysia and
-  `DeepSeekExtractor._post` sends chunk text as the user message.
-- `build_extractor()` returns `NullExtractor` **unconditionally**, and logs a
-  warning if a key is set rather than silently honouring it. Enforcement is in
-  code, pinned by
-  `backend/tests/test_extractor.py::test_a_configured_key_does_not_select_an_offshore_extractor`.
-  It was previously enforced only by the key being absent — a configuration
-  state, not a guarantee, and one that `backend/.env` was already violating
-  while the rule was believed to hold.
-- `DeepSeekExtractor` is retained but unreachable. The `Extractor` protocol is
-  how a Malaysia-hosted or self-hosted model would arrive, and that adapter is
-  the worked example of the shape such a provider must implement. Wiring one in
-  does **not** reopen this question: the ruling is about where the text goes,
-  not which vendor sends it.
-- Extraction therefore produces no values. That is a gap a reviewer can see and
-  act on, which §3.1's design has always preferred to a silent enrichment.
+- `build_extractor()` selects `DeepSeekExtractor` when a key is set, and logs a
+  warning naming the destination and the condition. Pinned by
+  `backend/tests/test_extractor.py::test_a_configured_key_selects_the_deepseek_extractor`,
+  which asserts the warning as well as the type: a silent `DeepSeekExtractor`
+  and a silent `NullExtractor` are indistinguishable from outside, and the
+  difference between them is whether documents leave the country.
+- With no key set, nothing is transmitted and nothing is logged. That remains
+  the normal local configuration, and it is what CI runs.
+- **Before the first real customer document:** unset the key, and treat the
+  value that was in `backend/.env` as exposed and rotate it at the provider.
+- Extraction fills `evidence_links.value`, which is what makes the
+  `CONFLICTING` evidence status reachable — the rule engine compares values
+  across links sharing a scope and period, and without values there is nothing
+  to compare. That is the whole of what the model does here. It owns no
+  verdict (§3.2) and supplies no source location (§3.3).
 
 Not covered by this ruling, and not decided by it: `@vercel/analytics` in
 `frontend/app/layout.tsx` sends page-view telemetry to Vercel in production

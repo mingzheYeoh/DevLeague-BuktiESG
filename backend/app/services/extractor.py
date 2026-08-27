@@ -156,34 +156,38 @@ class DeepSeekExtractor:
 def build_extractor(settings) -> Extractor:
     """Pick an extractor from configuration.
 
-    Currently that is always `NullExtractor`, and the reason is a ruling
-    rather than a gap.
+    A key selects `DeepSeekExtractor`; no key selects `NullExtractor`.
 
-    On 2026-08-27 the repository owner closed `AGENTS.md` §3.1 condition 4:
-    document text is not transmitted to a model provider outside Malaysia.
-    DeepSeek is one — `DeepSeekExtractor._post` sends chunk text as the user
-    message to api.deepseek.com — so that path is shut here, in code.
+    This was closed in code between 2026-08-27 and now. The owner had ruled
+    that document text is not transmitted to a model provider outside
+    Malaysia, and api.deepseek.com is one - `DeepSeekExtractor._post` sends
+    chunk text as the user message. The owner reversed that on 2026-08-27 for
+    the demo, and `AGENTS.md` 3.1 records both the reversal and its condition.
 
-    It was previously shut only by `deepseek_api_key` being unset, which is a
-    configuration state and not a guarantee. `backend/.env` had the key set
-    while the rule was believed to hold. A rule enforced by "nobody has
-    configured that yet" is not enforced, and nothing would have gone red.
+    The condition is the part that matters, because it is not "this is a
+    demo". A demo's natural next move is to try it on a prospect's real
+    questionnaire, and at that moment the documents stop being synthetic while
+    the key is still set. The rule is therefore:
 
-    `DeepSeekExtractor` is kept rather than deleted: the `Extractor` protocol
-    is how a Malaysia-hosted or self-hosted model would arrive, and that
-    adapter is the worked example of the shape it must implement. It is
-    unreachable, not absent.
+        DEEPSEEK_API_KEY may be set only while no real customer document has
+        been uploaded to the deployment.
 
-    Absence of a key stays silent — a local run without a provider is the
-    normal case, and a warning on every upload would train people to ignore
-    warnings. A key that IS set is now a misconfiguration, so it says so.
+    Nothing here can check that - it is not a property of the configuration -
+    so it is the owner's to hold. What this function does is refuse to hide
+    the state: with a key set, chunk text leaves the machine, and the log line
+    below says so once per worker start rather than leaving it to be inferred.
+
+    Absence of a key is silent. A local run without a provider is the normal
+    case, and a warning on every upload would train people to ignore warnings.
     """
     key = getattr(settings, "deepseek_api_key", None)
-    if key and key.strip():
-        logger.warning(
-            "DEEPSEEK_API_KEY is set and is being ignored: document text is "
-            "not sent to a model provider outside Malaysia (AGENTS.md 3.1, "
-            "owner's ruling 2026-08-27). Extraction is running with "
-            "NullExtractor. Unset the key to silence this."
-        )
-    return NullExtractor()
+    if not key or not key.strip():
+        return NullExtractor()
+
+    logger.warning(
+        "DEEPSEEK_API_KEY is set: document chunk text will be sent to "
+        "api.deepseek.com, outside Malaysia. Permitted for the demo by the "
+        "owner's 2026-08-27 ruling (AGENTS.md 3.1) on the condition that no "
+        "real customer document is uploaded while it is set."
+    )
+    return DeepSeekExtractor(api_key=key.strip())
