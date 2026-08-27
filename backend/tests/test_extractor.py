@@ -39,12 +39,35 @@ def test_the_null_extractor_accepts_an_empty_batch():
     assert NullExtractor().extract([]) == []
 
 
-def test_a_configured_key_selects_the_deepseek_extractor():
+def test_a_configured_key_does_not_select_an_offshore_extractor(caplog):
+    """The repository owner ruled on 2026-08-27 that document text is not
+    transmitted to a model provider outside Malaysia. DeepSeek is one
+    (api.deepseek.com), and `DeepSeekExtractor._post` sends chunk text as the
+    user message, so that path is closed.
+
+    This asserts the closure is in the CODE, not in the configuration. Until
+    now the only thing standing between a document and Shenzhen was an
+    environment variable being absent - and `backend/.env` had it present.
+    A rule whose enforcement is "nobody has set that yet" is not enforced.
+
+    It replaces `test_a_configured_key_selects_the_deepseek_extractor`, which
+    asserted the opposite. That test was not wrong; the requirement changed
+    under it.
+    """
     from app.config import Settings
     from app.services.extractor import DeepSeekExtractor
 
     settings = Settings(deepseek_api_key="sk-not-a-real-key")
-    assert isinstance(build_extractor(settings), DeepSeekExtractor)
+
+    with caplog.at_level("WARNING"):
+        extractor = build_extractor(settings)
+
+    assert isinstance(extractor, NullExtractor)
+    assert not isinstance(extractor, DeepSeekExtractor)
+    # Silently ignoring the key would leave an operator believing extraction is
+    # running. Absence of a key is the normal case and stays silent; presence
+    # is now a misconfiguration and must say so.
+    assert any("outside Malaysia" in r.message for r in caplog.records), caplog.text
 
 
 def test_a_provider_failure_degrades_to_no_values_rather_than_failing_upload(monkeypatch):

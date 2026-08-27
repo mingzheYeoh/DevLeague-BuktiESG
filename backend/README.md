@@ -93,9 +93,11 @@ Without a worker running, uploads still succeed and questions still get their
 evidence — values simply stay absent, which is the state the rule engine has
 always read correctly. Nothing waits on it.
 
-With no `DEEPSEEK_API_KEY` set the worker still drains the queue, using
-`NullExtractor`: jobs complete, values stay null, and no request leaves the
-machine. That is the configuration CI runs.
+The worker always uses `NullExtractor`: jobs complete, values stay null, and no
+request leaves the machine. That is not a fallback any more — the owner's
+2026-08-27 ruling closed the offshore path in code, so it is the only
+configuration there is. Setting `DEEPSEEK_API_KEY` does not change it; it only
+logs a warning that the key is being ignored.
 
 ### Reclaiming stored bytes
 
@@ -215,11 +217,14 @@ real data is held; it is disabled only for local HTTP development (see
 `app/config.py`). A session cookie sent in clear text is the whole
 authentication system given away.
 
-Real personal data is governed by `AGENTS.md` §3.1. Condition 4 of that
-section — a recorded decision on sending document text to a model provider
-outside Malaysia — is still **open**; until it is resolved, `DEEPSEEK_API_KEY`
-must be unset in any deployment holding real data. Adding pagination is a
-prerequisite for anything beyond local use.
+Real personal data is governed by `AGENTS.md` §3.1, and **all four of its
+conditions now hold** — the fourth was closed on 2026-08-27 by a ruling that
+document text is **not** transmitted to a model provider outside Malaysia. That
+is permanent, not a deferral. `DEEPSEEK_API_KEY` must be unset in every
+deployment, and `build_extractor()` refuses the path in code regardless of
+configuration.
+
+Adding pagination is still a prerequisite for anything beyond local use.
 
 ## Consumed by
 
