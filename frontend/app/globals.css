@@ -67,11 +67,6 @@
   --duration: 220ms;
   --sidebar: 220px;
   --sidebar-collapsed: 72px;
-  --chart-1: #073b70;
-  --chart-2: #c14a42;
-  --chart-3: #1b8f86;
-  --chart-4: #8a6912;
-  --chart-5: #1d6f9a;
 }
 
 * { box-sizing: border-box; }
@@ -1533,17 +1528,6 @@ h1, h2, h3, p {
   margin-top: 4px;
   font-size: 22px;
   letter-spacing: -0.03em;
-}
-
-.priority-chart {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 120px;
-  height: 120px;
-  background: rgba(27, 143, 134, 0.05);
-  border-radius: 10px;
 }
 
 .priority-breakdown-visual {

@@ -38,22 +38,6 @@ class ActorSummary(BaseModel):
     role: str
 
 
-class ErrorDetail(BaseModel):
-    code: str
-    message: str
-    details: dict = Field(default_factory=dict)
-    request_id: str | None = None
-
-
-class ErrorEnvelope(BaseModel):
-    error: ErrorDetail
-
-
-class ReportingPeriod(BaseModel):
-    start: date | None = None
-    end: date | None = None
-
-
 class CaseCreate(BaseModel):
     title: str
     customer_name: str | None = None
