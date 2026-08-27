@@ -96,13 +96,45 @@ once **all** of the following hold:
 3. The cross-tenant test matrix in `backend/tests/test_tenant_isolation.py`
    passes for every case-rooted route.
 4. A decision has been recorded on whether document text may be transmitted to
-   a model provider outside Malaysia. Until then `DEEPSEEK_API_KEY` must be
-   unset in any deployment holding real data, which makes `build_extractor()`
-   return `NullExtractor` and keeps document text on the server.
+   a model provider outside Malaysia. **Recorded 2026-08-27 — see below.**
 
-Conditions 1–3 are delivered by the authentication and tenancy work. Condition
-4 is open. Until all four hold, synthetic data only, and real personal data
-remains a T2 stop-and-escalate trigger.
+Conditions 1–3 were delivered by the authentication and tenancy work (PR #4,
+2026-08-27) and are **met**. Condition 4 is **met** by the ruling that follows.
+
+**All four conditions now hold. Real customer personal data may be processed.**
+
+#### The cross-border ruling (repository owner, 2026-08-27)
+
+**Document text is not transmitted to a model provider outside Malaysia.**
+
+This is a prohibition, not a deferral. It does not expire and it is not
+conditional on a provider's terms, certifications, or contractual assurances.
+
+Consequences, in force now:
+
+- `DEEPSEEK_API_KEY` must be unset in every deployment, not only those holding
+  real data. api.deepseek.com is outside Malaysia and
+  `DeepSeekExtractor._post` sends chunk text as the user message.
+- `build_extractor()` returns `NullExtractor` **unconditionally**, and logs a
+  warning if a key is set rather than silently honouring it. Enforcement is in
+  code, pinned by
+  `backend/tests/test_extractor.py::test_a_configured_key_does_not_select_an_offshore_extractor`.
+  It was previously enforced only by the key being absent — a configuration
+  state, not a guarantee, and one that `backend/.env` was already violating
+  while the rule was believed to hold.
+- `DeepSeekExtractor` is retained but unreachable. The `Extractor` protocol is
+  how a Malaysia-hosted or self-hosted model would arrive, and that adapter is
+  the worked example of the shape such a provider must implement. Wiring one in
+  does **not** reopen this question: the ruling is about where the text goes,
+  not which vendor sends it.
+- Extraction therefore produces no values. That is a gap a reviewer can see and
+  act on, which §3.1's design has always preferred to a silent enrichment.
+
+Not covered by this ruling, and not decided by it: `@vercel/analytics` in
+`frontend/app/layout.tsx` sends page-view telemetry to Vercel in production
+builds. It carries no document text, so it is outside this ruling's scope — but
+it is an offshore data flow that exists, and PDPA obligations (item ⑥) are a
+separate open question that has not been ruled on.
 
 ### 3.2 The AI never owns a verdict
 

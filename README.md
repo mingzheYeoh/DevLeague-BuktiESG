@@ -8,14 +8,20 @@ An ESG customer-questionnaire **Evidence-to-Action** workspace for Malaysian SME
 
 ## Data Restriction
 
-**Conditional.** Until 2026-08-25 this was a synthetic-data-only project. On
-2026-08-25 the repository owner ruled that real customer personal data may be
-processed, subject to the four conditions in [`AGENTS.md`](AGENTS.md) §3.1 —
-authentication on every endpoint, organization-scoped access, a passing
-cross-tenant test matrix, and a recorded decision on cross-border model calls.
+**Permitted, with one standing prohibition.** Until 2026-08-25 this was a
+synthetic-data-only project. On 2026-08-25 the repository owner ruled that real
+customer personal data may be processed subject to four conditions in
+[`AGENTS.md`](AGENTS.md) §3.1. **All four now hold** — authentication on every
+endpoint and organization-scoped access (2026-08-27), a passing cross-tenant
+matrix, and the cross-border decision recorded 2026-08-27.
 
-**Until all four conditions hold, synthetic data only.** Read §3.1 before
-uploading anything real; the conditions are the authority, not this summary.
+**That decision was a prohibition: document text is not transmitted to a model
+provider outside Malaysia.** It does not expire. `DEEPSEEK_API_KEY` must be
+unset everywhere; the code refuses the path regardless. AI extraction therefore
+produces no values until a Malaysia-hosted or self-hosted model is wired in.
+
+Read §3.1 before uploading anything real; it is the authority, not this
+summary.
 
 ---
 

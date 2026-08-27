@@ -156,12 +156,34 @@ class DeepSeekExtractor:
 def build_extractor(settings) -> Extractor:
     """Pick an extractor from configuration.
 
-    Absence of a key is a supported configuration, not a misconfiguration:
-    the fallback is silent because a local run without a provider is the
+    Currently that is always `NullExtractor`, and the reason is a ruling
+    rather than a gap.
+
+    On 2026-08-27 the repository owner closed `AGENTS.md` §3.1 condition 4:
+    document text is not transmitted to a model provider outside Malaysia.
+    DeepSeek is one — `DeepSeekExtractor._post` sends chunk text as the user
+    message to api.deepseek.com — so that path is shut here, in code.
+
+    It was previously shut only by `deepseek_api_key` being unset, which is a
+    configuration state and not a guarantee. `backend/.env` had the key set
+    while the rule was believed to hold. A rule enforced by "nobody has
+    configured that yet" is not enforced, and nothing would have gone red.
+
+    `DeepSeekExtractor` is kept rather than deleted: the `Extractor` protocol
+    is how a Malaysia-hosted or self-hosted model would arrive, and that
+    adapter is the worked example of the shape it must implement. It is
+    unreachable, not absent.
+
+    Absence of a key stays silent — a local run without a provider is the
     normal case, and a warning on every upload would train people to ignore
-    warnings.
+    warnings. A key that IS set is now a misconfiguration, so it says so.
     """
     key = getattr(settings, "deepseek_api_key", None)
-    if not key or not key.strip():
-        return NullExtractor()
-    return DeepSeekExtractor(api_key=key.strip())
+    if key and key.strip():
+        logger.warning(
+            "DEEPSEEK_API_KEY is set and is being ignored: document text is "
+            "not sent to a model provider outside Malaysia (AGENTS.md 3.1, "
+            "owner's ruling 2026-08-27). Extraction is running with "
+            "NullExtractor. Unset the key to silence this."
+        )
+    return NullExtractor()
