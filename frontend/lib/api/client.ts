@@ -296,21 +296,7 @@ export const api = {
     return request<CaseSummary>(`/api/v1/cases/${enc(caseId)}`)
   },
 
-  /** POST /api/v1/cases/{case_id}/archive
-   *
-   * Retires a case without destroying anything. Refused with 409
-   * CASE_ALREADY_ARCHIVED if it is already archived. */
-  archiveCase(caseId: string): Promise<CaseSummary> {
-    return request<CaseSummary>(`/api/v1/cases/${enc(caseId)}/archive`, { method: 'POST' })
-  },
 
-  /** POST /api/v1/cases/{case_id}/unarchive
-   *
-   * Restores the status the case held before it was archived. Refused with 409
-   * CASE_NOT_ARCHIVED if it is not archived. */
-  unarchiveCase(caseId: string): Promise<CaseSummary> {
-    return request<CaseSummary>(`/api/v1/cases/${enc(caseId)}/unarchive`, { method: 'POST' })
-  },
 
   /** DELETE /api/v1/cases/{case_id} — 204, no body.
    *

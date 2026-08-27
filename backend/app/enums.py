@@ -22,16 +22,6 @@ CASE_STATUS = (
     "ARCHIVED",
 )
 
-# Statuses a Case may be deleted from. Not a DB-column allow-list — it gates
-# DELETE /cases/{id}, so adding a value here needs no migration.
-#
-# Deleting a Case destroys the record of what evidence was reviewed and by
-# whom, which is the thing this product exists to keep. So it is a two-step
-# action for any Case that has been worked on: archive it, then delete it.
-# DRAFT is exempt because it has nothing to destroy yet; ARCHIVED is exempt
-# because reaching it was already a deliberate human decision to retire the
-# Case.
-CASE_DELETABLE_FROM = ("DRAFT", "ARCHIVED")
 
 DOCUMENT_TYPE = (
     "QUESTIONNAIRE",
@@ -84,7 +74,8 @@ DRAFT_PROVENANCE = (
     "USER_ENTERED",
 )
 
-# Processing states a Document may be deleted from. Like CASE_DELETABLE_FROM
+# Processing states a Document may be deleted from. Not a DB-column
+# allow-list
 # this is not a DB-column allow-list - it gates DELETE
 # /cases/{id}/documents/{id} only, so widening it needs no migration.
 #

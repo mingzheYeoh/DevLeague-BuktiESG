@@ -20,8 +20,6 @@ const CASE_SUMMARY = {
   deadline_at: null,
   status: 'DRAFT',
   updated_at: new Date().toISOString(),
-  archived_at: null,
-  status_before_archive: null,
 }
 
 function doc(overrides: Record<string, unknown>) {

@@ -54,8 +54,6 @@ export default function BuktiApp() {
     loading: casesLoading,
     error: casesError,
     reload: reloadCases,
-    archiveCase,
-    unarchiveCase,
     deleteCase,
   } = useCases()
   const [selectedCaseId, setSelectedCaseId] = useSelectedCaseId(
@@ -235,8 +233,6 @@ export default function BuktiApp() {
               reload={reloadCases}
               onOpenCase={openCase}
               onNewCase={() => go('create')}
-              onArchive={archiveCase}
-              onUnarchive={unarchiveCase}
               onDelete={handleDeleteCase}
             />
           )}

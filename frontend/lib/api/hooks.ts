@@ -104,32 +104,6 @@ export function useCases() {
     [reload],
   )
 
-  /** Replace one row from the server's response. No optimistic write: archiving
-   * changes three fields at once (`status`, `archived_at`,
-   * `status_before_archive`) and the server is the only thing that knows what
-   * `status_before_archive` should be. */
-  const replace = useCallback((updated: CaseSummary) => {
-    setCases((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-  }, [])
-
-  const archiveCase = useCallback(
-    async (caseId: string): Promise<CaseSummary> => {
-      const updated = await api.archiveCase(caseId)
-      replace(updated)
-      return updated
-    },
-    [replace],
-  )
-
-  const unarchiveCase = useCallback(
-    async (caseId: string): Promise<CaseSummary> => {
-      const updated = await api.unarchiveCase(caseId)
-      replace(updated)
-      return updated
-    },
-    [replace],
-  )
-
   /** Drops the row locally on success. The reload that follows is what proves
    * it: if the delete did not take, the row comes straight back. */
   const deleteCase = useCallback(
@@ -141,7 +115,7 @@ export function useCases() {
     [reload],
   )
 
-  return { cases, loading, error, reload, createCase, archiveCase, unarchiveCase, deleteCase }
+  return { cases, loading, error, reload, createCase, deleteCase }
 }
 
 // ---- One case's workspace ----------------------------------------------

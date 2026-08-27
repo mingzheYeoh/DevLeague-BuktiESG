@@ -61,11 +61,6 @@ class CaseSummary(BaseModel):
     deadline_at: datetime | None
     status: str
     updated_at: datetime
-    # Null on every Case that is not archived. `status_before_archive` is what
-    # the client needs to name the restore target ("Restore to In review")
-    # instead of offering an unlabelled undo.
-    archived_at: datetime | None = None
-    status_before_archive: str | None = None
 
     @classmethod
     def from_model(cls, case) -> "CaseSummary":
@@ -76,8 +71,6 @@ class CaseSummary(BaseModel):
             deadline_at=case.deadline_at,
             status=case.status,
             updated_at=case.updated_at,
-            archived_at=case.archived_at,
-            status_before_archive=case.status_before_archive,
         )
 
 

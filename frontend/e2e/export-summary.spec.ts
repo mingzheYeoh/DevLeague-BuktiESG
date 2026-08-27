@@ -22,8 +22,6 @@ const CASE_SUMMARY = {
   deadline_at: null,
   status: 'DRAFT',
   updated_at: new Date().toISOString(),
-  archived_at: null,
-  status_before_archive: null,
 }
 
 /** 20 questions, 14 required, all PARTIAL and unreviewed — the sample shape. */
