@@ -40,9 +40,6 @@ export function errorMessage(error: unknown): string {
   return 'Something went wrong.'
 }
 
-export function isUnreachable(error: unknown): boolean {
-  return error instanceof ApiUnreachableError
-}
 
 /** Backend reachability, so the UI can say "the API is down" instead of
  * silently rendering an empty workspace. */

@@ -1,6 +1,6 @@
 """Password hashing. The one place a plaintext password may be seen."""
 
-from app.services.passwords import DUMMY_HASH, hash_password, verify_password
+from app.services.passwords import hash_password, verify_password
 
 
 def test_hash_then_verify_accepts_the_same_password():
@@ -29,7 +29,3 @@ def test_verify_against_a_malformed_hash_is_false_not_an_exception():
     # attacker which accounts have broken hashes.
     assert verify_password("anything", "not-a-hash") is False
 
-
-def test_dummy_hash_verifies_against_nothing():
-    # Used to spend the same time on a missing account as on a real one.
-    assert verify_password("anything at all", DUMMY_HASH) is False

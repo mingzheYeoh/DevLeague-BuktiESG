@@ -99,7 +99,7 @@ export const caseTone = (s: CaseStatus): Tone => CASE_TONES[s] ?? 'neutral'
  * (MISSING/CONFLICTING require closure evidence) widened to the statuses a
  * reviewer would call a gap. Used for counting and filtering only — never to
  * change a status. */
-export const GAP_EVIDENCE_STATUSES: EvidenceStatus[] = [
+const GAP_EVIDENCE_STATUSES: EvidenceStatus[] = [
   'MISSING',
   'PARTIAL',
   'OUTDATED',

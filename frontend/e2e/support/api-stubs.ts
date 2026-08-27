@@ -9,7 +9,7 @@
  */
 import type { Page } from '@playwright/test'
 
-export const APP_ORIGIN = 'http://localhost:3000'
+const APP_ORIGIN = 'http://localhost:3000'
 
 export const CORS_HEADERS = {
   'Access-Control-Allow-Origin': APP_ORIGIN,

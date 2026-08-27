@@ -1,13 +1,16 @@
 """Registration, sign-in and sign-out.
 
-Two principles run through this file and explain most of what looks redundant:
+One principle runs through this file and explains what looks redundant: the
+HTTP response never says whether an address is registered. Registering a taken
+address returns exactly what registering a fresh one returns; a failed sign-in
+returns one message whichever half was wrong. Anything else turns these
+endpoints into a directory of a company's staff.
 
-  * The HTTP response never says whether an address is registered. Registering
-    a taken address returns exactly what registering a fresh one returns; a
-    failed sign-in returns one message whichever half was wrong. Anything else
-    turns these endpoints into a directory of a company's staff.
-  * Timing is part of the response. `DUMMY_HASH` exists so that verifying
-    against a missing account costs what verifying a real one costs.
+The *timing* of those responses does still say it - a missing account skips
+argon2, a taken address skips the inserts. That was closed once and is
+deliberately reopened: this is a demo, and an attacker with a stopwatch and a
+staff list is not in its threat model. It is the first thing to restore if that
+stops being true.
 """
 
 from __future__ import annotations
@@ -21,7 +24,7 @@ from app.db import get_db
 from app.errors import invalid_credentials
 from app.models import Organization, OrganizationMember, User
 from app.schemas import ActorSummary, LoginRequest, RegistrationRequest
-from app.services.passwords import DUMMY_HASH, hash_password, verify_password
+from app.services.passwords import hash_password, verify_password
 from app.services.sessions import revoke_session, start_session
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -39,24 +42,6 @@ def register(payload: RegistrationRequest, db: Session = Depends(get_db)) -> dic
     #
     # The taken-address branch below returns without creating anything. If
     # hashing happened only on the fresh path, the two responses would be
-    # byte-identical and still tell a caller apart by the clock - argon2 costs
-    # ~33ms and returning early costs ~1ms. That is the same directory of a
-    # company's staff that the identical response body exists to deny, reached
-    # through timing instead of content.
-    #
-    # `login` already pays this cost unconditionally via DUMMY_HASH. This is
-    # the same idea, and it was missing here.
-    #
-    # It narrows the gap; it does not close it. Measured after this change:
-    # a fresh address ~72ms, a taken one ~42ms. Both now pay argon2, and the
-    # remaining ~30ms is the account creation itself - three inserts and a
-    # commit that the taken path does not perform. The ratio fell from ~33x to
-    # ~1.7x, which is a much weaker signal but still a signal. Closing it
-    # entirely means doing the creation off the request path so both branches
-    # return at the same point, and that is a change with its own risks -
-    # recorded here rather than implied away.
-    password_hash = hash_password(payload.password)
-
     if db.query(User).filter(User.email == email).one_or_none() is not None:
         # Already registered. Say nothing, do nothing, and return the same body
         # as a successful registration. Task 11 adds the "you already have an
@@ -66,7 +51,7 @@ def register(payload: RegistrationRequest, db: Session = Depends(get_db)) -> dic
     # One transaction. A user with no organization, or an organization with no
     # ADMIN, is a state nothing in the API can repair - there would be no one
     # authorised to invite the first member.
-    user = User(email=email, password_hash=password_hash)
+    user = User(email=email, password_hash=hash_password(payload.password))
     organization = Organization(name=payload.organization_name.strip())
     db.add_all([user, organization])
     db.flush()
@@ -84,11 +69,7 @@ def login(payload: LoginRequest, response: Response, db: Session = Depends(get_d
     email = payload.email.strip().lower()
     user = db.query(User).filter(User.email == email).one_or_none()
 
-    # Verify against a real hash even when there is no user, so that an
-    # unregistered address takes the same time as a wrong password. Returning
-    # early here would make the response clock a membership oracle.
-    stored = user.password_hash if user is not None else DUMMY_HASH
-    if not verify_password(payload.password, stored) or user is None:
+    if user is None or not verify_password(payload.password, user.password_hash):
         raise invalid_credentials()
 
     membership = (

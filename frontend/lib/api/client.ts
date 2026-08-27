@@ -25,7 +25,7 @@ import type {
   UpdateActionStatusRequest,
 } from './types'
 
-export const API_BASE_URL =
+const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
 
 /**
@@ -76,18 +76,6 @@ export class ApiUnreachableError extends Error {
   }
 }
 
-/**
- * A 401 from an endpoint that expected a session.
- *
- * Extends `ApiError` so `errorMessage()` and every existing `catch` keep
- * working — this narrows the type, it does not change the shape.
- */
-export class UnauthenticatedError extends ApiError {
-  // `ApiError`'s constructor sets `name = 'ApiError'`, so without this a
-  // thrown UnauthenticatedError announces itself as the wrong class in every
-  // stack trace. The class field runs after super() and wins.
-  readonly name = 'UnauthenticatedError'
-}
 
 let sessionLostListener: (() => void) | null = null
 
@@ -217,10 +205,10 @@ async function request<T>(
     }
     const detail = normaliseError(res.status, body)
 
-    if (res.status === 401) {
-      if (!options.silentAuthFailure) sessionLostListener?.()
-      throw new UnauthenticatedError(res.status, detail)
-    }
+    // A 401 from any endpoint that is not `login` or `register` means the
+    // session is gone. There is no distinct error class: nothing ever branched
+    // on one, because the announcement below is what actually drives recovery.
+    if (res.status === 401 && !options.silentAuthFailure) sessionLostListener?.()
 
     throw new ApiError(res.status, detail)
   }
