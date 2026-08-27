@@ -8,17 +8,23 @@ An ESG customer-questionnaire **Evidence-to-Action** workspace for Malaysian SME
 
 ## Data Restriction
 
-**Permitted, with one standing prohibition.** Until 2026-08-25 this was a
-synthetic-data-only project. On 2026-08-25 the repository owner ruled that real
-customer personal data may be processed subject to four conditions in
-[`AGENTS.md`](AGENTS.md) §3.1. **All four now hold** — authentication on every
-endpoint and organization-scoped access (2026-08-27), a passing cross-tenant
-matrix, and the cross-border decision recorded 2026-08-27.
+**Permitted, with one condition you have to hold yourself.** Until 2026-08-25
+this was a synthetic-data-only project. On 2026-08-25 the repository owner
+ruled that real customer personal data may be processed subject to four
+conditions in [`AGENTS.md`](AGENTS.md) §3.1. **All four now hold** —
+authentication on every endpoint and organization-scoped access, a passing
+cross-tenant matrix, and the cross-border decision recorded 2026-08-27.
 
-**That decision was a prohibition: document text is not transmitted to a model
-provider outside Malaysia.** It does not expire. `DEEPSEEK_API_KEY` must be
-unset everywhere; the code refuses the path regardless. AI extraction therefore
-produces no values until a Malaysia-hosted or self-hosted model is wired in.
+**That cross-border decision was made twice.** It began as a flat prohibition
+on sending document text outside Malaysia, and was reversed the same day for
+the demo. DeepSeek is permitted — **so long as no real customer document is
+uploaded while `DEEPSEEK_API_KEY` is set.** The risk was never whether this is
+a demo; it is whether the document is real, and a demo's next move is usually a
+prospect's actual questionnaire. No code can check that, so it is yours to
+hold: unset the key before the first real document, and rotate it.
+
+With a key set, chunk text goes to `api.deepseek.com` and the worker logs a
+warning saying so. With no key, nothing leaves the machine.
 
 Read §3.1 before uploading anything real; it is the authority, not this
 summary.
