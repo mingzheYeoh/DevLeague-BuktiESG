@@ -36,14 +36,15 @@ summary.
 Two processes. The frontend talks to the backend over HTTP and holds no data of its own.
 
 ```bash
-# The database — PostgreSQL 16, from the repository root
+# Configuration — one file at the repository root, read by Compose and the API
 cp .env.example .env      # set POSTGRES_PASSWORD; any value, it is local and disposable
+
+# The database — PostgreSQL 16
 docker compose up -d
 
 # Terminal 1 — API on :8000
 cd backend
 uv sync
-cp .env.example .env                    # DATABASE_URL for the container above
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 
@@ -53,7 +54,9 @@ npm install
 npm run dev
 ```
 
-PostgreSQL is the database this project runs on. `app/config.py` still falls back to a local SQLite file when `DATABASE_URL` is unset, so the app can boot without a live database — that fallback does not enforce foreign keys, has no row-level locking, and cannot be built by the migrations. [`backend/README.md`](backend/README.md) says what breaks and why. The test suite is the one place SQLite is used on purpose: it builds its own in-memory database, so `pytest` needs no Docker.
+One `.env`, at the repository root. Compose reads the file beside `docker-compose.yml`, and `app/config.py` anchors to the same directory rather than to whatever directory it was launched from — so the API reads its configuration whether you start it from `backend/` or not. `DATABASE_URL` is derived from `POSTGRES_PASSWORD`, so the password is written once; set `DATABASE_URL` explicitly only to point somewhere other than the Compose database.
+
+PostgreSQL is the database this project runs on. `app/config.py` falls back to a local SQLite file when neither is set, so the app can boot without a live database — that fallback does not enforce foreign keys, has no row-level locking, and cannot be built by the migrations. [`backend/README.md`](backend/README.md) says what breaks and why. The test suite is the one place SQLite is used on purpose: it builds its own in-memory database, so `pytest` needs no Docker.
 
 `frontend/.env.local` sets `NEXT_PUBLIC_API_BASE_URL` (default `http://localhost:8000`). The backend's CORS allow-list covers `localhost:3000` and `127.0.0.1:3000` only. `frontend/` uses **npm**; there is one lockfile.
 

@@ -33,19 +33,30 @@ PostgreSQL 16, from the repository root:
 cp .env.example .env                       # repository root: set POSTGRES_PASSWORD
 docker compose up -d                       # postgres:16 on 127.0.0.1:5432
 cd backend
-cp .env.example .env                       # put the same password in DATABASE_URL
 uv run alembic upgrade head
 ```
 
-Two `.env` files, both git-ignored: Compose reads the one beside
-`docker-compose.yml`, the app reads `backend/.env`. Any password works — the
-database is local, disposable, and rebuilt by `docker compose down -v`. Compose
-has no default for it, so an unset value stops with a message naming it rather
-than starting a database whose password is public.
+**One `.env`, at the repository root, git-ignored.** Compose reads the file
+beside `docker-compose.yml`; `app/config.py` anchors to that same directory
+via `Path(__file__)`, so the app reads its configuration from any working
+directory. `env_file=".env"` used to be resolved against the CWD, which meant
+anything launched from outside `backend/` read no configuration at all, took
+the SQLite default, and started normally against an empty file.
 
-`.env.example` uses `127.0.0.1` rather than `localhost` on purpose: Compose binds
-the port to the IPv4 loopback only, and on Windows `localhost` resolves to `::1`
-first, so a `localhost` URL stalls until that attempt times out.
+`DATABASE_URL` is derived from `POSTGRES_PASSWORD`, so the password is written
+once. It was previously written twice — as `POSTGRES_PASSWORD` for Compose and
+again inside `backend/.env`'s `DATABASE_URL` — and disagreement between them
+surfaced as an authentication failure naming neither file. Set `DATABASE_URL`
+explicitly only to point at a database that is not the Compose one; CI's
+migration job does exactly that, and an OS environment variable beats the file.
+
+Any password works — the database is local, disposable, and rebuilt by `docker
+compose down -v`. Compose has no default for it, so an unset value stops with a
+message naming it rather than starting a database whose password is public.
+
+The derived URL uses `127.0.0.1` rather than `localhost` on purpose: Compose
+binds the port to the IPv4 loopback only, and on Windows `localhost` resolves
+to `::1` first, so a `localhost` URL stalls until that attempt times out.
 
 The data lives in the named volume `buktiesg-postgres-data`, not in the
 container, so `docker compose down` and a rebuild lose nothing. `docker compose
@@ -53,8 +64,9 @@ down -v` does delete it.
 
 ### The SQLite fallback
 
-With `DATABASE_URL` unset, `app/config.py` falls back to a local SQLite file so
-the app can boot without a live database. That is for emergencies. **It is not a
+With neither `POSTGRES_PASSWORD` nor `DATABASE_URL` set, `app/config.py` falls
+back to a local SQLite file so the app can boot without a live database. That is
+for emergencies. **It is not a
 supported way to run this application**, and the difference is not cosmetic:
 
 - SQLite does not enforce foreign keys unless `PRAGMA foreign_keys=ON` is set per
