@@ -1,25 +1,62 @@
 """Application configuration.
 
-Scope note: this is Phase 1 / First Vertical Slice configuration only. No
-provider/AI settings live here — the AI pipeline is out of scope for this
-slice (see docs/spec/README-Team-Specs.md, "First Vertical Slice").
+Read from the repository-root `.env` - the same file docker-compose.yml reads,
+so the database password is written once rather than in two files that could
+disagree. The path is anchored to this module, not to the working directory;
+see `_REPO_ROOT` for what that used to cost.
+
+(This docstring previously said "no provider/AI settings live here". A
+`deepseek_api_key` has lived here since extraction was added.)
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+from urllib.parse import quote
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# backend/app/config.py -> backend/app -> backend -> the repository root, where
+# `.env` sits beside docker-compose.yml so that both readers read one file.
+#
+# Anchored, not relative. `env_file=".env"` is resolved against the *current
+# working directory*, so this only ever loaded when the process was launched
+# from `backend/`. Started from anywhere else it read nothing, took the SQLite
+# default below, and came up normally against an empty local file - no error,
+# no warning, just the wrong database.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# Fixed by docker-compose.yml: POSTGRES_USER, POSTGRES_DB, and a port published
+# on the IPv4 loopback only. Change them there and change them here.
+#
+# 127.0.0.1 rather than `localhost` deliberately - on Windows `localhost`
+# resolves to ::1 first, which nothing is listening on, and the connection
+# stalls until that attempt times out before retrying IPv4.
+_COMPOSE_DATABASE_URL = "postgresql+psycopg://buktiesg:{password}@127.0.0.1:5432/buktiesg"
+
+# Per docs/decisions/decision-register.md §4 item 003: PostgreSQL 16. This
+# exists ONLY so the app can boot without a live Postgres during ad-hoc
+# development. Never used for real persistence and never used by the test
+# suite (see tests/conftest.py, which uses its own isolated in-memory SQLite
+# and is explicitly called out as a test-only substitution).
+_SQLITE_FALLBACK = "sqlite:///./buktiesg_dev.db"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_REPO_ROOT / ".env", extra="ignore")
 
-    # Per docs/decisions/decision-register.md §4 item 003: PostgreSQL 16.
-    # Falls back to a local SQLite file ONLY so the app can boot without a
-    # live Postgres during ad-hoc development. Never used for real
-    # persistence and never used by the test suite (see tests/conftest.py,
-    # which uses its own isolated in-memory SQLite and is explicitly called
-    # out as a test-only substitution).
-    database_url: str = "sqlite:///./buktiesg_dev.db"
+    # The one place the local database password is written. docker-compose.yml
+    # reads the same variable from the same file, so there is no second copy
+    # to drift out of step - `database_url` is built from it below. It used to
+    # be written twice, and the symptom of disagreement was an authentication
+    # failure that named neither file.
+    postgres_password: str | None = None
+
+    # Normally left unset and derived from `postgres_password`. Set it to point
+    # at a database that is not the Compose one; CI's migration job does
+    # exactly that, and an OS environment variable beats the file.
+    database_url: str = ""
 
     # Absence is a supported configuration, not a misconfiguration. Without a
     # key `build_extractor` returns NullExtractor and the system behaves
@@ -59,6 +96,19 @@ class Settings(BaseSettings):
     # holds real data serves HTTPS, where this must be True - a session cookie
     # sent in clear text is the whole authentication system given away.
     cookie_secure: bool = True
+
+    @model_validator(mode="after")
+    def _derive_database_url(self) -> "Settings":
+        if not self.database_url:
+            self.database_url = (
+                # Escaped because the URL is built by interpolation: an
+                # unescaped `@` or `/` in the password moves the host boundary
+                # and the driver reports a hostname nobody configured.
+                _COMPOSE_DATABASE_URL.format(password=quote(self.postgres_password, safe=""))
+                if self.postgres_password
+                else _SQLITE_FALLBACK
+            )
+        return self
 
 
 settings = Settings()
