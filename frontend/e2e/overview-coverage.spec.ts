@@ -25,8 +25,6 @@ const CASE_SUMMARY = {
   deadline_at: null,
   status: 'DRAFT',
   updated_at: new Date().toISOString(),
-  archived_at: null,
-  status_before_archive: null,
 }
 
 /** Every question has readable evidence, so none is blocked by the bad scan. */
@@ -160,42 +158,6 @@ test.describe('Questionnaire summary strip', () => {
   })
 })
 
-test.describe('Cases summary tiles', () => {
-  /** Two cases, one of them archived — the state where the tile's silence bites. */
-  const CASES = [
-    { ...CASE_SUMMARY, id: 'c-active', title: 'Active case', status: 'DRAFT' },
-    {
-      ...CASE_SUMMARY,
-      id: 'c-archived',
-      title: 'Archived case',
-      status: 'ARCHIVED',
-      archived_at: new Date().toISOString(),
-      status_before_archive: 'IN_REVIEW',
-    },
-  ]
-
-  test('the count says it excludes archived cases', async ({ page }) => {
-    await stubActor(page)
-    await page.route('**/health', (r) =>
-      r.fulfill({ status: 200, contentType: 'application/json', headers: CORS, body: '{"status":"ok"}' }),
-    )
-    await page.route('**/api/v1/cases', (r) =>
-      r.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        headers: CORS,
-        body: JSON.stringify(CASES),
-      }),
-    )
-    await page.goto('/')
-
-    const tiles = page.locator('.summary-grid')
-    // "Cases 1" beside "Show archived 1" invites the reader to add them; the
-    // tile counts only what the table shows, and now says which that is.
-    await expect(tiles.getByText('Active cases', { exact: true })).toBeVisible()
-    await expect(tiles.getByText('Cases', { exact: true })).toHaveCount(0)
-  })
-})
 
 test.describe('Row menu alignment', () => {
   test('every item in the menu starts at the same left edge', async ({ page }) => {
@@ -215,24 +177,23 @@ test.describe('Row menu alignment', () => {
     await page.getByTestId('case-menu-c-draft').click()
 
     const menu = page.getByRole('menu')
-    const archive = menu.getByRole('menuitem', { name: 'Archive' })
     const del = menu.getByRole('menuitem', { name: 'Delete' })
-    await expect(archive).toBeVisible()
     await expect(del).toBeVisible()
 
     // `.danger` carries `justify-content: center` from the shared button rule,
     // and the menu rule never overrode it — so Delete centred its icon and
-    // label inside a full-width button while Archive sat at the left edge.
-    const [a, d] = [await archive.boundingBox(), await del.boundingBox()]
-    expect(a).not.toBeNull()
-    expect(d).not.toBeNull()
-    expect(Math.abs(a!.x - d!.x)).toBeLessThan(1)
-
-    const icons = [
-      await archive.locator('svg').boundingBox(),
-      await del.locator('svg').boundingBox(),
-    ]
-    expect(Math.abs(icons[0]!.x - icons[1]!.x)).toBeLessThan(1)
+    // label inside a full-width button instead of starting at the left edge.
+    //
+    // This used to compare Delete against Archive. Archiving is gone and Delete
+    // is the only item left, so there is no sibling to misalign against — but
+    // the defect is still reachable, because it is about one button centring
+    // its own contents. Measured directly instead: a left-aligned item starts
+    // its icon within the button's padding; a centred one pushes it far in.
+    const button = await del.boundingBox()
+    const icon = await del.locator('svg').boundingBox()
+    expect(button).not.toBeNull()
+    expect(icon).not.toBeNull()
+    expect(icon!.x - button!.x).toBeLessThan(24)
   })
 })
 

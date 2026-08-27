@@ -25,7 +25,7 @@ import type {
   UpdateActionStatusRequest,
 } from './types'
 
-export const API_BASE_URL =
+const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
 
 /**
@@ -76,18 +76,6 @@ export class ApiUnreachableError extends Error {
   }
 }
 
-/**
- * A 401 from an endpoint that expected a session.
- *
- * Extends `ApiError` so `errorMessage()` and every existing `catch` keep
- * working — this narrows the type, it does not change the shape.
- */
-export class UnauthenticatedError extends ApiError {
-  // `ApiError`'s constructor sets `name = 'ApiError'`, so without this a
-  // thrown UnauthenticatedError announces itself as the wrong class in every
-  // stack trace. The class field runs after super() and wins.
-  readonly name = 'UnauthenticatedError'
-}
 
 let sessionLostListener: (() => void) | null = null
 
@@ -217,10 +205,10 @@ async function request<T>(
     }
     const detail = normaliseError(res.status, body)
 
-    if (res.status === 401) {
-      if (!options.silentAuthFailure) sessionLostListener?.()
-      throw new UnauthenticatedError(res.status, detail)
-    }
+    // A 401 from any endpoint that is not `login` or `register` means the
+    // session is gone. There is no distinct error class: nothing ever branched
+    // on one, because the announcement below is what actually drives recovery.
+    if (res.status === 401 && !options.silentAuthFailure) sessionLostListener?.()
 
     throw new ApiError(res.status, detail)
   }
@@ -296,21 +284,7 @@ export const api = {
     return request<CaseSummary>(`/api/v1/cases/${enc(caseId)}`)
   },
 
-  /** POST /api/v1/cases/{case_id}/archive
-   *
-   * Retires a case without destroying anything. Refused with 409
-   * CASE_ALREADY_ARCHIVED if it is already archived. */
-  archiveCase(caseId: string): Promise<CaseSummary> {
-    return request<CaseSummary>(`/api/v1/cases/${enc(caseId)}/archive`, { method: 'POST' })
-  },
 
-  /** POST /api/v1/cases/{case_id}/unarchive
-   *
-   * Restores the status the case held before it was archived. Refused with 409
-   * CASE_NOT_ARCHIVED if it is not archived. */
-  unarchiveCase(caseId: string): Promise<CaseSummary> {
-    return request<CaseSummary>(`/api/v1/cases/${enc(caseId)}/unarchive`, { method: 'POST' })
-  },
 
   /** DELETE /api/v1/cases/{case_id} — 204, no body.
    *

@@ -18,12 +18,6 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 
 _hasher = PasswordHasher()
 
-#: A real argon2 hash of a value no one holds. `verify_password` against this
-#: costs what a genuine verification costs, which is how the login path spends
-#: the same time on an address that has no account as on one that does. Without
-#: it, response time alone answers "is this email registered?".
-DUMMY_HASH = _hasher.hash("bukti-esg-dummy-password-not-a-credential")
-
 
 def hash_password(plain: str) -> str:
     return _hasher.hash(plain)

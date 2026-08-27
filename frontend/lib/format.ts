@@ -97,7 +97,7 @@ export function initials(name: string | null | undefined): string {
 
 // ---- CSV / download ----------------------------------------------------
 
-export function toCsvValue(value: string | number | null | undefined): string {
+function toCsvValue(value: string | number | null | undefined): string {
   const str = value === null || value === undefined ? '' : String(value)
   return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str
 }
@@ -135,17 +135,3 @@ export function getFileKind(name: string, mime = ''): FileKind {
   return 'other'
 }
 
-export function kindLabel(kind: FileKind): string {
-  switch (kind) {
-    case 'pdf':
-      return 'PDF document'
-    case 'image':
-      return 'Image'
-    case 'spreadsheet':
-      return 'Spreadsheet'
-    case 'doc':
-      return 'Word document'
-    default:
-      return 'Document'
-  }
-}

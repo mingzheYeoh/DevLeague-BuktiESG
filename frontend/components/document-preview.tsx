@@ -355,7 +355,7 @@ function OriginalFileView({
 }
 
 /** A short label for where a fragment sits, phrased for the format it came from. */
-export function chunkLocus(chunk: DocumentChunkRecord): string {
+function chunkLocus(chunk: DocumentChunkRecord): string {
   if (chunk.page_number !== null) return `Page ${chunk.page_number}`
   if (chunk.sheet_name) {
     return chunk.cell_range ? `${chunk.sheet_name} · ${chunk.cell_range}` : chunk.sheet_name

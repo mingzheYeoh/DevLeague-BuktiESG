@@ -18,7 +18,6 @@ import io
 import pytest
 from openpyxl import Workbook
 
-from app.enums import CASE_DELETABLE_FROM
 from app.models import (
     Action,
     Answer,
@@ -79,101 +78,6 @@ def _upload_questionnaire(client, case_id: str) -> dict:
 # ---- Archiving ---------------------------------------------------------------
 
 
-def test_archiving_a_draft_case_records_where_it_came_from_and_when(client):
-    case_id = _case(client)
-
-    resp = client.post(f"/api/v1/cases/{case_id}/archive")
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["status"] == "ARCHIVED"
-    assert body["status_before_archive"] == "DRAFT"
-    assert body["archived_at"] is not None
-
-
-@pytest.mark.parametrize("status", WORKED_ON)
-def test_archive_remembers_the_exact_status_and_unarchive_restores_it(
-    client, db_session, status
-):
-    """The point of `status_before_archive`.
-
-    Archiving a READY Case and restoring it as DRAFT would silently destroy the
-    fact that it ever got to READY — the same one-way-door problem that
-    produced the REOPEN review action.
-    """
-    case_id = _case(client)
-    _set_status(db_session, case_id, status)
-
-    archived = client.post(f"/api/v1/cases/{case_id}/archive").json()
-    assert archived["status"] == "ARCHIVED"
-    assert archived["status_before_archive"] == status
-
-    restored = client.post(f"/api/v1/cases/{case_id}/unarchive")
-
-    assert restored.status_code == 200
-    body = restored.json()
-    assert body["status"] == status
-    # Both columns are cleared, so a second archive records the new status
-    # rather than a stale one.
-    assert body["status_before_archive"] is None
-    assert body["archived_at"] is None
-
-
-def test_archiving_an_already_archived_case_is_refused(client):
-    """Silently succeeding would overwrite `status_before_archive` with
-    ARCHIVED, and the restore target would be lost."""
-    case_id = _case(client)
-    client.post(f"/api/v1/cases/{case_id}/archive")
-
-    resp = client.post(f"/api/v1/cases/{case_id}/archive")
-
-    assert resp.status_code == 409
-    assert resp.json()["detail"]["error"]["code"] == "CASE_ALREADY_ARCHIVED"
-
-
-def test_unarchiving_a_case_that_is_not_archived_is_refused(client):
-    case_id = _case(client)
-
-    resp = client.post(f"/api/v1/cases/{case_id}/unarchive")
-
-    assert resp.status_code == 409
-    error = resp.json()["detail"]["error"]
-    assert error["code"] == "CASE_NOT_ARCHIVED"
-    assert error["details"]["status"] == "DRAFT"
-
-
-def test_archiving_destroys_nothing(client):
-    """Archive is the safe option, so everything under the Case survives it and
-    stays readable."""
-    case_id = _case(client)
-    _upload_questionnaire(client, case_id)
-    questions_before = client.get(f"/api/v1/cases/{case_id}/questions").json()
-    assert questions_before
-
-    client.post(f"/api/v1/cases/{case_id}/archive")
-
-    assert client.get(f"/api/v1/cases/{case_id}").status_code == 200
-    assert client.get(f"/api/v1/cases/{case_id}/questions").json() == questions_before
-    assert client.get(f"/api/v1/cases/{case_id}/documents").json()
-
-
-def test_archived_cases_are_still_listed(client):
-    """The list endpoint stays complete. Hiding archived Cases by default is a
-    presentation choice, and the client makes it — an API that drops rows leaves
-    no way to find them again."""
-    kept = _case(client, "Kept")
-    archived = _case(client, "Archived")
-    client.post(f"/api/v1/cases/{archived}/archive")
-
-    listed = {c["id"]: c["status"] for c in client.get("/api/v1/cases").json()}
-
-    assert listed[kept] == "DRAFT"
-    assert listed[archived] == "ARCHIVED"
-
-
-# ---- Deleting ----------------------------------------------------------------
-
-
 def test_a_draft_case_can_be_deleted(client):
     case_id = _case(client)
 
@@ -182,38 +86,6 @@ def test_a_draft_case_can_be_deleted(client):
     assert resp.status_code == 204
     assert client.get(f"/api/v1/cases/{case_id}").status_code == 404
     assert case_id not in {c["id"] for c in client.get("/api/v1/cases").json()}
-
-
-def test_an_archived_case_can_be_deleted(client, db_session):
-    """Archiving is the way through the gate: a Case that could not be deleted
-    directly can be deleted once retired."""
-    case_id = _case(client)
-    _set_status(db_session, case_id, "READY")
-    assert client.delete(f"/api/v1/cases/{case_id}").status_code == 409
-
-    client.post(f"/api/v1/cases/{case_id}/archive")
-
-    assert client.delete(f"/api/v1/cases/{case_id}").status_code == 204
-
-
-@pytest.mark.parametrize("status", WORKED_ON)
-def test_a_case_that_has_been_worked_on_cannot_be_deleted_directly(
-    client, db_session, status
-):
-    case_id = _case(client)
-    _set_status(db_session, case_id, status)
-
-    resp = client.delete(f"/api/v1/cases/{case_id}")
-
-    assert resp.status_code == 409
-    error = resp.json()["detail"]["error"]
-    assert error["code"] == "CASE_NOT_DELETABLE"
-    assert error["details"]["status"] == status
-    assert error["details"]["deletable_from"] == list(CASE_DELETABLE_FROM)
-    # The refusal has to say what to do instead, not just "no".
-    assert "archive" in error["message"].lower()
-    # And the Case is untouched.
-    assert client.get(f"/api/v1/cases/{case_id}").status_code == 200
 
 
 def test_deleting_a_case_takes_its_questions_answers_documents_and_actions(
@@ -287,16 +159,26 @@ def test_deleting_a_case_that_never_uploaded_anything_is_not_an_error(client):
     assert client.delete(f"/api/v1/cases/{case_id}").status_code == 204
 
 
-def test_retirement_endpoints_404_on_an_unknown_case(client):
-    missing = "00000000-0000-0000-0000-000000000000"
-
-    assert client.post(f"/api/v1/cases/{missing}/archive").status_code == 404
-    assert client.post(f"/api/v1/cases/{missing}/unarchive").status_code == 404
-    assert client.delete(f"/api/v1/cases/{missing}").status_code == 404
-
-
 def test_a_case_id_that_escapes_the_storage_root_is_refused():
     """`case_id` comes off the URL and is handed to shutil.rmtree, so it gets the
     same escape check as the read path."""
     with pytest.raises(storage.StorageKeyOutsideRoot):
         storage.delete_case_tree("../../etc")
+
+
+def test_a_case_that_has_been_worked_on_can_be_deleted(client, db_session):
+    """The demo line ends at EXPORTED, and that case has to be deletable.
+
+    Deletion used to be refused for anything past DRAFT, with the error saying
+    "archive it first". Archiving is gone, so that gate would have made every
+    case that completed the flow permanently undeletable - the exact opposite
+    of what removing a feature was supposed to achieve.
+
+    Replaces `test_a_case_that_has_been_worked_on_cannot_be_deleted_directly`,
+    which asserted the gate this removes.
+    """
+    case_id = _case(client, "Worked on")
+    _set_status(db_session, case_id, "EXPORTED")
+
+    assert client.delete(f"/api/v1/cases/{case_id}").status_code == 204
+    assert client.get(f"/api/v1/cases/{case_id}").status_code == 404

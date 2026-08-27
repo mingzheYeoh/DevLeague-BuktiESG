@@ -233,16 +233,16 @@ class Case(Base):
     reporting_period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     reporting_period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="DRAFT")
-    # Retirement. ARCHIVED is an ordinary `status` value, already in
-    # CASE_STATUS, so nothing downstream needs a new concept. These two columns
-    # exist only so the transition is dated and reversible: without
-    # status_before_archive, archiving a READY or EXPORTED Case would silently
-    # destroy the fact that it got that far. Same reasoning that produced the
-    # REOPEN review action (see enums.py REVIEW_ACTION) — a status a human can
-    # set and never clear is a trap.
+    # Vestigial. Archiving was removed when the project narrowed to the demo
+    # line (create -> questionnaire -> evidence -> match -> confirm -> export,
+    # plus delete). Nothing reads or writes these two columns any more.
     #
-    # archived_at rather than reading updated_at: updated_at is overwritten by
-    # the next write, including the unarchive.
+    # They are left in place rather than dropped because removing them needs a
+    # migration, and `backend/migrations/**` is a protected path — real schema
+    # risk for no demo benefit. `ARCHIVED` likewise stays in CASE_STATUS: the
+    # CHECK constraint in the live database already allows it, and narrowing
+    # the Python tuple would make a freshly created schema disagree with a
+    # migrated one.
     archived_at: Mapped[datetime | None] = mapped_column(
         UtcDateTime, nullable=True
     )

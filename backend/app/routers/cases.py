@@ -18,12 +18,6 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.auth import Actor, current_actor, require_admin, require_case
 from app.db import get_db
-from app.enums import CASE_DELETABLE_FROM
-from app.errors import (
-    case_already_archived,
-    case_not_archived,
-    case_not_deletable,
-)
 from app.models import Case, Question, Questionnaire
 from app.schemas import CaseCreate, CaseSummary, ReadinessSummary
 from app.services import storage
@@ -85,58 +79,13 @@ def get_case(case: Case = Depends(require_case)) -> CaseSummary:
     return CaseSummary.from_model(case)
 
 
-@router.post("/{case_id}/archive", response_model=CaseSummary)
-def archive_case(
-    case: Case = Depends(require_case), db: Session = Depends(get_db)
-) -> CaseSummary:
-    """Retire a Case without destroying anything.
-
-    Allowed from every status except ARCHIVED. Notably including PROCESSING:
-    archiving is a filing decision, and refusing it because a parse job is in
-    flight would leave the operator unable to tidy a Case that failed halfway.
-    It does not cancel jobs, and it does not claim to — nothing in
-    processing_jobs is touched.
-    """
-    if case.status == "ARCHIVED":
-        raise case_already_archived(case.id)
-
-    case.status_before_archive = case.status
-    case.status = "ARCHIVED"
-    case.archived_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(case)
-    return CaseSummary.from_model(case)
-
-
-@router.post("/{case_id}/unarchive", response_model=CaseSummary)
-def unarchive_case(
-    case: Case = Depends(require_case), db: Session = Depends(get_db)
-) -> CaseSummary:
-    """Put an archived Case back exactly where it was."""
-    if case.status != "ARCHIVED":
-        raise case_not_archived(case.id, case.status)
-
-    # The fallback only applies to a row whose status was set to ARCHIVED by
-    # something other than the archive endpoint — direct SQL, or a database
-    # predating migration 0005. DRAFT is the honest answer there: the previous
-    # status was not recorded, so it is not known, and inventing IN_REVIEW or
-    # READY would assert progress that cannot be substantiated.
-    case.status = case.status_before_archive or "DRAFT"
-    case.status_before_archive = None
-    case.archived_at = None
-    db.commit()
-    db.refresh(case)
-    return CaseSummary.from_model(case)
-
-
 @router.delete("/{case_id}", status_code=204)
 def delete_case(
     case: Case = Depends(require_case),
     _: Actor = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> Response:
-    """Delete a Case and everything under it. Refused unless the Case is in
-    one of `CASE_DELETABLE_FROM`.
+    """Delete a Case and everything under it.
 
     Goes through the ORM rather than a bulk DELETE so the
     ``cascade="all, delete-orphan"`` declared on Case.documents,
@@ -151,10 +100,12 @@ def delete_case(
 
     ADMIN-only: deletion destroys another member's work, which is the line the
     two roles exist to draw.
-    """
-    if case.status not in CASE_DELETABLE_FROM:
-        raise case_not_deletable(case.id, case.status, CASE_DELETABLE_FROM)
 
+    Deletable from any status. It used to be refused unless the Case was DRAFT
+    or ARCHIVED, with the error telling you to archive it first - and archiving
+    is gone, so that check would have made every case that reached EXPORTED
+    permanently undeletable.
+    """
     case_id = case.id
     db.delete(case)
     db.commit()

@@ -145,11 +145,6 @@ export interface CaseSummary {
   deadline_at: string | null
   status: CaseStatus
   updated_at: string
-  /** Set only while `status` is `ARCHIVED`. */
-  archived_at: string | null
-  /** The status the case held when it was archived, so a restore can name its
-   * target instead of offering an unlabelled undo. Null unless archived. */
-  status_before_archive: CaseStatus | null
 }
 
 /** `GET /api/v1/cases/{id}/readiness`. Computed server-side from the
