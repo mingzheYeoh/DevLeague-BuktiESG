@@ -718,7 +718,8 @@ h1, h2, h3, p {
 .drawer input,
 .drawer select,
 .drawer textarea,
-.review-form textarea {
+.review-form textarea,
+.auth-form input {
   border: 1px solid var(--line-strong);
   border-radius: 9px;
   background: var(--surface);
@@ -981,9 +982,14 @@ h1, h2, h3, p {
   letter-spacing: -0.02em;
 }
 
+/* `.auth-form` was missing from this list, and the auth markup wraps its input
+   in its own label. Without the column direction the field rendered inline
+   after the label text - the email input sat on top of the word "Email" and
+   the password field had nowhere to go. */
 .form-card label,
 .drawer label,
-.review-form label {
+.review-form label,
+.auth-form label {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -996,7 +1002,8 @@ h1, h2, h3, p {
 .form-card input,
 .form-card select,
 .drawer input,
-.drawer select {
+.drawer select,
+.auth-form input {
   height: 38px;
   padding: 0 12px;
 }
@@ -3099,31 +3106,94 @@ tr.is-archived:hover td {
   background: var(--background);
 }
 
+/* A surface, like every other form in the product. This was the one screen
+   where a form sat flat on the page background with no card around it. */
 .auth-card {
   width: 100%;
   max-width: 26rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--space-5);
+  padding: var(--space-8);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* `.brand` carries padding sized for the sidebar rail. Here the lockup is the
+   masthead of a single card and wants none of it. */
+.auth-card .brand {
+  padding: 0;
 }
 
 .auth-card h1 {
-  font-size: 1.35rem;
   margin: 0;
+  font-size: 20px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--space-4);
+}
+
+/* The form spaces its own children with `gap`, so the 16px the shared label
+   rule adds below every field would space them twice. */
+.auth-form label {
+  margin-bottom: 0;
+}
+
+/* The browser default placeholder is lighter than the token the rest of the app
+   uses, and `--subtle` is the value that was measured for contrast. */
+.auth-form input::placeholder {
+  color: var(--subtle);
+}
+
+/* RegisterForm sets aria-invalid on a password under 12 characters. Until now
+   that reached assistive technology and nothing else - the field looked
+   identical whether or not the value would be rejected. */
+.auth-form input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.auth-form input[aria-invalid='true']:focus-visible {
+  outline-color: var(--danger);
+}
+
+/* `.full` adds a 12px top margin for a button following body copy; inside this
+   form the gap has already done that. */
+.auth-form .primary.full {
+  margin-top: 0;
+}
+
+/* "Back to sign in" belongs under the primary action rather than stretched
+   across the card like one. */
+.auth-form > .link {
+  align-self: center;
+}
+
+/* Both the password hint inside the form and the "No account yet?" line under
+   it. `.field-hint` brings a 6px top margin that doubles up with the gap. */
+.auth-card .field-hint {
+  margin: 0;
+}
+
+.auth-card > .field-hint {
+  text-align: center;
 }
 
 .auth-notice {
   margin: 0;
-  padding: 0.6rem 0.75rem;
-  border-radius: 0.5rem;
-  background: color-mix(in srgb, currentColor 6%, transparent);
-  font-size: 0.9rem;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid #cfe4f0;
+  border-radius: var(--radius-sm);
+  background: var(--info-bg);
+  color: var(--info);
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 /* The re-auth overlay. Sits over the still-mounted workspace when a live
