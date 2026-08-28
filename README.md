@@ -33,7 +33,7 @@ summary.
 
 ## Running It Locally
 
-Two processes. The frontend talks to the backend over HTTP and holds no data of its own.
+Three processes, one of them optional. The frontend talks to the backend over HTTP and holds no data of its own.
 
 ```bash
 # Configuration — one file at the repository root, read by Compose and the API
@@ -52,7 +52,24 @@ uv run uvicorn app.main:app --reload
 cd frontend
 npm install
 npm run dev
+
+# Terminal 3 — the extraction worker. Optional, and only for values.
+cd backend
+uv run python worker.py
 ```
+
+The worker is the one process you can leave out and still have a working
+application: uploads succeed and questions still get their evidence without it.
+What it drains is the `EXTRACT_VALUES` queue, which cannot run inline — two or
+three chunks take 12–22 seconds — so without it `evidence_links.value` stays
+null and the `CONFLICTING` evidence status is unreachable. The other six
+statuses are unaffected. [`backend/README.md`](backend/README.md) has the
+detail.
+
+For demonstrating rather than developing, [`demo.ps1`](demo.ps1) starts all of
+it in order, waits for each piece to actually answer, and gives you a `reset`
+between runs. [`DEMO.md`](DEMO.md) is the walkthrough — including what this
+build cannot do, which is worth reading before showing it to anyone.
 
 One `.env`, at the repository root. Compose reads the file beside `docker-compose.yml`, and `app/config.py` anchors to the same directory rather than to whatever directory it was launched from — so the API reads its configuration whether you start it from `backend/` or not. `DATABASE_URL` is derived from `POSTGRES_PASSWORD`, so the password is written once; set `DATABASE_URL` explicitly only to point somewhere other than the Compose database.
 
