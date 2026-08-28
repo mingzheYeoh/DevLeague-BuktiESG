@@ -33,6 +33,8 @@ summary.
 
 ## Running It Locally
 
+On a fresh clone you need **Docker** (for PostgreSQL), **[uv](https://docs.astral.sh/uv/)** and **Node 22** (`.nvmrc`). You do not need to install Python separately — `pyproject.toml` pins `>=3.12,<3.13` and uv fetches it.
+
 Three processes, one of them optional. The frontend talks to the backend over HTTP and holds no data of its own.
 
 ```bash
@@ -66,10 +68,18 @@ null and the `CONFLICTING` evidence status is unreachable. The other six
 statuses are unaffected. [`backend/README.md`](backend/README.md) has the
 detail.
 
-For demonstrating rather than developing, [`demo.ps1`](demo.ps1) starts all of
-it in order, waits for each piece to actually answer, and gives you a `reset`
-between runs. [`DEMO.md`](DEMO.md) is the walkthrough — including what this
-build cannot do, which is worth reading before showing it to anyone.
+For demonstrating rather than developing, [`demo.ps1`](demo.ps1) on Windows and
+[`demo.sh`](demo.sh) on macOS and Linux start all of it in order, wait for each
+piece to actually answer, and give you a `reset` between runs. Same three
+subcommands, same output. [`DEMO.md`](DEMO.md) is the walkthrough — including
+what this build cannot do, which is worth reading before showing it to anyone.
+
+Note that a fresh clone has **no accounts**: registration creates an
+organization and makes you its ADMIN, so each person who registers lands in
+their **own tenant** and sees none of the others' cases. That is the isolation
+working, not a fault — but there is no invitation flow yet (the `invitations`
+table exists; nothing writes to it), so two people who need the same data
+currently have to share one account.
 
 One `.env`, at the repository root. Compose reads the file beside `docker-compose.yml`, and `app/config.py` anchors to the same directory rather than to whatever directory it was launched from — so the API reads its configuration whether you start it from `backend/` or not. `DATABASE_URL` is derived from `POSTGRES_PASSWORD`, so the password is written once; set `DATABASE_URL` explicitly only to point somewhere other than the Compose database.
 

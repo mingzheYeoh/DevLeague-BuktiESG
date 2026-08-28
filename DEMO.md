@@ -11,15 +11,30 @@ promise" before demonstrating to anyone.**
 
 ## Before you start
 
+**Windows**
+
 ```powershell
 .\demo.ps1 up
 ```
 
-Postgres, then migrations, then API / worker / web in three panes. It waits for
-the healthcheck and for both ports to answer before telling you it is ready, so
-when it says ready the links work.
+**macOS / Linux**
 
-Sign in at <http://127.0.0.1:3000>.
+```bash
+./demo.sh up
+```
+
+Postgres, then migrations, then API / worker / web — three panes in Windows
+Terminal, or in `tmux` where it is installed, or backgrounded with logs under
+`backend/var/log` where it is not. Either way it waits for the healthcheck and
+for both ports to answer before saying it is ready, so when it says ready the
+links work.
+
+Sign in at <http://localhost:3000>.
+
+> **`localhost`, not `127.0.0.1`.** They are different origins, and the frontend
+> calls `http://localhost:8000` by default — so the `127.0.0.1` form makes every
+> API call cross-origin. Not a pedantic distinction: it is how the hanging
+> session gate was found, and this line used to name the wrong one.
 
 > **One rule: upload only from `sample/`.**
 >
@@ -189,9 +204,9 @@ build can actually stand behind.
 |---|---|
 | Upload succeeds, values never appear | The **worker** pane. Without it running, evidence still links; only values stay null |
 | Worker logs "outside Malaysia" once at startup | Expected. `DeepSeekExtractor` is selected and says so |
-| Every value is null and no warning appeared | `DEEPSEEK_API_KEY` unset — the worker is on `NullExtractor`. `.\demo.ps1 up` warns about this |
-| UI says it cannot reach the backend | The **API** pane, then <http://127.0.0.1:8000/health> |
-| Port still held after closing a pane | `.\demo.ps1 down` kills by listening port; `npm run dev` leaves a child behind |
+| Every value is null and no warning appeared | `DEEPSEEK_API_KEY` unset — the worker is on `NullExtractor`. both `up` commands warn about this |
+| UI says it cannot reach the backend | The **API** pane, then <http://localhost:8000/health> |
+| Port still held after closing a pane | `down` kills the whole process group; `npm run dev` and `uvicorn --reload` both leave children behind |
 
 ---
 
@@ -201,6 +216,14 @@ build can actually stand behind.
 .\demo.ps1 reset   # deletes every case, keeps the account and organization
 .\demo.ps1 down    # stops Postgres, frees 8000 and 3000
 ```
+
+```bash
+./demo.sh reset
+./demo.sh down
+```
+
+Both read `DEMO_EMAIL` / `DEMO_PASSWORD` from the environment or the root `.env`,
+and prompt if neither is set. Neither script generates or stores a password.
 
 `reset` goes through the API rather than truncating tables, because nothing in
 the database owns the uploaded bytes — the row cascade alone would leave them on
