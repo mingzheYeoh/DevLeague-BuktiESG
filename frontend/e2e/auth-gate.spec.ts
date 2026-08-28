@@ -167,3 +167,26 @@ test('registration tells the user to sign in, not to check an email that does no
   await expect(page.getByText('check your email')).toHaveCount(0)
   await expect(page.getByTestId('sign-in-email')).toHaveValue('new@tenggara.example')
 })
+
+test('an API that accepts the request and never answers still reaches the sign-in screen', async ({
+  page,
+}) => {
+  // Neither fulfilled nor aborted: the request is accepted and simply never
+  // answered. That is a third case, and the gate handles only the other two -
+  // a 401 rejects, an unreachable host rejects, and both land in the same
+  // catch. A promise that never settles is neither, so `state` stays
+  // 'loading' and the app sits on "Checking your session..." with no error
+  // and no exit.
+  //
+  // Not hypothetical: a deployed build probes the viewer's own localhost:8000,
+  // and this is what it gets when something there is listening but will not
+  // answer it.
+  await page.route('**/api/v1/auth/me', () => {
+    // Deliberately empty.
+  })
+
+  await page.goto('/')
+
+  await expect(page.getByTestId('sign-in-form')).toBeVisible({ timeout: 25_000 })
+  await expect(page.getByText('Checking your session')).toHaveCount(0)
+})
