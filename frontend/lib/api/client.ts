@@ -29,6 +29,27 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
 
 /**
+ * How long a request may take before it is treated as unreachable.
+ *
+ * `fetch` has no timeout of its own. A host that refuses the connection
+ * rejects immediately and lands in the catch below, which is why an API that
+ * is simply down has always behaved correctly. A host that *accepts* the
+ * connection and then never answers leaves the promise pending forever, and
+ * nothing above catches that: `SessionProvider` stays in its 'loading' state
+ * and the app shows "Checking your session..." with no error and no exit.
+ *
+ * Observed against a deployed build. `NEXT_PUBLIC_API_BASE_URL` is unset there,
+ * so the page probes the *viewer's own* localhost:8000 - which on a developer's
+ * machine is often listening, and will not answer a request from that origin.
+ *
+ * Uploads get their own budget. `max_upload_bytes` is 10 MB, and cutting a slow
+ * connection off after fifteen seconds would break a legitimate upload in order
+ * to fix a problem it does not have.
+ */
+const REQUEST_TIMEOUT_MS = 15_000
+const UPLOAD_TIMEOUT_MS = 120_000
+
+/**
  * A failed API call, normalised across the three error shapes the server can
  * produce.
  */
@@ -185,6 +206,12 @@ async function request<T>(
       // nothing here can read or attach it by hand. Without this the browser
       // omits it on a cross-origin request and every call is 401.
       credentials: 'include',
+      // A timeout rejects, so it arrives in the same catch as a refused
+      // connection and produces the same error. That is deliberate: the reader
+      // is told to check that the backend is running and that
+      // NEXT_PUBLIC_API_BASE_URL is right, and those are the two things to
+      // check whether the host said no or said nothing.
+      signal: AbortSignal.timeout(isFormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
       headers: {
         Accept: 'application/json',
         // Let the browser set the multipart boundary itself.
