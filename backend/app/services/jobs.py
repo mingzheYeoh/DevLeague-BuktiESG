@@ -211,7 +211,7 @@ def claim_next_job(db: Session) -> ProcessingJob | None:
 # --------------------------------------------------------------------------- #
 
 
-def run_document_job(db: Session, job: ProcessingJob) -> None:
+def run_document_job(db: Session, job: ProcessingJob, data: bytes | None = None) -> None:
     """Run one Document-processing job to a terminal state.
 
     Never raises past this function on a parser/content failure — those are
@@ -231,7 +231,8 @@ def run_document_job(db: Session, job: ProcessingJob) -> None:
         return
 
     case = db.get(Case, document.case_id)
-    data = _load_document_bytes(document)
+    if data is None:
+        data = _load_document_bytes(document)
 
     try:
         if job.job_type == "DOCUMENT_PARSE":

@@ -180,7 +180,7 @@ async def upload_document(
         job_type=_job_type_for(document_type),
         document_id=document.id,
     )
-    jobs.run_document_job(db, job)
+    jobs.run_document_job(db, job, data)
 
     db.commit()
     db.refresh(document)

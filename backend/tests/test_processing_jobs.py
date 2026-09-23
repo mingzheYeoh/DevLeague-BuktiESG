@@ -16,6 +16,7 @@ from docx import Document as DocxDocument
 from openpyxl import Workbook
 
 from app.models import ProcessingJob
+from app.services import storage
 
 
 def _build_questionnaire_xlsx(rows: list[dict]) -> bytes:
@@ -110,6 +111,23 @@ def test_upload_creates_a_processing_job_row(client, db_session):
     assert job.status == "SUCCEEDED"
     assert job.started_at is not None
     assert job.finished_at is not None
+
+
+def test_upload_indexes_received_bytes_without_reading_blob_back(client, monkeypatch):
+    case_id = client.post("/api/v1/cases", json={"title": "Case"}).json()["id"]
+
+    def unexpected_read(_storage_key):
+        raise AssertionError("upload already has the file bytes")
+
+    monkeypatch.setattr(storage, "load", unexpected_read)
+    response = client.post(
+        f"/api/v1/cases/{case_id}/documents",
+        files={"file": ("evidence.txt", b"Electricity consumption: 12 kWh", "text/plain")},
+        data={"document_type": "UTILITY_BILL"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["processing_status"] == "INDEXED"
 
 
 # --------------------------------------------------------------------------- #
