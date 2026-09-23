@@ -123,7 +123,7 @@ cmd_up() {
     note 'DEEPSEEK_API_KEY is not set - the worker will use NullExtractor and extract no values.'
   else
     ok 'DEEPSEEK_API_KEY is set - real extraction.'
-    note 'Upload only from sample/ while the key is set (AGENTS.md 3.1).'
+    note 'Upload only synthetic documents while the key is set (see README.md).'
   fi
 
   step 'Starting PostgreSQL'
@@ -145,7 +145,7 @@ cmd_up() {
   ok "Web   $WEB_BASE"
 
   printf '\n%sReady. Open %s%s\n' "$C_OK" "$WEB_BASE" "$C_OFF"
-  printf '%sRunbook: DEMO.md%s\n' "$C_OK" "$C_OFF"
+  printf '%sGetting started: README.md%s\n' "$C_OK" "$C_OFF"
 }
 
 cmd_reset() {
