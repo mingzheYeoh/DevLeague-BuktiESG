@@ -1,0 +1,8 @@
+CUSTOMER PRIVACY INCIDENT REVIEW - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January to 31 December 2025). Scope: Klang plant customer data. Approved by the Data Protection Officer on 21 January 2026.
+Substantiated complaints concerning breaches of customer privacy: 0 in FY2025.
+Confirmed losses of customer data: 0 in FY2025.
+Substantiated complaints concerning customer privacy breaches: 0; confirmed losses of customer data: 0 in FY2025 after investigation of one encrypted-device theft.
+One company laptop containing an encrypted customer contact list was stolen from a locked vehicle on 19 September 2025; the customer was notified on 22 September 2025.
+Investigation found full-disk encryption active, no evidence of access to the encrypted data, remote credentials revoked, and no customer complaint. The case was closed on 4 November 2025 as a device loss, not a substantiated privacy breach or confirmed customer-data loss.
+This signed review resolves the ambiguity in C-04: the incident must still be disclosed to a reviewer, even though the final counts for substantiated complaints and confirmed data loss are zero.

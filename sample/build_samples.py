@@ -1,4 +1,4 @@
-"""Regenerate every file in this folder.
+"""Regenerate the original synthetic questionnaire and evidence files.
 
 The `.txt` files are readable in any editor; the `.xlsx`, `.docx` and `.pdf`
 files are binary, so this script is the readable source for them — edit here
@@ -18,7 +18,7 @@ matters: a demo questionnaire invented from scratch teaches you nothing about
 whether the product can answer the questions customers actually send.
 
 The **evidence is entirely synthetic** and describes a company that does not
-exist (AGENTS.md §3.1 — synthetic data only, no exceptions). Two files marked
+exist. Two files marked
 `reference-` carry real published figures with their source named inside the
 file, and nothing else does.
 
@@ -49,29 +49,10 @@ whole point of the sample set is that a reviewer has to tell them apart:
     C-*   wrong. Contradicts a sound document, or is three years stale, or
           belongs to a different legal entity, or cannot be read at all.
 
-WHAT THE RULE ENGINE CAN AND CANNOT SEE (read this before demoing)
-------------------------------------------------------------------
-The engine grades A, B and C almost identically — nearly everything comes out
-`PARTIAL`. That is not a flaw in this sample set; it is the current ceiling of
-the pipeline, and these files are built to make it visible:
-
-* `evidence_links.value` is never populated. The matcher writes only
-  `chunk_id`, `claim_supported` and `quoted_excerpt`
-  (`packages/ai-pipeline/src/ai_pipeline/analyze.py`). `CONFLICTING` requires
-  two links with the same scope and period and *different values*, so the
-  contradiction between `A-03` and `C-01` — 12.6 t against 18.4 t of scheduled
-  waste for the same year — is invisible to the engine. A human has to catch it.
-* `documents.source_date` cannot be set on upload (the endpoint takes only
-  `document_type`), so `OUTDATED` never fires either. `C-02` is three years
-  stale and the engine will not say so.
-* No endpoint moves an `evidence_links` row to `ACCEPTED`, so every link stays
-  `CANDIDATE` and `_partial_reasons` always returns at least
-  `REASON_NOT_ACCEPTED`. `VERIFIED` is therefore unreachable through the API.
-
-Reachable today: `MISSING`, `PARTIAL`, and `NOT_APPLICABLE` (a human action).
-Everything in the C tier is a gap the *reviewer* closes, not the engine. Two
-questions are also worded so that nothing matches at all, which is what
-`MISSING` looks like — a demo where every row lights up green teaches nothing.
+The 16 A-tier files support the complete 20-question trial described in
+`INTERVIEW_DEMO.md`. B/C files remain separate examples of questionable
+sources. A keyword match alone cannot establish that a source is correct;
+the reviewer must check dates, scope, units, and conflicting values.
 """
 
 from __future__ import annotations
@@ -246,11 +227,7 @@ QUESTIONS: list[tuple[str, str, str, bool]] = [
         "Governance",
         True,
     ),
-    # -- Deliberately unanswerable from this evidence set --------------------
-    #
-    # Nothing uploaded mentions either subject, and no taxonomy keyword
-    # matches. These are what MISSING looks like, and a demo without any is a
-    # demo that has quietly hidden the hard half of the job.
+    # These final two questions are covered by the later A-14 and A-15 files.
     (
         "Q-E-10",
         "SEDG-E5.1: List the materials and total weights used to package the company's "
@@ -434,7 +411,7 @@ def build_ghg_inventory_xlsx() -> None:
                 "Scope 2",
                 "Purchased grid electricity",
                 f"{ELECTRICITY_KWH:,} kWh = 1,847.3 MWh",
-                f"{GRID_FACTOR_2024} tCO2e/MWh (Peninsular, 2024)",
+                f"{GRID_FACTOR_2024} tCO2e/MWh (Energy Commission provisional Peninsular 2024 GEF)",
                 SCOPE_2_TCO2E,
                 "Location-based. Ties to A-01 monthly statements",
             ],
@@ -488,6 +465,8 @@ def build_scheduled_waste_xlsx() -> None:
         ["Total waste generated", "Hazardous plus non-hazardous", WASTE_TOTAL_T, "2025", "Klang plant"],
         ["Waste diverted from disposal", "Recycling and recovery", WASTE_DIVERTED_T, "2025", "Klang plant"],
         ["Waste directed to disposal", "Landfill and incineration", WASTE_DISPOSED_T, "2025", "Klang plant"],
+        ["Waste balance", "Total waste generated 214.7 metric tonnes; diverted from disposal 138.2 metric tonnes; directed to disposal 76.5 metric tonnes", "", "2025", "Klang plant"],
+        ["Scheduled waste by code", "Total hazardous scheduled waste generated 12.6 metric tonnes, identified by waste code: SW410 4.8, SW305 2.9, SW110 3.1, SW409 1.8", "", "2025", "Klang plant"],
     ]
     _write_xlsx(
         EVIDENCE_DIR / "A-03-scheduled-waste-consignment-fy2025.xlsx",
@@ -517,7 +496,7 @@ def build_training_register_xlsx() -> None:
     assert total_head == HEADCOUNT and total_hours == TRAINING_HOURS_TOTAL, (
         "department rows must reconcile to the headline headcount and hours"
     )
-    rows.append(["All departments, FY2025", total_head, total_hours, round(total_hours / total_head, 1)])
+    rows.append(["Average hours of training per employee for the reporting period (FY2025)", total_head, total_hours, round(total_hours / total_head, 1)])
     _write_xlsx(
         EVIDENCE_DIR / "A-04-training-register-fy2025.xlsx",
         "Training FY2025",
@@ -581,11 +560,11 @@ def build_anti_bribery_policy_docx() -> None:
             (
                 "Anti-corruption training",
                 [
-                    "All employees complete anti-bribery and anti-corruption training "
-                    "within 30 days of joining and refresh it every two years.",
                     "In FY2025, 254 of 268 employees completed the training, which is "
                     "94.8 per cent. The remaining 14 joined in December 2025 and are "
                     "scheduled for the January 2026 intake.",
+                    "All employees complete anti-bribery and anti-corruption training "
+                    "within 30 days of joining and refresh it every two years.",
                 ],
             ),
             (
@@ -707,6 +686,7 @@ TEXT_FILES: dict[str, list[str]] = {
         "Of those 4 injuries, 3 were lost-time injuries and 1 was a medical treatment case with no lost time.",
         "Total hours worked by all employees and contractors in the reporting period: 561,000.",
         "Lost time injury frequency rate (LTIFR): 5.35 per million hours worked, calculated as 3 lost-time injuries divided by 561,000 hours, multiplied by 1,000,000.",
+        "Work-related fatalities 0; work-related injuries 4; LTIFR 5.35 per million hours worked, based on 3 lost-time injuries and 561,000 hours worked.",
         "The LTIFR denominator is stated above so the rate can be recomputed rather than taken on trust.",
         "Employees trained on health and safety standards in the reporting period: 268 of 268, which is 100 per cent.",
         "The company holds ISO 45001:2018 certification for the Klang plant, valid to 30 September 2027.",
@@ -721,11 +701,13 @@ TEXT_FILES: dict[str, list[str]] = {
         "Age band 30 to 50: 158 employees (59.0 per cent).",
         "Age band over 50: 36 employees (13.4 per cent).",
         "Management positions: 24 in total, of which 9 are held by women (37.5 per cent).",
+        "Percentage of employees by gender and age band, including management: women 35.8%, men 64.2%; under 30 27.6%, 30-50 59.0%, over 50 13.4%; women in management 37.5%.",
         "Employment type: 241 permanent, 27 fixed-term contract. No employees are engaged through a labour agent.",
         "Employees who left during the reporting period: 34.",
         "Employee turnover rate for the reporting period: 12.7 per cent, calculated as 34 leavers divided by 268 employees at period end.",
         "Child labour incidents recorded in the reporting period: 0. The company does not employ any person under 18.",
         "Forced labour incidents recorded in the reporting period: 0. No employee pays a recruitment fee and no employee's passport is held by the company.",
+        "Child labour and forced labour incidents recorded during the reporting period: 0 child labour and 0 forced labour incidents.",
         "Data owner: Human Resources Manager. Reconciled against the December 2025 payroll run.",
     ],
     # ---- B tier: uncertain -------------------------------------------------
@@ -796,7 +778,7 @@ TEXT_FILES: dict[str, list[str]] = {
         "Total waste generated FY2022: 188.2 metric tonnes.",
         "Average training hours per employee FY2022: 9.4.",
         "STALE: these figures are three years older than the FY2025 period the questionnaire covers. They are presented in the same layout as the current-year files and are easy to cite by mistake.",
-        "The system will not mark this outdated either: documents.source_date cannot be set on upload, so the rule engine has no date to test against the 24-month threshold.",
+        "Upload this file with its FY2022 source date; the reviewer should confirm the reporting period before relying on it.",
     ],
     "C-03-safety-record-wrong-entity.txt": [
         "OCCUPATIONAL SAFETY RECORD - WRONG LEGAL ENTITY - SYNTHETIC SAMPLE",

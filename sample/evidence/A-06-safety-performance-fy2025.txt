@@ -5,6 +5,7 @@ Work-related injuries recorded in the reporting period: 4.
 Of those 4 injuries, 3 were lost-time injuries and 1 was a medical treatment case with no lost time.
 Total hours worked by all employees and contractors in the reporting period: 561,000.
 Lost time injury frequency rate (LTIFR): 5.35 per million hours worked, calculated as 3 lost-time injuries divided by 561,000 hours, multiplied by 1,000,000.
+Work-related fatalities 0; work-related injuries 4; LTIFR 5.35 per million hours worked, based on 3 lost-time injuries and 561,000 hours worked.
 The LTIFR denominator is stated above so the rate can be recomputed rather than taken on trust.
 Employees trained on health and safety standards in the reporting period: 268 of 268, which is 100 per cent.
 The company holds ISO 45001:2018 certification for the Klang plant, valid to 30 September 2027.

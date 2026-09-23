@@ -6,4 +6,4 @@ Scope 1 emissions FY2022: 51.3 tCO2e.
 Total waste generated FY2022: 188.2 metric tonnes.
 Average training hours per employee FY2022: 9.4.
 STALE: these figures are three years older than the FY2025 period the questionnaire covers. They are presented in the same layout as the current-year files and are easy to cite by mistake.
-The system will not mark this outdated either: documents.source_date cannot be set on upload, so the rule engine has no date to test against the 24-month threshold.
+Upload this file with its FY2022 source date; the reviewer should confirm the reporting period before relying on it.

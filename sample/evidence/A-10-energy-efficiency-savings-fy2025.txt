@@ -1,0 +1,8 @@
+ENERGY EFFICIENCY MEASUREMENT REGISTER - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January to 31 December 2025). Scope: Klang plant only. Signed off by the Facilities Manager on 20 January 2026.
+The baseline is FY2024 electricity consumption normalized to the FY2025 production volume of 250,000 finished units.
+LED replacement across the production hall reduced electricity consumption by 52,000 kWh in FY2025 against the normalized baseline.
+Compressed air leak repairs reduced electricity consumption by 41,000 kWh in FY2025 against the normalized baseline.
+Revised chiller scheduling reduced electricity consumption by 25,000 kWh in FY2025 against the normalized baseline.
+Total reduction in energy consumption from conservation and efficiency initiatives: 118,000 kWh = 52,000 + 41,000 + 25,000 kWh.
+This register resolves the unit missing from B-04: the maintenance team's 118,000 figure means kWh, not ringgit. The source estimate remains reviewable alongside this signed-off record.

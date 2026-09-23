@@ -1,0 +1,7 @@
+SUPPLIER-CONFIRMED RECYCLED INPUT MATERIALS - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January to 31 December 2025). Scope: materials used in primary products made at the Klang plant. Approved by the Procurement Manager on 22 January 2026.
+Aluminium extrusion input: 400 metric tonnes total, of which 140 metric tonnes were recycled input material (35.0 per cent), per supplier mass-balance certificate AL-2025-04.
+Steel fastener input: 250 metric tonnes total, of which 50 metric tonnes were recycled input material (20.0 per cent), per supplier declaration ST-2025-11.
+Polymer housing input: 150 metric tonnes total, of which 0 metric tonnes were recycled input material (0.0 per cent), per supplier declaration PL-2025-03.
+Recycled input materials across primary products: 190 of 800 metric tonnes, or 23.75 per cent by mass = (140 + 50 + 0) / (400 + 250 + 150) x 100.
+The certificate identifiers and all quantities are synthetic. This signed-off register supersedes the unsupported assumptions in B-03.

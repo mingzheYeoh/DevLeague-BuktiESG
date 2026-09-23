@@ -1,0 +1,9 @@
+SITE ENERGY BALANCE - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January to 31 December 2025). Scope: Klang plant only. Approved by the Facilities Manager on 18 January 2026.
+Electricity purchased from the grid: 1,847,300 kWh, reconciled to the twelve monthly statements in A-01.
+Renewable fuel sources: 0 kWh. The site purchased no renewable fuel in FY2025.
+Non-renewable fuel sources: 234,080 kWh, comprising generator diesel 124,000 kWh and forklift LPG 110,080 kWh.
+Generator diesel activity: 12,400 litres, consistent with A-02; internal energy conversion of 10.0 kWh per litre gives 124,000 kWh.
+Forklift LPG activity: 8,600 kg, consistent with A-02; internal energy conversion of 12.8 kWh per kg gives 110,080 kWh.
+Total energy consumption: 2,081,380 kWh = 1,847,300 grid electricity + 0 renewable fuel + 234,080 non-renewable fuel.
+The two fuel conversion factors are synthetic internal assumptions for this demo, not published factors or audited measurements.

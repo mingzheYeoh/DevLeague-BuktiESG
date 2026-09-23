@@ -477,8 +477,8 @@ function EvidenceSection({
       {others > 0 ? (
         <p className="field-hint">
           The matcher found {question.evidence_candidate_count} passages that share words with this
-          question, across your uploaded documents. Only the one above is shown, and it is the most
-          recently matched rather than the closest — so check that this document really does answer
+          question, across your uploaded documents. Only the highest-scoring keyword match is shown
+          above — check that this document really does answer
           the question.
         </p>
       ) : null}

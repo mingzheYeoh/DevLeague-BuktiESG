@@ -4,7 +4,7 @@ BuktiESG helps teams answer customer ESG questionnaires with traceable documents
 
 ## Try the hosted demo
 
-Open <https://buktiesg.vercel.app/> and sign in with a Vercel account that has access to this project. Then register inside BuktiESG; each new account gets its own organization. Use the synthetic files in [`sample/`](sample/). The hosted demo uses Neon PostgreSQL and private Vercel Blob storage, accepts files up to **4 MiB**, and does not have a DeepSeek extraction key configured.
+Open <https://buktiesg.vercel.app/> and sign in with a Vercel account that has access to this project. Then register inside BuktiESG; each new account gets its own organization. For a complete 20-question trial, use the synthetic files and step-by-step [interview demo guide](sample/INTERVIEW_DEMO.md). The hosted demo uses Neon PostgreSQL and private Vercel Blob storage, accepts files up to **4 MiB**, and does not have a DeepSeek extraction key configured.
 
 ## Run locally
 

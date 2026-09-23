@@ -1,0 +1,8 @@
+GHG INTENSITY AND PRODUCTION REGISTER - Tenggara Precision Sdn. Bhd. - SYNTHETIC SAMPLE
+Reporting period: FY2025 (1 January to 31 December 2025). Scope: Klang plant only. Prepared by the Sustainability Manager on 16 January 2026.
+Scope 1 direct GHG emissions: 58.8 metric tonnes CO2 equivalent, from A-02.
+Scope 2 indirect GHG emissions: 1,367.0 metric tonnes CO2 equivalent, from A-02.
+Combined Scope 1 and Scope 2 GHG emissions: 1,425.8 metric tonnes CO2 equivalent.
+Finished production units recorded by the plant production ledger: 250,000 units in FY2025.
+GHG emissions intensity per unit of production: 1,425.8 / 250,000 = 0.0057032 metric tonnes CO2 equivalent per unit (5.7032 kg CO2 equivalent per unit).
+The production unit is one finished component shipped by the Klang plant; group sites and outsourced production are excluded.
