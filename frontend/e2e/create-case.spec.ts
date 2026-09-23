@@ -28,7 +28,7 @@ const CASE_SUMMARY = {
 }
 
 
-async function stubApi(page: Page, { cases }: { cases: unknown[] }) {
+async function stubApi(page: Page, { cases, deleteDelayMs = 0 }: { cases: unknown[]; deleteDelayMs?: number }) {
   const listed = [...cases]
 
   await stubActor(page)
@@ -70,14 +70,19 @@ async function stubApi(page: Page, { cases }: { cases: unknown[] }) {
     })
   })
 
-  await page.route(`**/api/v1/cases/${CASE_ID}`, (route) =>
-    route.fulfill({
+  await page.route(`**/api/v1/cases/${CASE_ID}`, async (route) => {
+    if (route.request().method() === 'DELETE') {
+      await new Promise((resolve) => setTimeout(resolve, deleteDelayMs))
+      listed.splice(listed.findIndex((item) => item === CASE_SUMMARY), 1)
+      return route.fulfill({ status: 204, headers: CORS })
+    }
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       headers: CORS,
       body: JSON.stringify(CASE_SUMMARY),
-    }),
-  )
+    })
+  })
 
   await page.route(`**/api/v1/cases/${CASE_ID}/readiness`, (route) =>
     route.fulfill({
@@ -150,6 +155,17 @@ test('a questionnaire with no parsed questions shows the empty state, not a fake
   await page.getByRole('button', { name: 'Questionnaire', exact: false }).first().click()
 
   await expect(page.getByText('No questions identified yet')).toBeVisible()
+})
+
+test('case deletion waits for slow stored-file cleanup', async ({ page }) => {
+  await stubApi(page, { cases: [CASE_SUMMARY], deleteDelayMs: 16_000 })
+  await page.goto('/')
+
+  await page.getByRole('button', { name: 'Actions for E2E customer questionnaire' }).click()
+  await page.getByRole('menuitem', { name: /delete/i }).click()
+  await page.getByRole('button', { name: 'Delete case' }).click()
+
+  await expect(page.getByText('No cases yet')).toBeVisible({ timeout: 25_000 })
 })
 
 test('the backend being down is reported instead of hidden', async ({ page }) => {

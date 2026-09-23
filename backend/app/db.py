@@ -57,6 +57,7 @@ def _connect_args(url: str) -> dict:
 engine = create_engine(
     settings.database_url,
     connect_args=_connect_args(settings.database_url),
+    pool_pre_ping=True,
     future=True,
 )
 

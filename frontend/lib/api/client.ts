@@ -39,16 +39,12 @@ const API_BASE_URL =
  * nothing above catches that: `SessionProvider` stays in its 'loading' state
  * and the app shows "Checking your session..." with no error and no exit.
  *
- * Observed against a deployed build. `NEXT_PUBLIC_API_BASE_URL` is unset there,
- * so the page probes the *viewer's own* localhost:8000 - which on a developer's
- * machine is often listening, and will not answer a request from that origin.
- *
- * Uploads get their own budget. `max_upload_bytes` is 4 MiB, and cutting a slow
- * connection off after fifteen seconds would break a legitimate upload in order
- * to fix a problem it does not have.
+ * Uploads and deletes need more time because stored-file operations can outlive
+ * the normal request budget. Aborting a delete after the server commits it
+ * leaves the case visible and falsely reports a network failure.
  */
 const REQUEST_TIMEOUT_MS = 15_000
-const UPLOAD_TIMEOUT_MS = 120_000
+const FILE_OPERATION_TIMEOUT_MS = 120_000
 
 /**
  * A failed API call, normalised across the three error shapes the server can
@@ -90,8 +86,9 @@ export class ApiUnreachableError extends Error {
 
   constructor(baseUrl: string, cause?: unknown) {
     super(
-      `Could not reach the BuktiESG API at ${baseUrl}. Start the backend ` +
-        `(uv run uvicorn app.main:app --reload) or check NEXT_PUBLIC_API_BASE_URL.`,
+      baseUrl.includes('localhost')
+        ? `Could not reach the BuktiESG API at ${baseUrl}. Start the backend (uv run uvicorn app.main:app --reload) or check NEXT_PUBLIC_API_BASE_URL.`
+        : `Could not reach the BuktiESG API at ${baseUrl || 'this site'}. Refresh the page and try again.`,
     )
     this.name = 'ApiUnreachableError'
     this.cause = cause
@@ -207,12 +204,10 @@ async function request<T>(
       // nothing here can read or attach it by hand. Without this the browser
       // omits it on a cross-origin request and every call is 401.
       credentials: 'include',
-      // A timeout rejects, so it arrives in the same catch as a refused
-      // connection and produces the same error. That is deliberate: the reader
-      // is told to check that the backend is running and that
-      // NEXT_PUBLIC_API_BASE_URL is right, and those are the two things to
-      // check whether the host said no or said nothing.
-      signal: AbortSignal.timeout(isFormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS),
+      // Stored-file operations can finish after the ordinary request budget.
+      signal: AbortSignal.timeout(
+        isFormData || init?.method === 'DELETE' ? FILE_OPERATION_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+      ),
       headers: {
         Accept: 'application/json',
         // Let the browser set the multipart boundary itself.
@@ -221,6 +216,13 @@ async function request<T>(
       },
     })
   } catch (cause) {
+    if (cause instanceof Error && cause.name === 'TimeoutError') {
+      throw new Error(
+        init?.method === 'DELETE'
+          ? 'The deletion timed out. It may already have succeeded; refresh before trying again.'
+          : 'The API request timed out. Please try again.',
+      )
+    }
     throw new ApiUnreachableError(API_BASE_URL, cause)
   }
 
