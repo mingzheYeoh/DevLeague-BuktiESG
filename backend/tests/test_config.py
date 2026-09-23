@@ -84,6 +84,17 @@ def test_an_explicit_database_url_wins_over_the_password():
     assert settings.database_url == "postgresql+psycopg://someone@elsewhere:5432/other"
 
 
+def test_a_neon_url_uses_the_installed_psycopg_driver():
+    settings = Settings(
+        _env_file=None,
+        database_url="postgresql://someone@elsewhere:5432/other?sslmode=require",
+    )
+
+    assert settings.database_url == (
+        "postgresql+psycopg://someone@elsewhere:5432/other?sslmode=require"
+    )
+
+
 def test_with_nothing_configured_it_still_boots_on_sqlite():
     """The emergency fallback, kept deliberately: the app boots without Docker.
     `backend/README.md` records why it is not a supported way to run this -

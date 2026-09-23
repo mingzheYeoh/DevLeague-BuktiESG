@@ -10,10 +10,20 @@ function, not a schema change (documents.storage_key is adapter-opaque).
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 from pathlib import Path
 
+from vercel.blob import BlobClient
+from vercel.blob.errors import BlobError, BlobNotFoundError
+
 STORAGE_ROOT = Path(__file__).resolve().parents[2] / "var" / "storage"
+
+
+def using_blob() -> bool:
+    if os.getenv("VERCEL") and not os.getenv("BLOB_READ_WRITE_TOKEN"):
+        raise RuntimeError("Vercel deployment has no private Blob store token")
+    return bool(os.getenv("BLOB_READ_WRITE_TOKEN"))
 
 
 def sha256_of(data: bytes) -> str:
@@ -26,12 +36,23 @@ def storage_key_for(case_id: str, sha256: str, filename: str) -> str:
 
 
 def save(storage_key: str, data: bytes) -> None:
-    path = STORAGE_ROOT / storage_key
+    path = resolve(storage_key)
+    if using_blob():
+        with BlobClient() as client:
+            client.put(storage_key, data, access="private", add_random_suffix=False, overwrite=True)
+        return
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
 
 
 def load(storage_key: str) -> bytes:
+    resolve(storage_key)
+    if using_blob():
+        with BlobClient() as client:
+            result = client.get(storage_key, access="private")
+        if result is None:
+            raise FileNotFoundError(storage_key)
+        return result.content
     return resolve(storage_key).read_bytes()
 
 
@@ -59,9 +80,17 @@ def resolve(storage_key: str) -> Path:
 
 def exists(storage_key: str) -> bool:
     try:
-        return resolve(storage_key).is_file()
+        path = resolve(storage_key)
     except StorageKeyOutsideRoot:
         return False
+    if using_blob():
+        try:
+            with BlobClient() as client:
+                client.head(storage_key)
+        except BlobNotFoundError:
+            return False
+        return True
+    return path.is_file()
 
 
 def delete_file(storage_key: str) -> None:
@@ -74,6 +103,10 @@ def delete_file(storage_key: str) -> None:
     upload de-duplicates by checksum.
     """
     path = resolve(storage_key)
+    if using_blob():
+        with BlobClient() as client:
+            client.delete(storage_key)
+        return
     path.unlink(missing_ok=True)
 
 
@@ -94,5 +127,10 @@ def delete_case_tree(case_id: str) -> None:
     path = (root / case_id).resolve()
     if path == root or root not in path.parents:
         raise StorageKeyOutsideRoot(case_id)
+    if using_blob():
+        with BlobClient() as client:
+            for blob in client.iter_objects(prefix=f"{case_id}/"):
+                client.delete(blob.pathname)
+        return
     if path.is_dir():
         shutil.rmtree(path)

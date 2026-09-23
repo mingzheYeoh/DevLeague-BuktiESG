@@ -55,7 +55,7 @@ Rules for working in this state:
 - **Deleting the specifications did not repeal the rules.** §3's non-negotiables, §3.5's protected values and §5's stop conditions all still bind. The priority and readiness formulas, the Evidence Status precedence, and the E2E test IDs remain protected values even though the documents defining them are only in history.
 - **Do not reconstruct a rule from memory or inference.** Source comments across `backend/` and `packages/ai-pipeline/` cite `SPEC-AMD-005`, `SPEC-AMD-006`, `SPEC-AMD-007`, `RULING-01`…`03`, `C-15`, `BLOCKER-04`/`06`/`08`, `DEC-007`, Main Spec §6.2/§16/§17 and Contract §4/§8. Resolve them at `bfd45ad`.
 - **There is no decision-record destination.** Do not recreate `docs/` to file a decision unless asked. Report it instead.
-- **One conflict is now open and undocumented in the tree:** `SPEC-AMD-009` recorded that the layout (`backend/` + `frontend/`) contradicts Main Spec §16 (`apps/api` + `apps/web`), unsigned. That conflict is unresolved.
+- **Layout ruling — 2026-09-23:** the repository owner chose to retain the existing `backend/` + `frontend/` layout for cloud deployment, explicitly resolving the conflict recorded by `SPEC-AMD-009` against Main Spec §16 (`apps/api` + `apps/web`). This ruling covers paths only; all other specification rules remain in force.
 
 ---
 

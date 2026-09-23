@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import io
 
+import pytest
 from openpyxl import Workbook
 
 BROKEN_PDF = b"%PDF-1.4\nnot really a pdf\n"
@@ -146,8 +147,9 @@ def test_deleting_it_releases_the_question_it_was_holding(client):
     assert "injuries-register-2025.pdf" not in (released["status_reason"] or "")
 
 
+@pytest.mark.parametrize("error", [OSError("disk failed"), "blob"])
 def test_a_storage_failure_does_not_turn_a_successful_delete_into_a_500(
-    client, monkeypatch
+    client, monkeypatch, error
 ):
     """The row is committed before the file is unlinked, deliberately.
 
@@ -162,11 +164,14 @@ def test_a_storage_failure_does_not_turn_a_successful_delete_into_a_500(
     """
     from app.services import storage
 
+    if error == "blob":
+        error = storage.BlobError("Blob service failed")
+
     case_id = _case(client, "Storage failure")
     doc = _upload(client, case_id, "scan.pdf", BROKEN_PDF, "SAFETY_RECORD")
 
     def _explode(_key):
-        raise OSError("the file is gone")
+        raise error
 
     monkeypatch.setattr(storage, "delete_file", _explode)
 

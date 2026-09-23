@@ -118,7 +118,7 @@ def delete_case(
     # correctness one.
     try:
         storage.delete_case_tree(case_id)
-    except OSError:
+    except (OSError, storage.BlobError):
         logger.exception("Deleted case %s but could not remove its stored files", case_id)
 
     return Response(status_code=204)

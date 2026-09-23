@@ -11,11 +11,8 @@ promise" before demonstrating to anyone.**
 
 ## Before you start
 
-**Windows**
-
-```powershell
-.\demo.ps1 up
-```
+**Windows:** Follow [Running It Locally](README.md#running-it-locally) in
+separate terminals.
 
 **macOS / Linux**
 
@@ -23,11 +20,9 @@ promise" before demonstrating to anyone.**
 ./demo.sh up
 ```
 
-Postgres, then migrations, then API / worker / web — three panes in Windows
-Terminal, or in `tmux` where it is installed, or backgrounded with logs under
-`backend/var/log` where it is not. Either way it waits for the healthcheck and
-for both ports to answer before saying it is ready, so when it says ready the
-links work.
+On macOS and Linux, the script starts Postgres, runs migrations, then starts
+API / worker / web in `tmux` or in the background with logs under
+`backend/var/log`. It waits for the healthcheck and both ports to answer.
 
 Sign in at <http://localhost:3000>.
 
@@ -204,26 +199,25 @@ build can actually stand behind.
 |---|---|
 | Upload succeeds, values never appear | The **worker** pane. Without it running, evidence still links; only values stay null |
 | Worker logs "outside Malaysia" once at startup | Expected. `DeepSeekExtractor` is selected and says so |
-| Every value is null and no warning appeared | `DEEPSEEK_API_KEY` unset — the worker is on `NullExtractor`. both `up` commands warn about this |
+| Every value is null and no warning appeared | `DEEPSEEK_API_KEY` unset — the worker is on `NullExtractor`. `./demo.sh up` warns about this |
 | UI says it cannot reach the backend | The **API** pane, then <http://localhost:8000/health> |
-| Port still held after closing a pane | `down` kills the whole process group; `npm run dev` and `uvicorn --reload` both leave children behind |
+| Port still held after closing a pane | On macOS/Linux, `./demo.sh down` kills the process group; `npm run dev` and `uvicorn --reload` both leave children behind |
 
 ---
 
 ## After the demo
 
-```powershell
-.\demo.ps1 reset   # deletes every case, keeps the account and organization
-.\demo.ps1 down    # stops Postgres, frees 8000 and 3000
-```
+On Windows, archive then delete demo cases in the UI, stop the three application terminals,
+then run `docker compose stop` to keep the database volume.
 
 ```bash
 ./demo.sh reset
 ./demo.sh down
 ```
 
-Both read `DEMO_EMAIL` / `DEMO_PASSWORD` from the environment or the root `.env`,
-and prompt if neither is set. Neither script generates or stores a password.
+The script reads `DEMO_EMAIL` / `DEMO_PASSWORD` from the environment or the
+root `.env`, and prompts if neither is set. It does not generate or store a
+password.
 
 `reset` goes through the API rather than truncating tables, because nothing in
 the database owns the uploaded bytes — the row cascade alone would leave them on

@@ -24,10 +24,24 @@ prospect's actual questionnaire. No code can check that, so it is yours to
 hold: unset the key before the first real document, and rotate it.
 
 With a key set, chunk text goes to `api.deepseek.com` and the worker logs a
-warning saying so. With no key, nothing leaves the machine.
+warning saying so. With no key, no document text is sent to a model provider.
 
 Read §3.1 before uploading anything real; it is the authority, not this
 summary.
+
+---
+
+## Team demo on Vercel
+
+The hosted demo is at <https://buktiesg.vercel.app/>. Vercel Authentication
+protects every deployment, so first sign in as a member of this Vercel team.
+Then create a BuktiESG account in the app; registration creates a separate
+organization for that account. The hosted demo uses Neon PostgreSQL and a
+private Vercel Blob store. Uploads are limited to **4 MiB** because Vercel
+Functions cap both request and response bodies at 4.5 MB. Use synthetic
+documents for the demo; `DEEPSEEK_API_KEY` is unset, so value extraction is
+inactive. See [`QA-REPORT.md`](QA-REPORT.md) for the verified flow and remaining
+scope gaps.
 
 ---
 
@@ -68,10 +82,9 @@ null and the `CONFLICTING` evidence status is unreachable. The other six
 statuses are unaffected. [`backend/README.md`](backend/README.md) has the
 detail.
 
-For demonstrating rather than developing, [`demo.ps1`](demo.ps1) on Windows and
-[`demo.sh`](demo.sh) on macOS and Linux start all of it in order, wait for each
-piece to actually answer, and give you a `reset` between runs. Same three
-subcommands, same output. [`DEMO.md`](DEMO.md) is the walkthrough — including
+For demonstrating on macOS and Linux, [`demo.sh`](demo.sh) starts the stack,
+waits for it to answer, and provides `reset` and `down`. On Windows, use the
+manual commands above. [`DEMO.md`](DEMO.md) is the walkthrough — including
 what this build cannot do, which is worth reading before showing it to anyone.
 
 Note that a fresh clone has **no accounts**: registration creates an
@@ -92,7 +105,7 @@ The UI ships no sample data. With the API down, every screen reports that it can
 ### Checks
 
 ```bash
-cd backend  && uv run pytest        # 130 tests
+cd backend  && uv run pytest        # 222 tests
 cd frontend && npm run typecheck    # tsc --noEmit
 cd frontend && npm run build        # production build, type checking on
 cd frontend && npm run test:e2e     # Playwright; needs `npx playwright install chromium`
@@ -139,7 +152,7 @@ sample/                          Synthetic test data — see sample/README.md
 
 `backend/worker.py` drains the extraction queue — see [`backend/README.md`](backend/README.md). `workers/`, `fixtures/` and `deployment/` are authorized by Gate P0 but do not exist yet.
 
-> **Layout note (2026-08-23).** `apps/web` was removed and `frontend/` is now the only frontend; `apps/api` became `backend/`. `SPEC-AMD-009` recorded this as an **open, unresolved** conflict against Main Spec §16, which specifies `apps/web` + `apps/api`. Deleting that file did not close the conflict.
+> **Layout ruling (2026-09-23).** `SPEC-AMD-009` recorded the conflict between Main Spec §16 (`apps/web` + `apps/api`) and this repository (`frontend/` + `backend/`). The repository owner chose to retain the existing layout for cloud deployment; see `AGENTS.md` §1a.
 
 ---
 
@@ -181,7 +194,7 @@ git checkout bfd45ad -- docs                # restore the whole tree
 git show bfd45ad:docs/spec/AMENDMENTS.md    # read one file
 ```
 
-This matters because those files are the only written definition of rules this codebase implements. Source comments still cite them by identifier — `SPEC-AMD-005`, `RULING-02`, `C-15`, `BLOCKER-04`, `DEC-007`, Main Spec §6.2 and §17 — and those identifiers now resolve only through git history. **Deleting the specs did not repeal the rules.** [`AGENTS.md`](AGENTS.md) is the only governance document left in the tree and keeps them in force: synthetic data only, the AI never owns a verdict, the AI never supplies a source location, and the protected values stand.
+This matters because those files are the only written definition of rules this codebase implements. Source comments still cite them by identifier — `SPEC-AMD-005`, `RULING-02`, `C-15`, `BLOCKER-04`, `DEC-007`, Main Spec §6.2 and §17 — and those identifiers now resolve only through git history. **Deleting the specs did not repeal the rules.** [`AGENTS.md`](AGENTS.md) is the only governance document left in the tree and keeps them in force: real-data conditions in §3.1, the AI never owns a verdict, the AI never supplies a source location, and the protected values stand.
 
 Authority order on conflict: Main Spec (EN) > approved Shared Contract > approved decisions and amendments > Role Sub-Spec > individual preference. Levels 1–4 are now reachable only via git history, which is not a licence to invent one — conflicts are escalated, never silently resolved.
 

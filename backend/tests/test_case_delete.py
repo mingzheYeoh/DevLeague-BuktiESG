@@ -159,6 +159,18 @@ def test_deleting_a_case_that_never_uploaded_anything_is_not_an_error(client):
     assert client.delete(f"/api/v1/cases/{case_id}").status_code == 204
 
 
+def test_blob_cleanup_failure_does_not_undo_a_committed_case_delete(client, monkeypatch):
+    case_id = _case(client)
+
+    def fail_cleanup(_case_id):
+        raise storage.BlobError("Blob service failed")
+
+    monkeypatch.setattr(storage, "delete_case_tree", fail_cleanup)
+
+    assert client.delete(f"/api/v1/cases/{case_id}").status_code == 204
+    assert client.get(f"/api/v1/cases/{case_id}").status_code == 404
+
+
 def test_a_case_id_that_escapes_the_storage_root_is_refused():
     """`case_id` comes off the URL and is handed to shutil.rmtree, so it gets the
     same escape check as the read path."""

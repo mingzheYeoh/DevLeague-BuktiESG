@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 #
 # Local demo driver for BuktiESG on macOS and Linux: start the stack, reset
-# between runs, stop it. The companion to demo.ps1, which does the same three
-# things on Windows.
+# between runs, stop it.
 #
 #   ./demo.sh up      Postgres -> migrations -> API, worker and web, then waits
 #                     until both HTTP ports actually answer.
@@ -24,8 +23,8 @@ API_BASE="http://127.0.0.1:8000"
 
 # `localhost`, not 127.0.0.1, and only for the browser. The frontend calls
 # NEXT_PUBLIC_API_BASE_URL, which defaults to http://localhost:8000, so opening
-# the UI on 127.0.0.1:3000 makes every API call cross-origin. That path is worse
-# than it sounds - see the note in demo.ps1 and the timeout in lib/api/client.ts.
+# the UI on 127.0.0.1:3000 makes every API call cross-origin. See the timeout
+# in lib/api/client.ts.
 WEB_BASE="http://localhost:3000"
 
 LOG_DIR="$ROOT/backend/var/log"
@@ -84,8 +83,8 @@ start_processes() {
   local web='npm run dev'
 
   if command -v tmux >/dev/null 2>&1; then
-    # Three panes in one window, which is what demo.ps1 gets from Windows
-    # Terminal. Killing the session in `down` takes every process in it.
+    # Three panes in one window. Killing the session in `down` takes every
+    # process in it.
     tmux kill-session -t buktiesg 2>/dev/null || true
     tmux new-session  -d -s buktiesg -c "$ROOT/backend"  "$api"
     tmux split-window -t buktiesg   -c "$ROOT/backend"  "$worker"
@@ -221,8 +220,7 @@ stop_port() {
     # Kill the process group, not the pid. `uvicorn --reload` is a supervisor
     # plus a child, and the child is the one listening - kill it alone and the
     # supervisor spawns a replacement, so the port is free for about a second
-    # and then held again. Unix gives this for free; the Windows script has to
-    # walk the parent chain by hand to get the same effect.
+    # and then held again.
     pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
     [ -n "$pgid" ] && kill -TERM "-$pgid" 2>/dev/null || true
     kill -TERM "$pid" 2>/dev/null || true

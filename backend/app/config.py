@@ -69,9 +69,9 @@ class Settings(BaseSettings):
 
     app_name: str = "BuktiESG API"
 
-    # 10 MB, arbitrary slice-scope limit for the demo upload path. Not the
-    # final Main Spec file-limit decision (Phase 0 "Confirm file limits").
-    max_upload_bytes: int = 10 * 1024 * 1024
+    # Vercel Functions accept at most 4.5 MB per request or response. Leave
+    # room for multipart framing and serve the stored bytes through the API.
+    max_upload_bytes: int = 4 * 1024 * 1024
 
     # Local dev origins only (the Next.js dev server in `frontend/`). Not a
     # production CORS policy decision.
@@ -99,6 +99,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _derive_database_url(self) -> "Settings":
+        if self.database_url.startswith("postgresql://"):
+            # Neon supplies this generic SQLAlchemy URL; this project installs
+            # psycopg 3, not the default psycopg2 driver.
+            self.database_url = "postgresql+psycopg://" + self.database_url[len("postgresql://"):]
         if not self.database_url:
             self.database_url = (
                 # Escaped because the URL is built by interpolation: an

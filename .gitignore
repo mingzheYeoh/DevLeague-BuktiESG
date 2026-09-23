@@ -44,3 +44,6 @@ backend/var/
 # CLAUDE.md are NOT filed here. Reasoning with a long life belongs in code
 # comments and commit messages, which survive this directory being deleted.
 docs/
+.vercel/
+.agents/
+skills-lock.json

@@ -26,7 +26,8 @@ import type {
 } from './types'
 
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8000'
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '')
 
 /**
  * How long a request may take before it is treated as unreachable.
@@ -42,7 +43,7 @@ const API_BASE_URL =
  * so the page probes the *viewer's own* localhost:8000 - which on a developer's
  * machine is often listening, and will not answer a request from that origin.
  *
- * Uploads get their own budget. `max_upload_bytes` is 10 MB, and cutting a slow
+ * Uploads get their own budget. `max_upload_bytes` is 4 MiB, and cutting a slow
  * connection off after fifteen seconds would break a legitimate upload in order
  * to fix a problem it does not have.
  */

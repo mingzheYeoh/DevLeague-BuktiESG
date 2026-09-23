@@ -255,7 +255,7 @@ def get_document_content(
     download: bool = False,
     case: Case = Depends(require_case),
     db: Session = Depends(get_db),
-) -> FileResponse:
+) -> Response:
     """The stored file itself, for preview or download.
 
     `?download=1` forces `Content-Disposition: attachment`. The frontend runs
@@ -301,7 +301,16 @@ def get_document_content(
             "The stored path for this document is not inside the storage root.",
         ) from None
 
-    if not path.is_file():
+    cloud = storage.using_blob()
+    if cloud:
+        try:
+            content = storage.load(document.storage_key)
+        except FileNotFoundError:
+            content = None
+    else:
+        content = None
+
+    if (cloud and content is None) or (not cloud and not path.is_file()):
         raise api_error(
             404,
             "DOCUMENT_CONTENT_MISSING",
@@ -322,18 +331,15 @@ def get_document_content(
         disposition = "inline" if inline_type else "attachment"
 
     encoded_name = quote(document.original_filename, safe="")
-    return FileResponse(
-        path,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f"{disposition}; filename*=UTF-8''{encoded_name}",
-            "X-Content-Type-Options": "nosniff",
-            "Content-Security-Policy": _CSP_SERVED_FILE,
-            # Uploaded content is synthetic test data, but it is still nobody
-            # else's business to cache it.
-            "Cache-Control": "private, no-store",
-        },
-    )
+    headers = {
+        "Content-Disposition": f"{disposition}; filename*=UTF-8''{encoded_name}",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": _CSP_SERVED_FILE,
+        "Cache-Control": "private, no-store",
+    }
+    if cloud:
+        return Response(content=content, media_type=content_type, headers=headers)
+    return FileResponse(path, media_type=content_type, headers=headers)
 
 
 
@@ -392,7 +398,7 @@ def delete_document(
 
     try:
         storage.delete_file(storage_key)
-    except OSError:
+    except (OSError, storage.BlobError):
         logger.exception("Deleted document %s but could not remove its stored file", document_id)
 
     return Response(status_code=204)
