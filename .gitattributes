@@ -1,7 +1,7 @@
 # Normalise line endings for text, and keep binaries byte-exact.
 #
 # Without the binary rules below, git treats a small file with no NUL bytes as
-# text and rewrites its line endings on checkout. `sample/evidence/unreadable-scan.pdf`
+# text and rewrites its line endings on checkout. The synthetic unreadable-scan PDF
 # is exactly that case, and a rewritten byte stream is a different file — which
 # would change how the parser fails on it.
 

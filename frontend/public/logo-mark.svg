@@ -6,8 +6,7 @@
 
     Hand-authored from the supplied artwork rather than exported from it, so
     treat it as a reconstruction: replace this one file with the official export
-    and every reference picks it up (sidebar brand, export letterhead, favicon,
-    apple-icon). Nothing else needs to change.
+    and every reference picks it up (sidebar brand, export letterhead, favicon).
 
     Brand colours are hard-coded on purpose. This is artwork, not themed UI, so
     it must not drift with the design tokens.
