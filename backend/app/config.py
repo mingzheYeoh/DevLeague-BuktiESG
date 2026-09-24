@@ -2,11 +2,7 @@
 
 Read from the repository-root `.env` - the same file docker-compose.yml reads,
 so the database password is written once rather than in two files that could
-disagree. The path is anchored to this module, not to the working directory;
-see `_REPO_ROOT` for what that used to cost.
-
-(This docstring previously said "no provider/AI settings live here". A
-`deepseek_api_key` has lived here since extraction was added.)
+disagree. The path is anchored to this module, not to the working directory.
 """
 
 from __future__ import annotations
@@ -65,7 +61,7 @@ class Settings(BaseSettings):
     #
     # Read from the environment or `.env`, never committed: `.gitignore`
     # covers `.env` and `.env.example` carries the name only.
-    deepseek_api_key: str | None = None
+    openai_api_key: str | None = None
 
     app_name: str = "BuktiESG API"
 

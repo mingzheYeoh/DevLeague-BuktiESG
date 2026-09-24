@@ -40,7 +40,7 @@ def run_once(extractor=None) -> bool:
 
     `extractor` is built once by `poll_forever` and passed down, rather than
     left for `run_extraction_jobs` to build per call. Building it per call
-    re-emits its "chunk text will be sent to api.deepseek.com" warning on
+    re-emits its "chunk text will be sent to api.openai.com" warning on
     every poll - one line every two seconds, forever - which is precisely the
     "train people to ignore warnings" failure that `build_extractor`'s own
     docstring says it is avoiding. It is the one line that distinguishes

@@ -4,7 +4,7 @@ BuktiESG helps teams answer customer ESG questionnaires with traceable documents
 
 ## Try the hosted demo
 
-Open <https://buktiesg.vercel.app/> and sign in with a Vercel account that has access to this project. Then register inside BuktiESG; each new account gets its own organization. For a complete 20-question trial, use the synthetic files and step-by-step [interview demo guide](sample/INTERVIEW_DEMO.md). The hosted demo uses Neon PostgreSQL and private Vercel Blob storage, accepts files up to **4 MiB**, and does not have a DeepSeek extraction key configured.
+Open <https://buktiesg.vercel.app/> and sign in with a Vercel account that has access to this project. Then register inside BuktiESG; each new account gets its own organization. For a complete 20-question trial, use the synthetic files and step-by-step [interview demo guide](sample/INTERVIEW_DEMO.md). The hosted demo uses Neon PostgreSQL and private Vercel Blob storage, accepts files up to **4 MiB**, and does not run the optional model extraction worker.
 
 ## Run locally
 
@@ -51,7 +51,7 @@ Install Docker Desktop (or Docker Engine with Compose), [uv](https://docs.astral
    uv run python worker.py
    ```
 
-   Without `DEEPSEEK_API_KEY`, no document text is sent to a model provider and no values are extracted. If you add that key to the root `.env`, **upload synthetic documents only**: text is sent to `api.deepseek.com`. Remove and rotate the key before uploading any real customer document.
+   Without `OPENAI_API_KEY`, no document text is sent to a model provider and no values are extracted. If you add that key to the root `.env` and run the worker, it uses OpenAI `gpt-6-luna` for optional numeric-value extraction. **Upload synthetic documents only**: extracted text is sent to `api.openai.com`. Remove and rotate the key before uploading any real customer document. The hosted Vercel configuration runs only the web and API services; adding a key there alone will not process queued extraction jobs.
 
 Stop the API, web app, and worker with `Ctrl+C`, then run `docker compose stop` from the repository root. This retains the local database.
 

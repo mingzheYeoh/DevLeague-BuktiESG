@@ -19,7 +19,6 @@ this path with no credential and no bill.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Protocol
 
@@ -29,21 +28,14 @@ from ai_pipeline import Extracted, ExtractionRefused, build_extraction_prompt, p
 
 logger = logging.getLogger(__name__)
 
-# DeepSeek's API is OpenAI-shaped, so this is a chat completion with a forced
-# JSON response, not a bespoke protocol.
-DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_MODEL = "deepseek-v4-pro"
+OPENAI_BASE_URL = "https://api.openai.com/v1"
+OPENAI_MODEL = "gpt-6-luna"
 
 # Extraction runs in `worker.py`, not in the upload request, so nothing is
-# waiting on this. The ceiling is generous because the measured cost of
-# expiring is a batch of nulls that will not be retried; a batch of 20 chunks
-# has been seen to take over a minute.
+# waiting on this. A timeout yields empty measurements without losing evidence.
 REQUEST_TIMEOUT_SECONDS = 180.0
 
-# Chunks per request. Batching amortises the ~400-token instruction prefix,
-# which is the whole cost lever: it repeats verbatim, so it caches. Kept small
-# because one malformed response discards the whole batch - a bigger batch
-# means more work lost when that happens.
+# Chunks per request. A malformed response discards its batch, so keep it small.
 BATCH_SIZE = 20
 
 
@@ -69,15 +61,15 @@ class NullExtractor:
         return [Extracted() for _ in chunk_texts]
 
 
-class DeepSeekExtractor:
-    """Extraction through DeepSeek's chat completions API."""
+class OpenAIExtractor:
+    """Extraction through OpenAI's chat completions API."""
 
     def __init__(
         self,
         api_key: str,
         *,
-        model: str = DEEPSEEK_MODEL,
-        base_url: str = DEEPSEEK_BASE_URL,
+        model: str = OPENAI_MODEL,
+        base_url: str = OPENAI_BASE_URL,
         timeout: float = REQUEST_TIMEOUT_SECONDS,
     ) -> None:
         self._api_key = api_key
@@ -100,20 +92,9 @@ class DeepSeekExtractor:
                     # can join the instructions (AGENTS.md 3.4 / TB-3).
                     {"role": "user", "content": user},
                 ],
-                # Extraction, not generation. This reduces variation; it does
-                # not remove it. Two live runs over identical input returned
-                # the same numbers but different `scope` and `period` - once
-                # inferring "Klang plant" and FY2025 for a chunk that names
-                # neither, once honestly leaving both null. The second answer
-                # is the better one, which is exactly why this cannot be
-                # treated as a guarantee.
-                #
-                # Anything that depends on two independent extractions
-                # agreeing on a *string* is therefore unsafe. Conflict
-                # grouping does, and that is a known open problem, not
-                # something temperature settles.
-                "temperature": 0,
+                "reasoning_effort": "none",
                 "response_format": {"type": "json_object"},
+                "store": False,
             },
             timeout=self._timeout,
         )
@@ -156,38 +137,16 @@ class DeepSeekExtractor:
 def build_extractor(settings) -> Extractor:
     """Pick an extractor from configuration.
 
-    A key selects `DeepSeekExtractor`; no key selects `NullExtractor`.
-
-    This was closed in code between 2026-08-27 and now. The owner had ruled
-    that document text is not transmitted to a model provider outside
-    Malaysia, and api.deepseek.com is one - `DeepSeekExtractor._post` sends
-    chunk text as the user message. The owner reversed that on 2026-08-27 for
-    the demo, and `AGENTS.md` 3.1 records both the reversal and its condition.
-
-    The condition is the part that matters, because it is not "this is a
-    demo". A demo's natural next move is to try it on a prospect's real
-    questionnaire, and at that moment the documents stop being synthetic while
-    the key is still set. The rule is therefore:
-
-        DEEPSEEK_API_KEY may be set only while no real customer document has
-        been uploaded to the deployment.
-
-    Nothing here can check that - it is not a property of the configuration -
-    so it is the owner's to hold. What this function does is refuse to hide
-    the state: with a key set, chunk text leaves the machine, and the log line
-    below says so once per worker start rather than leaving it to be inferred.
-
-    Absence of a key is silent. A local run without a provider is the normal
-    case, and a warning on every upload would train people to ignore warnings.
+    A key selects `OpenAIExtractor`; no key selects `NullExtractor`.
+    When enabled, extracted document text leaves this deployment. Only use
+    synthetic documents for this demo; never put a credential in source code.
     """
-    key = getattr(settings, "deepseek_api_key", None)
+    key = getattr(settings, "openai_api_key", None)
     if not key or not key.strip():
         return NullExtractor()
 
     logger.warning(
-        "DEEPSEEK_API_KEY is set: document chunk text will be sent to "
-        "api.deepseek.com, outside Malaysia. Permitted for the demo by the "
-        "owner's 2026-08-27 ruling (AGENTS.md 3.1) on the condition that no "
-        "real customer document is uploaded while it is set."
+        "OPENAI_API_KEY is set: document chunk text will be sent to "
+        "api.openai.com. Use synthetic documents only."
     )
-    return DeepSeekExtractor(api_key=key.strip())
+    return OpenAIExtractor(api_key=key.strip())

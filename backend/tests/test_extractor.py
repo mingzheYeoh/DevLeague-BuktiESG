@@ -13,15 +13,13 @@ a bill.
 
 from __future__ import annotations
 
-import pytest
-
 from app.services.extractor import NullExtractor, build_extractor
 
 
-def test_with_no_key_configured_the_null_extractor_is_used(monkeypatch):
+def test_with_no_key_configured_the_null_extractor_is_used():
     from app.config import Settings
 
-    settings = Settings(deepseek_api_key=None)
+    settings = Settings(openai_api_key=None)
     assert isinstance(build_extractor(settings), NullExtractor)
 
 
@@ -39,32 +37,18 @@ def test_the_null_extractor_accepts_an_empty_batch():
     assert NullExtractor().extract([]) == []
 
 
-def test_a_configured_key_selects_the_deepseek_extractor(caplog):
-    """A key means chunk text leaves the machine, and the log says so.
-
-    This assertion has now been written both ways. It selected DeepSeek; then
-    the owner ruled that document text may not reach a provider outside
-    Malaysia and it asserted the opposite; then the owner reversed that for the
-    demo. The test is not flip-flopping - it tracks a governance decision that
-    genuinely changed twice, and each version was correct while it stood.
-
-    What is pinned alongside the type is the warning. The condition attached to
-    the reversal - no real customer document while the key is set - is not
-    something code can check, so the least this can do is refuse to be quiet
-    about the state. A silent DeepSeekExtractor and a silent NullExtractor look
-    identical from outside, and the difference is whether documents are leaving
-    the country.
-    """
+def test_a_configured_key_selects_the_openai_extractor(caplog):
+    """A key selects the remote provider and logs where document text goes."""
     from app.config import Settings
-    from app.services.extractor import DeepSeekExtractor
+    from app.services.extractor import OpenAIExtractor
 
-    settings = Settings(deepseek_api_key="sk-not-a-real-key")
+    settings = Settings(openai_api_key="sk-not-a-real-key")
 
     with caplog.at_level("WARNING"):
         extractor = build_extractor(settings)
 
-    assert isinstance(extractor, DeepSeekExtractor)
-    assert any("outside Malaysia" in r.message for r in caplog.records), caplog.text
+    assert isinstance(extractor, OpenAIExtractor)
+    assert any("api.openai.com" in r.message for r in caplog.records), caplog.text
 
 
 def test_no_key_stays_silent(caplog):
@@ -73,7 +57,7 @@ def test_no_key_stays_silent(caplog):
     from app.config import Settings
 
     with caplog.at_level("WARNING"):
-        extractor = build_extractor(Settings(deepseek_api_key=None))
+        extractor = build_extractor(Settings(openai_api_key=None))
 
     assert isinstance(extractor, NullExtractor)
     assert caplog.records == []
@@ -83,9 +67,9 @@ def test_a_provider_failure_degrades_to_no_values_rather_than_failing_upload(mon
     """Extraction is an enrichment. A provider that is down, rate-limited or
     slow must never stop a document being stored and indexed - losing the
     evidence is a real failure, missing a value is not."""
-    from app.services.extractor import DeepSeekExtractor
+    from app.services.extractor import OpenAIExtractor
 
-    extractor = DeepSeekExtractor(api_key="sk-not-a-real-key")
+    extractor = OpenAIExtractor(api_key="sk-not-a-real-key")
 
     def explode(*_args, **_kwargs):
         raise TimeoutError("provider did not respond")
@@ -101,9 +85,9 @@ def test_a_response_breaking_the_contract_degrades_the_same_way(monkeypatch):
     """A model returning a verdict field is refused by `parse_extraction`. The
     adapter must treat that as "no values", never as a reason to fail the
     upload, and never by using the response anyway."""
-    from app.services.extractor import DeepSeekExtractor
+    from app.services.extractor import OpenAIExtractor
 
-    extractor = DeepSeekExtractor(api_key="sk-not-a-real-key")
+    extractor = OpenAIExtractor(api_key="sk-not-a-real-key")
     monkeypatch.setattr(
         extractor,
         "_post",
@@ -112,3 +96,32 @@ def test_a_response_breaking_the_contract_degrades_the_same_way(monkeypatch):
 
     results = extractor.extract(["Total scheduled waste: 12.6 tonnes."])
     assert results[0].value is None
+
+
+def test_openai_request_uses_luna_json_mode(monkeypatch):
+    from app.services.extractor import OpenAIExtractor
+
+    seen = {}
+
+    class Response:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": '{"results": [{"value": "12.6"}]}'}}]}
+
+    def fake_post(url, **kwargs):
+        seen.update(url=url, **kwargs)
+        return Response()
+
+    monkeypatch.setattr("app.services.extractor.httpx.post", fake_post)
+    result = OpenAIExtractor(api_key="test-key").extract(["12.6 tonnes of waste."])
+
+    assert result[0].value == "12.6"
+    assert seen["url"] == "https://api.openai.com/v1/chat/completions"
+    assert seen["headers"]["Authorization"] == "Bearer test-key"
+    assert seen["json"]["model"] == "gpt-6-luna"
+    assert seen["json"]["reasoning_effort"] == "none"
+    assert seen["json"]["response_format"] == {"type": "json_object"}
+    assert seen["json"]["store"] is False
+    assert "temperature" not in seen["json"]

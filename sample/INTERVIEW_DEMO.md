@@ -39,7 +39,7 @@ Think of Q-E-02 as an example: the customer asks for Scope 2 emissions. BuktiESG
 
 10. **Record two human decisions.** **Accept this evidence** records who checked and accepted the source. **Edit answer** separately records the response and its reviewer. A verified source is not the same as a confirmed answer, and neither is an independent audit opinion.
 
-11. **Treat AI value extraction as optional.** The project can queue a later job to extract numeric values, but this hosted deployment has no DeepSeek key or separate worker. Question reading, indexing, keyword matching, and this full trial work without it. The reviewer must reconcile figures and catch contradictions that the current data has not exposed.
+11. **Treat AI value extraction as optional.** The project can queue a later job to extract numeric values with OpenAI, but this hosted deployment has no model worker. Question reading, indexing, keyword matching, and this full trial work without it. The reviewer must reconcile figures and catch contradictions that the current data has not exposed.
 
 12. **Count readiness and export a draft.** The dashboard counts confirmed *required* answers: here, 14 out of 14, even though the questionnaire has 20 questions. The browser builds a marked-up draft and registers from the case data, including unresolved items. Downloading it does not submit anything to the customer or certify the figures.
 

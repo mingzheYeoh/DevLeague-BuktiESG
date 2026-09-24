@@ -438,9 +438,7 @@ def _run_evidence_index(db: Session, case: Case, document: Document, data: bytes
     weights = keyword_weights([q.question_text for q in questions])
 
     # Queued, not run. Extraction is the one job that cannot be inline:
-    # measured against deepseek-v4-pro, two to three chunks take 12-22
-    # seconds, so this document's chunks alone would hold the upload open for
-    # minutes. `worker.py` picks it up.
+    # model calls can hold the upload open for minutes. `worker.py` picks it up.
     create_job(
         db,
         case_id=case.id,

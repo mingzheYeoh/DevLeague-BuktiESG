@@ -1,8 +1,7 @@
 """Extraction as a background job, and the CONFLICTING it finally makes reachable.
 
-Extraction cannot run inside the upload request: measured against
-deepseek-v4-pro, two to three chunks take 12-22 seconds, so a 21-document case
-at 175 chunks would add roughly three minutes to an upload. `processing_jobs`,
+Extraction cannot run inside the upload request: model calls can take seconds
+per batch, so a large case would add minutes to an upload. `processing_jobs`,
 `claim_next_job` and `worker.py` were built for exactly this and had never been
 used for anything - every job so far ran inline.
 
