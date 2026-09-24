@@ -500,25 +500,27 @@ def run_extraction_jobs(
             .order_by(DocumentChunk.sequence_no)
             .all()
         )
-        results = extractor.extract([c.text for c in chunks])
-
-        for chunk, extracted in zip(chunks, results):
-            chunk.extracted_value = extracted.value
-            chunk.extracted_unit = extracted.unit
-            chunk.extracted_scope = extracted.scope
-            chunk.extracted_period_start = extracted.period_start
-            chunk.extracted_period_end = extracted.period_end
+        # Rechecking relevance must not spend again on, or erase, measurements
+        # already stored on this document's chunks. If none were found before,
+        # retry extraction: the first provider call may have failed.
+        if not any(c.extracted_value is not None for c in chunks):
+            results = extractor.extract([c.text for c in chunks])
+            for chunk, extracted in zip(chunks, results):
+                chunk.extracted_value = extracted.value
+                chunk.extracted_unit = extracted.unit
+                chunk.extracted_scope = extracted.scope
+                chunk.extracted_period_start = extracted.period_start
+                chunk.extracted_period_end = extracted.period_end
 
         job.status = "SUCCEEDED"
         job.finished_at = _utcnow()
         db.flush()
         completed += 1
 
-        # Re-select this document's citations now that we know which of its
-        # chunks carry a measurement. Only ties change: a spreadsheet header
-        # ties with its own data rows on keyword overlap and wins by being
-        # first, and it is the one row that can never hold a number.
+        # Re-select derived citations with the current keyword rules and any
+        # extracted measurements. Human decisions remain untouched.
         _reselect_links_for_document(db, job.document_id)
+        _assess_links_for_document(db, job.document_id, extractor)
 
         # New values are an input the rule engine reads, so the questions have
         # to be told. This is where CONFLICTING can finally appear: two chunks
@@ -530,6 +532,33 @@ def run_extraction_jobs(
     if completed:
         db.commit()
     return completed
+
+
+def _assess_links_for_document(db: Session, document_id: str | None, extractor) -> None:
+    assess = getattr(extractor, "assess_matches", None)
+    if document_id is None or assess is None:
+        return
+    rows = (
+        db.query(EvidenceLink, Question, DocumentChunk)
+        .join(Question, EvidenceLink.question_id == Question.id)
+        .join(DocumentChunk, EvidenceLink.chunk_id == DocumentChunk.id)
+        .filter(
+            EvidenceLink.document_id == document_id,
+            EvidenceLink.link_status == "CANDIDATE",
+            EvidenceLink.created_by == "SYSTEM",
+        )
+        .all()
+    )
+    if not rows:
+        return
+    assessments = assess([(question.question_text, chunk.text) for _, question, chunk in rows])
+    if len(assessments) != len(rows):
+        return
+    for (link, _, _), assessment in zip(rows, assessments):
+        if assessment is not None:
+            link.ai_relevance = assessment.verdict
+            link.ai_quote = assessment.quote
+            link.ai_missing = assessment.missing
 
 
 def _reselect_links_for_document(db: Session, document_id: str | None) -> None:
@@ -557,9 +586,6 @@ def _reselect_links_for_document(db: Session, document_id: str | None) -> None:
         return
 
     value_bearing = frozenset(c.id for c in chunk_rows if c.extracted_value)
-    if not value_bearing:
-        # Nothing was measured here, so nothing can break a tie differently.
-        return
 
     pipeline_chunks = [
         PipelineDocumentChunk(chunk_id=c.id, text=c.text) for c in chunk_rows

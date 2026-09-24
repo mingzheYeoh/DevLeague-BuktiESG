@@ -236,6 +236,46 @@ async function gotoQuestionnaire(page: Page, overrideQuestions?: unknown[]) {
 }
 
 test.describe('Reason column', () => {
+  test('recheck queues existing evidence without another upload', async ({ page }) => {
+    let calls = 0
+    await page.route(`**/api/v1/cases/${CASE_ID}/documents/recheck-matches`, (route) => {
+      calls += 1
+      return route.fulfill({
+        status: 200, contentType: 'application/json', body: JSON.stringify({ queued: 2 }),
+      })
+    })
+    await gotoQuestionnaire(page)
+    await page.getByRole('button', { name: 'Recheck matches' }).click()
+    await expect(page.getByRole('status')).toHaveText(
+      '2 evidence file(s) queued. Refresh after background checks finish.',
+    )
+    expect(calls).toBe(1)
+  })
+
+  test('model relevance is labelled as advice beside the candidate', async ({ page }) => {
+    await gotoQuestionnaire(page, [
+      question({
+        id: 'q-ai',
+        question_text: 'Report electricity consumption.',
+        evidence_document_id: 'doc-policy',
+        evidence_document_name: 'policy.txt',
+        evidence_excerpt: 'Employees follow an electricity policy.',
+        evidence_candidate_count: 1,
+        evidence_ai_relevance: 'UNRELATED',
+        evidence_ai_missing: 'No consumption figure.',
+        evidence_matches: [{
+          document_id: 'doc-policy', document_name: 'policy.txt',
+          link_status: 'CANDIDATE', ai_relevance: 'UNRELATED',
+          ai_missing: 'No consumption figure.',
+        }],
+      }),
+    ])
+
+    await expect(page.getByText('AI: likely unrelated')).toBeVisible()
+    await page.locator('.questions-table tbody tr').first().click()
+    await expect(page.getByText('AI relevance: likely unrelated')).toBeVisible()
+  })
+
   test('matched files show the best source and expandable alternatives', async ({ page }) => {
     await gotoQuestionnaire(page)
 

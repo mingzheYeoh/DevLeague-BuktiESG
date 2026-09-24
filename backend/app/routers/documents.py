@@ -36,7 +36,7 @@ from app.config import settings
 from app.db import get_db
 from app.errors import api_error
 from app.enums import DOCUMENT_DELETABLE_FROM, DOCUMENT_TYPE
-from app.models import Case, Document, DocumentChunk
+from app.models import Case, Document, DocumentChunk, ProcessingJob
 from app.schemas import DocumentChunkRecord, DocumentRecord
 from app.services import extraction_dispatch, jobs, storage
 
@@ -187,6 +187,40 @@ async def upload_document(
     db.refresh(document)
     await extraction_dispatch.notify_queued_extraction(db, document.id)
     return DocumentRecord.from_model(document)
+
+
+@router.post("/{case_id}/documents/recheck-matches")
+async def recheck_matches(
+    case: Case = Depends(require_case), db: Session = Depends(get_db)
+) -> dict[str, int]:
+    """Re-run matching and optional model checks for already indexed evidence."""
+    documents = db.query(Document).filter(
+        Document.case_id == case.id,
+        Document.document_type != "QUESTIONNAIRE",
+        Document.processing_status == "INDEXED",
+    ).all()
+    queued = []
+    notify = []
+    for document in documents:
+        pending = db.query(ProcessingJob.status).filter(
+            ProcessingJob.document_id == document.id,
+            ProcessingJob.job_type == "EXTRACT_VALUES",
+            ProcessingJob.status.in_(("QUEUED", "RUNNING")),
+        ).first()
+        if pending:
+            if pending.status == "QUEUED":
+                notify.append(document.id)
+            continue
+        jobs.create_job(
+            db, case_id=case.id, job_type="EXTRACT_VALUES",
+            document_id=document.id, track_as_latest=False,
+        )
+        queued.append(document.id)
+        notify.append(document.id)
+    db.commit()
+    for document_id in notify:
+        await extraction_dispatch.notify_queued_extraction(db, document_id)
+    return {"queued": len(queued)}
 
 
 @router.get("/{case_id}/documents", response_model=list[DocumentRecord])

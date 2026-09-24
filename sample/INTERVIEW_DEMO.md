@@ -9,7 +9,7 @@ Use this guide to walk an interviewer through one complete, **synthetic** FY2025
 | Keep out of the first run | Files beginning B-, C-, or reference-; use those later to demonstrate gaps and conflicts |
 | Expected result | 20 imported questions, 14 required; 16 indexed evidence files; 14/14 required answers confirmed after you write and record them |
 
-**What is actually AI?** OpenRouter's Luna model reads evidence text and extracts measurements such as a value, unit, scope, and period. Questionnaire import, E/S/G category suggestions, evidence matching, status rules, and answer confirmation use ordinary code and human review. The model does not write the final answers or approve evidence.
+**What is actually AI?** OpenRouter's Luna model reads evidence text to extract measurements (value, unit, scope, period) and to judge whether a keyword-matched passage appears to answer a question. Its relevance labels are suggestions backed by verbatim source quotes. Questionnaire import, E/S/G category suggestions, initial candidate retrieval, status rules, and answer confirmation use ordinary code and human review. The model does not write final answers or approve evidence.
 
 ## Follow the demo
 
@@ -52,7 +52,7 @@ Open **Evidence** and leave **Upload as: Other**. Set **Evidence dated** *before
 
 Use **Upload evidence** for each group. Files sharing a date can be selected together; the app processes them one at a time. A-01 through A-04 and A-07 have no later approval date, so this trial uses the reporting-period end for them. Do not upload the B-, C-, or reference- files in this first case.
 
-**Check:** All **16 uploaded A- files** are marked **Indexed**. The Evidence library also lists the questionnaire, so its total file count may be 17. Indexed means readable text was saved and can be searched. Luna's measurement extraction runs separately in the background and may finish a little later. Use **Refresh** on Questionnaire if a status has not updated yet.
+**Check:** All **16 uploaded A- files** are marked **Indexed**. The Evidence library also lists the questionnaire, so its total file count may be 17. Indexed means readable text was saved and can be searched. Luna's measurement and relevance checks run separately in the background and may finish a little later. Use **Refresh** on Questionnaire to see updated suggestions.
 
 ### Step 4 — Show the original and the extracted text
 
@@ -90,11 +90,11 @@ If an important source is missing or contradictory, show **Create submission act
 
 6. **Indexing.** Each readable piece is saved with its source location. Think of the index as a shelf of searchable passages, each with an address back to its file. **Indexed** means the shelf was filled; it says nothing about whether a claim is accurate, current, or approved. This demo does not use embeddings or a vector database.
 
-7. **Evidence matching.** The matcher compares words in a question with words in indexed passages. Distinctive shared words count more than common ones, and the strongest candidate is shown. This is weighted keyword search, **not a model call**. Similar wording can still point to the wrong company, year, unit, or a passage that answers only part of the question.
+7. **Evidence matching.** The matcher compares words in a question with words in indexed passages. Reporting filler such as “report” is ignored; in a multi-question workbook, a candidate needs at least two meaningful shared words. Distinctive words count more, and the strongest candidates are kept. This first pass is weighted keyword search, **not a model call**. Similar wording can still point to the wrong company, year, unit, or a passage that answers only part of the question.
 
 8. **Citations.** A candidate names its original file and location and shows a short excerpt. Open the original to verify the full context; an excerpt is a pointer, not proof on its own.
 
-9. **AI measurement extraction.** After an evidence upload is indexed, a Vercel Queue worker sends its text passages to OpenRouter's **GPT-6 Luna**. The model can return one measurement per passage: numeric value, unit, scope, and period. Ambiguous passages may return no value. This background step does not block the upload, and its output never supplies a verdict or invents a citation. **Use synthetic files for this demo:** document text leaves BuktiESG for OpenRouter and its selected model provider.
+9. **AI measurement and relevance checks.** After indexing, a Vercel Queue worker sends text passages to OpenRouter's **GPT-6 Luna**. The model can return one measurement per passage (value, unit, scope, period), then label keyword candidates as **likely relevant**, **partly relevant**, or **likely unrelated**, with a source quote and any missing fact. The app rejects a claimed supporting quote unless it appears verbatim in the saved passage. These background checks do not block upload. Labels affect which suggestion appears first; they do not accept evidence or set its status. **Use synthetic files for this demo:** document text leaves BuktiESG for OpenRouter and its selected model provider.
 
 10. **Evidence rules.** Ordinary code compares candidates with the question and reporting context. No usable source can mean **Missing**; unreadable material can mean **Needs manual review**; an unaccepted match is usually **Partial**; dates can mean **Outdated**. **Conflicting** requires comparable but incompatible extracted values, so it will not catch every real-world contradiction. **Verified** also needs a suitable source accepted by a person.
 
@@ -104,7 +104,7 @@ If an important source is missing or contradictory, show **Create submission act
 
 ## Answer and evidence sheet
 
-Use these as **review prompts**, not as answers to copy without opening the documents. A-01–A-16 are filename prefixes in [sample/evidence](evidence/). A related file in parentheses provides a cross-check, but the app may display only its highest-scoring candidate.
+Use these as **review prompts**, not as answers to copy without opening the documents. A-01–A-16 are filename prefixes in [sample/evidence](evidence/). A related file in parentheses provides a cross-check; the app shows the highest-ranked candidate and lets you expand the other matched files.
 
 ### Environmental questions
 
@@ -145,6 +145,6 @@ For Q-E-02, the 2024 Peninsular grid factor comes from the [Energy Commission's 
 
 ## A short interview talk track
 
-> “I create a case and upload the customer's spreadsheet. BuktiESG reads its 20 existing questions, including 14 required ones. I then upload 16 synthetic supporting files. The system keeps the originals, extracts searchable passages with source locations, and suggests candidate evidence through keyword matching. Luna separately extracts measurements that can help the rules detect a numerical conflict. I open the actual source, check the company, year, unit, and calculation, then accept suitable evidence and write the answer under my own name. The dashboard counts confirmed required answers, and I export a draft with its evidence trail. The final judgement remains with the reviewer.”
+> “I create a case and upload the customer's spreadsheet. BuktiESG reads its 20 existing questions, including 14 required ones. I then upload 16 synthetic supporting files. The system keeps the originals, extracts searchable passages with source locations, and suggests candidate evidence through keyword matching. Luna extracts measurements and checks whether each candidate passage seems to answer its question, quoting the saved text. I open the actual source, check the company, year, unit, and calculation, then accept suitable evidence and write the answer under my own name. The dashboard counts confirmed required answers, and I export a draft with its evidence trail. The final judgement remains with the reviewer.”
 
-**Be candid if asked:** these records are synthetic; category suggestions and passage matching are rule-based; scanned PDFs need manual handling; the model may miss or misread a figure; a candidate excerpt may cover only part of a question; and a reviewer still has to catch contradictions that structured extraction did not expose.
+**Be candid if asked:** these records are synthetic; categories and first-pass matches are rule-based; scanned PDFs need manual handling; the model may misjudge relevance or a figure; a candidate excerpt may cover only part of a question; and a reviewer still has to catch contradictions that structured extraction did not expose.

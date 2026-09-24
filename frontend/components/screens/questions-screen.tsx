@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowRight, Download, RefreshCw, Search } from 'lucide-r
 import { useMemo, useState } from 'react'
 
 import type { EvidenceStatus, QuestionListItem, ReadinessSummary } from '@/lib/api'
-import { attentionOrder, errorMessage, questionStats, statusLabel } from '@/lib/api'
+import { api, attentionOrder, errorMessage, questionStats, statusLabel } from '@/lib/api'
 import { downloadTextFile, rowsToCsv } from '@/lib/format'
 
 import {
@@ -38,6 +38,7 @@ const FILTERS: { value: 'ALL' | EvidenceStatus; label: string }[] = [
  * column reads "Not scored" instead of a number computed here.
  */
 export function QuestionsScreen({
+  caseId,
   questions,
   readiness,
   loading,
@@ -46,6 +47,7 @@ export function QuestionsScreen({
   onOpenQuestion,
   attentionFirst,
 }: {
+  caseId: string
   questions: QuestionListItem[]
   readiness: ReadinessSummary | null
   loading: boolean
@@ -58,6 +60,8 @@ export function QuestionsScreen({
   const [filter, setFilter] = useState<'ALL' | EvidenceStatus>('ALL')
   const [query, setQuery] = useState('')
   const [byAttention, setByAttention] = useState(Boolean(attentionFirst))
+  const [rechecking, setRechecking] = useState(false)
+  const [recheckMessage, setRecheckMessage] = useState<string | null>(null)
 
   const stats = questionStats(questions, readiness)
 
@@ -118,6 +122,28 @@ export function QuestionsScreen({
         } required · Evidence status and human review stay separate.`}
         actions={
           <>
+            <button
+              className="secondary"
+              type="button"
+              disabled={rechecking || questions.length === 0}
+              onClick={async () => {
+                setRechecking(true)
+                setRecheckMessage(null)
+                try {
+                  const result = await api.recheckMatches(caseId)
+                  setRecheckMessage(result.queued
+                    ? `${result.queued} evidence file(s) queued. Refresh after background checks finish.`
+                    : 'No new files queued; pending checks were retried or are already running.')
+                } catch (err) {
+                  setRecheckMessage(errorMessage(err))
+                } finally {
+                  setRechecking(false)
+                }
+              }}
+            >
+              <RefreshCw />
+              {rechecking ? 'Queuing…' : 'Recheck matches'}
+            </button>
             <button className="secondary" type="button" onClick={refresh}>
               <RefreshCw />
               Refresh
@@ -136,6 +162,7 @@ export function QuestionsScreen({
       />
 
       {error ? <ErrorNotice message={errorMessage(error)} onRetry={refresh} /> : null}
+      {recheckMessage ? <p className="field-hint" role="status">{recheckMessage}</p> : null}
 
       <div className="summary-strip">
         <b>
@@ -299,6 +326,11 @@ function MatchedFiles({ matches }: { matches: QuestionListItem['evidence_matches
       <small className={match.link_status === 'ACCEPTED' ? 'accepted' : ''}>
         {match.link_status === 'ACCEPTED' ? 'Accepted' : 'Candidate'}
       </small>
+      {match.ai_relevance ? (
+        <small title={match.ai_missing ?? undefined}>
+          AI: {match.ai_relevance === 'SUPPORTS' ? 'likely relevant' : match.ai_relevance === 'PARTIAL' ? 'partly relevant' : 'likely unrelated'}
+        </small>
+      ) : null}
     </div>
   )
 

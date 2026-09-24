@@ -28,6 +28,7 @@ from .extract import (
     parse_extraction,
 )
 from .mapping import map_question_to_sedg
+from .relevance import RelevanceAssessment, RelevanceRefused, build_relevance_prompt, parse_relevance
 from .sedg_taxonomy import SEDG_TAXONOMY, SedgDisclosure, SedgTopic
 from .provider import FixtureProvider, LLMProvider
 
@@ -54,6 +55,10 @@ __all__ = [
     "parse_plain_text_evidence",
     "analyze_question",
     "map_question_to_sedg",
+    "RelevanceAssessment",
+    "RelevanceRefused",
+    "build_relevance_prompt",
+    "parse_relevance",
     "SEDG_TAXONOMY",
     "SedgDisclosure",
     "SedgTopic",

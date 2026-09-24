@@ -169,23 +169,20 @@ _QUESTION = AnalysisQuestion(
 )
 
 
-def test_without_the_hint_the_header_row_wins_the_tie():
-    """The behaviour being changed, pinned first. All three chunks score 3 on
-    keyword overlap -- a spreadsheet header contains exactly the vocabulary a
-    question about that spreadsheet uses -- and the first one encountered
-    keeps the tie. That is the header, the one row guaranteed to hold no
-    measurement."""
+def test_without_the_hint_a_numeric_data_row_wins_the_tie():
+    """A data row is preferable to a header when topic overlap is tied."""
     result = analyze_question(_QUESTION, _A03)
 
-    assert result.candidate_evidence[0].chunk_id == "c0"
+    assert result.candidate_evidence[0].chunk_id == "c5"
 
 
 def test_a_chunk_carrying_a_measurement_wins_the_tie():
-    """Only the tie. A chunk that carries a measurement is a better citation
-    for a question asking for a quantity, but this must never outrank a chunk
-    the matcher scored higher -- relevance is still decided by the question's
-    own words."""
-    result = analyze_question(_QUESTION, _A03, value_bearing_ids=frozenset({"c5", "c7"}))
+    """When two numeric rows tie, prefer the one extraction could measure."""
+    chunks = [
+        PipelineChunk(chunk_id="c0", text="Scheduled waste total | 3.5 | Jan"),
+        PipelineChunk(chunk_id="c5", text="Scheduled waste total | 12.6 | FY2025"),
+    ]
+    result = analyze_question(_QUESTION, chunks, value_bearing_ids=frozenset({"c5"}))
 
     assert result.candidate_evidence[0].chunk_id == "c5"
 

@@ -578,6 +578,9 @@ class EvidenceLink(Base):
     # read it, or the model would be influencing a verdict (AGENTS.md §3.2).
     # Nullable: rows written before migration 0006 have no score.
     match_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ai_relevance: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    ai_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_missing: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Who accepted this link, and when. VERIFIED is the strongest claim this
     # system makes about a piece of evidence; one that cannot name its author
     # is the kind of unprovable claim the product exists to refuse. Nullable

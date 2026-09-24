@@ -126,3 +126,23 @@ def test_openrouter_request_uses_luna_json_mode(monkeypatch):
     assert seen["json"]["provider"] == {"data_collection": "deny", "require_parameters": True}
     assert "store" not in seen["json"]
     assert "temperature" not in seen["json"]
+
+
+def test_relevance_response_must_quote_the_stored_source(monkeypatch):
+    from app.services.extractor import OpenRouterExtractor
+
+    extractor = OpenRouterExtractor(api_key="test-key")
+    pair = ("How many staff trained?", "254 staff completed training.")
+    monkeypatch.setattr(
+        extractor,
+        "_post",
+        lambda *args: '{"results":[{"verdict":"SUPPORTS","quote":"254 staff completed training.","missing":null}]}',
+    )
+    assert extractor.assess_matches([pair])[0].verdict == "SUPPORTS"
+
+    monkeypatch.setattr(
+        extractor,
+        "_post",
+        lambda *args: '{"results":[{"verdict":"SUPPORTS","quote":"999 staff completed training.","missing":null}]}',
+    )
+    assert extractor.assess_matches([pair]) == [None]

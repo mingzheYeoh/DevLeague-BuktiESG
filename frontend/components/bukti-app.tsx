@@ -289,6 +289,7 @@ export default function BuktiApp() {
 
           {screen === 'questions' && selectedCaseId && (
             <QuestionsScreen
+              caseId={selectedCaseId}
               questions={questions}
               readiness={readiness}
               loading={loading}

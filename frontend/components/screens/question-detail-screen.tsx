@@ -429,6 +429,20 @@ function EvidenceSection({
         <p className="field-hint">The server returned a location but no excerpt text.</p>
       )}
 
+      {question.evidence_ai_relevance ? (
+        <details className="status-detail">
+          <summary>
+            AI relevance: {question.evidence_ai_relevance === 'SUPPORTS'
+              ? 'likely relevant'
+              : question.evidence_ai_relevance === 'PARTIAL'
+                ? 'partly relevant'
+                : 'likely unrelated'} (suggestion only)
+          </summary>
+          {question.evidence_ai_quote ? <blockquote>{question.evidence_ai_quote}</blockquote> : null}
+          {question.evidence_ai_missing ? <p>{question.evidence_ai_missing}</p> : null}
+        </details>
+      ) : null}
+
       <button className="link" type="button" onClick={onOpenDocument}>
         Open document
       </button>
@@ -477,7 +491,7 @@ function EvidenceSection({
       {others > 0 ? (
         <p className="field-hint">
           The matcher found {question.evidence_candidate_count} passages that share words with this
-          question, across your uploaded documents. Only the highest-scoring keyword match is shown
+          question, across your uploaded documents. The highest-ranked suggestion is shown
           above — check that this document really does answer
           the question.
         </p>

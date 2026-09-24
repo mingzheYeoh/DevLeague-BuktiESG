@@ -228,6 +228,9 @@ export interface QuestionListItem {
   /** Who vouched for that link, if anyone. Acceptance is the sixth
    *  VERIFIED condition and the only one a human owns. */
   evidence_accepted_by: string | null
+  evidence_ai_relevance?: 'SUPPORTS' | 'PARTIAL' | 'UNRELATED' | null
+  evidence_ai_quote?: string | null
+  evidence_ai_missing?: string | null
   /** Total candidate links on this question. The `evidence_*` fields above
    * describe exactly one of them, so this has to be shown — otherwise the UI
    * implies the excerpt is the only evidence. */
@@ -238,6 +241,8 @@ export interface QuestionListItem {
     document_id: string
     document_name: string | null
     link_status: EvidenceLinkStatus
+    ai_relevance?: 'SUPPORTS' | 'PARTIAL' | 'UNRELATED' | null
+    ai_missing?: string | null
   }[]
 }
 
@@ -317,6 +322,9 @@ export interface EvidenceLinkRecord {
   period_end: string | null
   accepted_by: string | null
   accepted_at: string | null
+  ai_relevance?: 'SUPPORTS' | 'PARTIAL' | 'UNRELATED' | null
+  ai_quote?: string | null
+  ai_missing?: string | null
 }
 
 // ---- Request bodies ----------------------------------------------------

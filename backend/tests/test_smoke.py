@@ -357,10 +357,8 @@ def test_evidence_citation_names_its_document_and_admits_how_many_candidates(cli
     """A location without a filename is not a citation.
 
     `evidence_location` said "Paragraph 8" with no way to learn paragraph 8 of
-    *which* file, and nothing revealed that the same question had other
-    candidates. Two uploads that both match produce two links, and only one is
-    described by the evidence_* fields -- so the count has to be visible or the
-    UI silently implies the shown excerpt is the only evidence.
+    *which* file. A weak upload sharing only "total" must now be rejected;
+    the displayed count and citation must agree with that stricter match.
     """
     case_id = client.post("/api/v1/cases", json={"title": "Citation"}).json()["id"]
 
@@ -411,25 +409,18 @@ def test_evidence_citation_names_its_document_and_admits_how_many_candidates(cli
     question = client.get(f"/api/v1/cases/{case_id}/questions").json()[0]
 
     # The citation names its source file.
-    assert question["evidence_document_name"] in {"electricity-bill.txt", "safety-register.txt"}
+    assert question["evidence_document_name"] == "electricity-bill.txt"
     assert question["evidence_document_id"]
 
-    # And it admits it is one of several.
-    assert question["evidence_candidate_count"] == 2
+    assert question["evidence_candidate_count"] == 1
     assert [
         (match["document_name"], match["link_status"])
         for match in question["evidence_matches"]
     ] == [
         ("electricity-bill.txt", "CANDIDATE"),
-        ("safety-register.txt", "CANDIDATE"),
     ]
 
-    # The excerpt and the named document agree with each other -- whichever
-    # link is chosen, the filename describes the excerpt actually shown.
-    if question["evidence_document_name"] == "safety-register.txt":
-        assert "days lost" in question["evidence_excerpt"]
-    else:
-        assert "electricity" in question["evidence_excerpt"].lower()
+    assert "electricity" in question["evidence_excerpt"].lower()
 
 
 def test_a_question_with_no_evidence_reports_zero_candidates(client):

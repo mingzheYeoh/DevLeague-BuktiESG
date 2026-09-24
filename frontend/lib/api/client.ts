@@ -333,6 +333,13 @@ export const api = {
 
   // ---- Documents -------------------------------------------------------
 
+  recheckMatches(caseId: string): Promise<{ queued: number }> {
+    return request<{ queued: number }>(
+      `/api/v1/cases/${enc(caseId)}/documents/recheck-matches`,
+      { method: 'POST' },
+    )
+  },
+
   /** POST /api/v1/cases/{case_id}/documents
    * (multipart: file, document_type, source_date)
    *

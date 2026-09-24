@@ -186,6 +186,8 @@ class EvidenceMatchSummary(BaseModel):
     document_id: str
     document_name: str | None
     link_status: str
+    ai_relevance: str | None = None
+    ai_missing: str | None = None
 
 
 class QuestionListItem(BaseModel):
@@ -251,6 +253,9 @@ class QuestionListItem(BaseModel):
     # human owns (Main Spec 17 Gate P4).
     evidence_link_id: str | None = None
     evidence_accepted_by: str | None = None
+    evidence_ai_relevance: str | None = None
+    evidence_ai_quote: str | None = None
+    evidence_ai_missing: str | None = None
     # How many *live* candidate links this question has -- REJECTED and
     # INVALIDATED ones are excluded, matching what the rule engine counts. The
     # fields above describe exactly one of them, so a UI that omits this count
@@ -280,6 +285,9 @@ class QuestionListItem(BaseModel):
         evidence_document_name = None
         evidence_link_id = None
         evidence_accepted_by = None
+        evidence_ai_relevance = None
+        evidence_ai_quote = None
+        evidence_ai_missing = None
         # Only links the rule engine still counts. `rules.py` drops REJECTED
         # and INVALIDATED before it computes anything, so including them here
         # makes the screen contradict the engine that produced the status next
@@ -294,6 +302,10 @@ class QuestionListItem(BaseModel):
         ]
         links.sort(
             key=lambda link: (
+                link.link_status == "ACCEPTED",
+                {"SUPPORTS": 3, "PARTIAL": 2, None: 1, "UNRELATED": 0}.get(
+                    link.ai_relevance, 1
+                ),
                 link.match_score if link.match_score is not None else -1.0,
                 link.created_at,
             ),
@@ -325,6 +337,9 @@ class QuestionListItem(BaseModel):
             evidence_document_name = getattr(document, "original_filename", None)
             evidence_link_id = best_link.id
             evidence_accepted_by = best_link.accepted_by
+            evidence_ai_relevance = best_link.ai_relevance
+            evidence_ai_quote = best_link.ai_quote
+            evidence_ai_missing = best_link.ai_missing
 
         # Short bullets, derived from the findings the engine already persisted.
         # A malformed or absent status_findings_json degrades to no bullets --
@@ -373,12 +388,17 @@ class QuestionListItem(BaseModel):
             evidence_document_name=evidence_document_name,
             evidence_link_id=evidence_link_id,
             evidence_accepted_by=evidence_accepted_by,
+            evidence_ai_relevance=evidence_ai_relevance,
+            evidence_ai_quote=evidence_ai_quote,
+            evidence_ai_missing=evidence_ai_missing,
             evidence_candidate_count=len(links),
             evidence_matches=[
                 EvidenceMatchSummary(
                     document_id=link.document_id,
                     document_name=getattr(link.document, "original_filename", None),
                     link_status=link.link_status,
+                    ai_relevance=link.ai_relevance,
+                    ai_missing=link.ai_missing,
                 )
                 for link in links
             ],
@@ -518,6 +538,9 @@ class EvidenceLinkRecord(BaseModel):
     period_end: date | None
     accepted_by: str | None = None
     accepted_at: datetime | None = None
+    ai_relevance: str | None = None
+    ai_quote: str | None = None
+    ai_missing: str | None = None
 
     @classmethod
     def from_model(cls, link) -> "EvidenceLinkRecord":
@@ -532,4 +555,7 @@ class EvidenceLinkRecord(BaseModel):
             period_end=link.period_end,
             accepted_by=link.accepted_by,
             accepted_at=link.accepted_at,
+            ai_relevance=link.ai_relevance,
+            ai_quote=link.ai_quote,
+            ai_missing=link.ai_missing,
         )

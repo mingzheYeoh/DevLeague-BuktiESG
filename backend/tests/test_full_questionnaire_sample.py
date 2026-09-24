@@ -92,11 +92,13 @@ def test_complete_sample_upload_and_review(client, monkeypatch, tmp_path):
 
     questions = client.get(f"/api/v1/cases/{case_id}/questions").json()
     assert len(questions) == len(EXPECTED) == len(ANSWERS) == 20
+    candidate_count = 0
     for question in questions:
         qid = question["external_question_id"]
         links = client.get(
             f"/api/v1/cases/{case_id}/questions/{question['id']}/evidence-links"
         ).json()
+        candidate_count += len(links)
         link = next((link for link in links if link["document_id"] == document_ids[EXPECTED[qid]]), None)
         assert link is not None, qid
         assert question["evidence_status"] == "PARTIAL", qid
@@ -111,6 +113,8 @@ def test_complete_sample_upload_and_review(client, monkeypatch, tmp_path):
         )
         assert reviewed.status_code == 200, (qid, reviewed.text)
         assert reviewed.json()["review_status"] == "HUMAN_CONFIRMED", qid
+
+    assert candidate_count <= 80, f"too many weak keyword candidates: {candidate_count}"
 
     refreshed = client.get(f"/api/v1/cases/{case_id}/questions").json()
     assert all(q["evidence_status"] == "VERIFIED" for q in refreshed)

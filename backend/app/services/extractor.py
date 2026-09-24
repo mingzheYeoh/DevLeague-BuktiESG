@@ -24,7 +24,10 @@ from typing import Protocol
 
 import httpx
 
-from ai_pipeline import Extracted, ExtractionRefused, build_extraction_prompt, parse_extraction
+from ai_pipeline import (
+    Extracted, ExtractionRefused, RelevanceAssessment,
+    build_extraction_prompt, build_relevance_prompt, parse_extraction, parse_relevance,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +51,10 @@ class Extractor(Protocol):
 
     def extract(self, chunk_texts: list[str]) -> list[Extracted]: ...
 
+    def assess_matches(
+        self, pairs: list[tuple[str, str]]
+    ) -> list[RelevanceAssessment | None]: ...
+
 
 class NullExtractor:
     """No provider configured: every chunk yields no measurement.
@@ -59,6 +66,11 @@ class NullExtractor:
 
     def extract(self, chunk_texts: list[str]) -> list[Extracted]:
         return [Extracted() for _ in chunk_texts]
+
+    def assess_matches(
+        self, pairs: list[tuple[str, str]]
+    ) -> list[RelevanceAssessment | None]:
+        return [None for _ in pairs]
 
 
 class OpenRouterExtractor:
@@ -106,6 +118,20 @@ class OpenRouterExtractor:
         for start in range(0, len(chunk_texts), BATCH_SIZE):
             batch = chunk_texts[start : start + BATCH_SIZE]
             results.extend(self._extract_batch(batch))
+        return results
+
+    def assess_matches(
+        self, pairs: list[tuple[str, str]]
+    ) -> list[RelevanceAssessment | None]:
+        results: list[RelevanceAssessment | None] = []
+        for start in range(0, len(pairs), BATCH_SIZE):
+            batch = pairs[start : start + BATCH_SIZE]
+            system, user = build_relevance_prompt(batch)
+            try:
+                results.extend(parse_relevance(self._post(system, user), pairs=batch))
+            except Exception:
+                logger.warning("relevance provider failed for a batch of %d", len(batch), exc_info=True)
+                results.extend([None] * len(batch))
         return results
 
     def _extract_batch(self, batch: list[str]) -> list[Extracted]:

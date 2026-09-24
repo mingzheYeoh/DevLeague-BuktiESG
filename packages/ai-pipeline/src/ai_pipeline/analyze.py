@@ -35,6 +35,7 @@ _STOPWORDS = {
     "was", "were", "does", "do", "did", "has", "have", "had", "please",
     "provide", "what", "which", "how", "your", "you", "this", "that", "with",
     "from", "by", "as", "at", "be", "it", "its",
+    "report", "reporting", "period", "year", "number", "company",
 }
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
@@ -178,11 +179,14 @@ def analyze_question(
     best_score = 0.0
     best_matched: set[str] = set()
     best_carries_value = False
+    best_has_number = False
 
     for chunk in document_chunks:
         c_keywords = _keywords(chunk.text)
         matched = q_keywords & c_keywords
         if not matched:
+            continue
+        if matched == {"total"} or (weights and len(matched - {"total"}) < 2):
             continue
         # A match built only from words that appear all over the questionnaire
         # is not evidence of anything. Without this, one shared `report` was
@@ -203,14 +207,19 @@ def analyze_question(
         # own words, so an extracted value informs the choice without deciding
         # what the question is about.
         carries_value = chunk.chunk_id in value_bearing_ids
+        has_number = bool(re.search(r"(?<![a-zA-Z])\d", chunk.text))
         better = score > best_score or (
-            score == best_score and carries_value and not best_carries_value
+            score == best_score and (
+                (carries_value and not best_carries_value)
+                or (carries_value == best_carries_value and has_number and not best_has_number)
+            )
         )
         if better and score > 0:
             best_score = score
             best_chunk = chunk
             best_matched = matched
             best_carries_value = carries_value
+            best_has_number = has_number
 
     candidate_evidence: list[CandidateEvidence] = []
     missing_elements: list[str] = []

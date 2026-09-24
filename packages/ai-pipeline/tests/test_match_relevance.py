@@ -50,10 +50,12 @@ def _chunk(chunk_id: str, text: str) -> DocumentChunk:
 
 
 def test_boilerplate_words_carry_less_weight_than_subject_words(weights):
-    """`report` and `period` are in every question; `ghg` is in one."""
-    assert weights["ghg"] > weights["report"]
-    assert weights["ghg"] > weights["reporting"]
-    assert weights["water"] > weights["total"]
+    """Reporting boilerplate is ignored; subject words remain."""
+    assert "report" not in weights
+    assert "reporting" not in weights
+    assert weights["total"] < weights["ghg"]
+    assert weights["ghg"] > 0
+    assert weights["water"] > 0
 
 
 def test_the_document_about_the_subject_wins_over_reporting_boilerplate(weights):
@@ -109,14 +111,13 @@ def test_the_match_score_is_reported_so_links_can_be_ranked(weights):
 
 
 def test_without_weights_the_behaviour_is_unchanged(weights):
-    """The parameter is optional so existing callers keep working; a caller
-    that supplies nothing gets the old uniform-weight scoring."""
+    """The unweighted path still scores meaningful overlapping terms."""
     question = AnalysisQuestion(question_id="q4", question_text=QUESTIONNAIRE[0])
-    chunk = _chunk("any", "Report the reporting period.")
+    chunk = _chunk("any", "GHG emissions were measured.")
 
     result = analyze_question(question, [chunk])
 
-    assert result.candidate_evidence, "uniform scoring still matches on any overlap"
+    assert result.candidate_evidence, "uniform scoring still matches on subject overlap"
 
 
 def test_a_single_question_questionnaire_falls_back_to_uniform_weights():
@@ -138,9 +139,18 @@ def test_two_questions_are_enough_to_separate_shared_from_unique_terms():
         ]
     )
 
-    # In both questions -> pure boilerplate.
-    assert weights["report"] == 0.0
-    assert weights["reporting"] == 0.0
+    # Reporting boilerplate is ignored before weighing.
+    assert "report" not in weights
+    assert "reporting" not in weights
     # In one of two -> exactly the generic/distinctive boundary, and kept.
     assert weights["electricity"] == 0.5
     assert weights["water"] == 0.5
+
+
+def test_reporting_boilerplate_does_not_link_an_unrelated_document():
+    question = AnalysisQuestion(
+        question_id="electricity", question_text="Report total electricity consumption in kWh."
+    )
+    unrelated = _chunk("safety", "Total employees trained on workplace safety: 268.")
+
+    assert analyze_question(question, [unrelated]).candidate_evidence == []

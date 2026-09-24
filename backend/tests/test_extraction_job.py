@@ -99,6 +99,86 @@ def test_running_the_job_writes_the_measurement_onto_the_chunk(client, db_sessio
     assert chunk.extracted_value == "12.6"
     assert chunk.extracted_unit == "t"
 
+    # A later relevance recheck must not erase an already extracted value.
+    assert client.post(f"/api/v1/cases/{waste_case}/documents/recheck-matches").json() == {
+        "queued": 1
+    }
+    second = FakeExtractor({})
+    jobs_service.run_extraction_jobs(db_session, extractor=second)
+    assert chunk.extracted_value == "12.6"
+    assert second.calls == []
+
+
+def test_model_relevance_is_stored_as_advice_without_accepting_a_link(
+    client, db_session, waste_case
+):
+    from ai_pipeline.relevance import RelevanceAssessment
+    from app.models import EvidenceLink
+    from app.services import jobs as jobs_service
+
+    _upload(
+        client,
+        waste_case,
+        "policy.txt",
+        b"Scheduled waste policy: employees must report total waste generated.",
+    )
+
+    class Assessor(FakeExtractor):
+        def assess_matches(self, pairs):
+            assert len(pairs) == 1
+            return [
+                RelevanceAssessment(
+                    verdict="UNRELATED", quote=None, missing="A policy is not a measured total."
+                )
+            ]
+
+    jobs_service.run_extraction_jobs(db_session, extractor=Assessor({}))
+
+    link = db_session.query(EvidenceLink).one()
+    assert link.ai_relevance == "UNRELATED"
+    assert link.link_status == "CANDIDATE"
+    question = client.get(f"/api/v1/cases/{waste_case}/questions").json()[0]
+    assert question["evidence_status"] == "PARTIAL"
+    assert question["evidence_matches"][0]["ai_relevance"] == "UNRELATED"
+
+
+def test_recheck_updates_existing_candidates_but_keeps_human_decisions(
+    client, db_session, waste_case
+):
+    from app.models import DocumentChunk, EvidenceLink, Question
+    from app.services import jobs as jobs_service
+
+    doc = _upload(client, waste_case, "unrelated.txt", b"Total employees trained: 268.\n")
+    jobs_service.run_extraction_jobs(db_session, extractor=FakeExtractor({}))
+    question = db_session.query(Question).one()
+    chunk = db_session.query(DocumentChunk).filter(DocumentChunk.document_id == doc["id"]).one()
+
+    old = EvidenceLink(
+        question_id=question.id, document_id=doc["id"], chunk_id=chunk.id,
+        location_json='{"type":"paragraph","paragraph_index":0,"heading_path":[]}',
+        claim_supported="Keyword overlap with question terms: total",
+    )
+    db_session.add(old)
+    db_session.commit()
+
+    route = f"/api/v1/cases/{waste_case}/documents/recheck-matches"
+    assert client.post(route).json() == {"queued": 1}
+    assert client.post(route).json() == {"queued": 0}
+    jobs_service.run_extraction_jobs(db_session, extractor=FakeExtractor({}))
+    assert db_session.query(EvidenceLink).count() == 0
+
+    accepted = EvidenceLink(
+        question_id=question.id, document_id=doc["id"], chunk_id=chunk.id,
+        location_json='{"type":"paragraph","paragraph_index":0,"heading_path":[]}',
+        claim_supported="Accepted by a reviewer", link_status="ACCEPTED",
+        accepted_by="Reviewer",
+    )
+    db_session.add(accepted)
+    db_session.commit()
+    assert client.post(route).json() == {"queued": 1}
+    jobs_service.run_extraction_jobs(db_session, extractor=FakeExtractor({}))
+    assert db_session.query(EvidenceLink).one().id == accepted.id
+
 
 def test_queue_delivery_processes_only_its_job_once(client, db_session, waste_case):
     from app.models import ProcessingJob
@@ -206,14 +286,8 @@ def test_a_chunk_the_model_could_not_measure_stays_empty_and_is_not_retried(
     )
 
 
-def test_extraction_moves_the_citation_off_a_row_with_no_measurement(client, db_session):
-    """The end-to-end shape of the tie-break.
-
-    A spreadsheet's header row ties with its data rows on keyword overlap -
-    the header holds exactly the vocabulary the question uses - and wins by
-    being first. It is also the one row that can never carry a number. Once
-    extraction knows which rows do, the citation moves.
-    """
+def test_indexing_prefers_a_data_row_over_a_tied_header(client, db_session):
+    """A numeric data row is a better citation than a header with equal terms."""
     from app.models import DocumentChunk, EvidenceLink, Question
     from app.services import jobs as jobs_service
 
@@ -238,7 +312,7 @@ def test_extraction_moves_the_citation_off_a_row_with_no_measurement(client, db_
         )
         return db_session.get(DocumentChunk, link.chunk_id).text
 
-    assert cited_text() == header, "the header wins the tie before extraction"
+    assert cited_text() == row
 
     jobs_service.run_extraction_jobs(
         db_session,
