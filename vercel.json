@@ -2,7 +2,7 @@
   "regions": ["sin1"],
   "services": {
     "web": { "root": "frontend/" },
-    "api": { "root": "backend/", "entrypoint": "app.main:app" }
+    "api": { "root": "backend/", "entrypoint": "pyproject.toml" }
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": { "service": "api" } },

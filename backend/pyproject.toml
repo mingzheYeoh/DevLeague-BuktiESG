@@ -39,5 +39,8 @@ testpaths = ["tests"]
 [tool.uv.sources]
 buktiesg-ai-pipeline = { path = "../packages/ai-pipeline", editable = true }
 
+[tool.vercel]
+entrypoint = "app.main:app"
+
 [[tool.vercel.subscribers]]
 entrypoint = "app.queue_tasks"
