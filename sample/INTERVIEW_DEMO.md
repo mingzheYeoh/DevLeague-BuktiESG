@@ -30,7 +30,7 @@ Open [BuktiESG](https://buktiesg.vercel.app/). Sign in with an account that belo
 
 Open **Questionnaire**. You should see **20 questions, 14 required**, in the spreadsheet's row order. Q-E-10 and Q-S-07 appear near the end. Open Q-E-02 to show the customer’s original Scope 2 question.
 
-The application reads these questions from spreadsheet rows; it does not invent them. E, S, and G labels are keyword suggestions. **Uncategorized** means the keyword rules found no confident label, not that the Luna model failed.
+The application reads these questions from spreadsheet rows; it does not invent them. Each sample question starts with a SEDG code, which the app reads directly. For questions without a code, it falls back to keywords. **Uncategorized** means neither method found a category, not that Luna failed.
 
 ### Step 3 — Upload the 16 supporting files
 
@@ -84,7 +84,7 @@ If an important source is missing or contradictory, show **Create submission act
 
 3. **Question extraction.** The spreadsheet reader finds the external question ID and question-text columns, then turns each nonblank row into a question. It keeps the row order, required flag, section, and source cell so you can trace the result back to the original. This sample has **20 questions, 14 required**. If required columns are missing, the file needs manual review rather than producing invented questions.
 
-4. **Category suggestions.** A small disclosure keyword list checks the question wording and suggests E, S, or G and a disclosure label. It is a sorting aid, not an official interpretation. A question remains **Uncategorized** when the rules have no reliable match.
+4. **Category suggestions.** If the question starts with a SEDG code, the app copies its pillar, topic, and disclosure code. Otherwise, a small keyword list suggests them from the wording. Both paths need human review: the supplied code is not checked against the official standard, and a keyword match is only a sorting aid. With neither, the question stays **Uncategorized**.
 
 5. **Readable evidence text.** The parser reads a PDF page by page, a Word file by heading section, a spreadsheet by populated row, and a text file by nonblank line. A scanned page without selectable text has no OCR fallback in this demo, so a person must review it.
 

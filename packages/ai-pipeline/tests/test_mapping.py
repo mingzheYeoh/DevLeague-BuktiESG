@@ -88,6 +88,19 @@ def test_unmatched_question_returns_uncategorized_with_zero_confidence():
     assert result.rationale is not None
 
 
+def test_explicit_sedg_code_in_question_takes_precedence_over_keywords():
+    examples = (
+        ("SEDG-G5.1: Report substantiated complaints concerning customer privacy.", "G", "G5", "G5.1"),
+        ("SEDG-E5.1: List materials used to package primary products.", "E", "E5", "E5.1"),
+    )
+    for question, pillar, topic, disclosure in examples:
+        result = map_question_to_sedg(question)
+        assert (result.pillar, result.sedg_topic_code, result.sedg_disclosure_code) == (
+            pillar, topic, disclosure
+        )
+        assert "questionnaire" in result.rationale.lower()
+
+
 def test_result_never_carries_a_forbidden_verdict_field():
     result = map_question_to_sedg("What were Scope 1 emissions?")
     dumped = result.model_dump()

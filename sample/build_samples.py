@@ -91,11 +91,9 @@ TRAINING_HOURS_TOTAL = 3216
 
 # (external_question_id, question_text, section, is_required)
 #
-# Wording follows SEDG v2 disclosure text. It is also chosen so the keyword
-# mapper in packages/ai-pipeline/src/ai_pipeline/sedg_taxonomy.py can reach a
-# topic — that taxonomy is a documented placeholder, not the real SEDG codes,
-# so the overlap has to come from the words themselves ("Scope 1", "kWh",
-# "water withdrawal", "LTIFR", "anti-corruption").
+# These synthetic questions carry SEDG-style codes for the mapper to read
+# directly. The fallback keyword taxonomy is only a representative placeholder;
+# neither path verifies the label against the published standard.
 QUESTIONS: list[tuple[str, str, str, bool]] = [
     # -- Environmental ------------------------------------------------------
     (

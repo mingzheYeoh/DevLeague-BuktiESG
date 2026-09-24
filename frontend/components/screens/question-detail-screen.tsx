@@ -8,7 +8,7 @@ import {
   Plus,
   RotateCcw,
   ShieldCheck,
-  Sparkles,
+  Tag,
   X,
 } from 'lucide-react'
 import { useState } from 'react'
@@ -50,7 +50,7 @@ import {
  *  - The evidence status and its reason are the server's. Nothing here
  *    recomputes or softens them.
  *  - The source location and excerpt come from `document_chunks` server-side.
- *    The AI pipeline only ever returns a chunk id, so a location shown here
+ *    The matching pipeline only ever returns a chunk id, so a location shown here
  *    cannot be a fabricated one — and if the server sends none, none is shown.
  *  - Only a human action sets `HUMAN_CONFIRMED`. The mapping rationale is
  *    labelled as a recommendation and can never stand in for a verdict.
@@ -193,9 +193,9 @@ export function QuestionDetailScreen({
           {question.mapping_rationale ? (
             <section className="side-card">
               <h3>
-                <Sparkles />
+                <Tag />
                 Suggested category
-                <Pill tone="unreviewed">AI · not a verdict</Pill>
+                <Pill tone="unreviewed">Rule-based · not a verdict</Pill>
               </h3>
               <p>
                 {question.sedg_disclosure_code ?? question.sedg_topic_code ?? 'Not categorised'}
@@ -435,7 +435,7 @@ function EvidenceSection({
 
       {/* Acceptance is the sixth VERIFIED condition and the only one a human
           owns: the matcher decides the other five, but an unreviewed
-          AI-proposed candidate must not satisfy VERIFIED on its own. So this
+          automatically proposed candidate must not satisfy VERIFIED on its own. So this
           control is a verdict, and it is worded as one - "vouch for", not
           "confirm" - and it names who gave it once given. */}
       <div className="evidence-accept">

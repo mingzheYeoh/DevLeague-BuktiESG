@@ -1,9 +1,8 @@
-"""map_question_to_sedg() — pure, keyword-based E/S/G + SEDG mapping.
+"""map_question_to_sedg() — explicit-code-first E/S/G + SEDG mapping.
 
-Consistent with this package's keyword-first philosophy (BLOCKER-06, see
-analyze.py): no LLM call, no embeddings, no fuzzy matching. A question's
-text is scored against the keyword list of every SEDG disclosure in
-`sedg_taxonomy.SEDG_TAXONOMY`; the best-scoring disclosure wins.
+No LLM call, embeddings, or fuzzy matching. If a question starts with a
+SEDG code, use that customer-supplied code as written. Otherwise score its
+text against the keywords in `sedg_taxonomy.SEDG_TAXONOMY`.
 
 Purity boundary (AGENTS.md §3.2/3.3, same as every other function in this
 package): no DB session, no HTTP client, no credentials. Input is a plain
@@ -29,6 +28,7 @@ from .models import MappingResult
 from .sedg_taxonomy import SEDG_TAXONOMY, SedgDisclosure, SedgTopic
 
 _WORD_RE = re.compile(r"[a-z0-9]+")
+_EXPLICIT_CODE_RE = re.compile(r"^\s*SEDG-([ESG])([1-9]\d*)\.([1-9]\d*)\s*:", re.IGNORECASE)
 
 # A keyword may itself be a multi-word phrase ("scope 1", "board diversity").
 # Matching is done by substring search against the lowercased question text
@@ -53,16 +53,30 @@ def map_question_to_sedg(
     question_text: str,
     taxonomy: tuple[SedgTopic, ...] = SEDG_TAXONOMY,
 ) -> MappingResult:
-    """Map one question's text to the best-matching SEDG pillar/topic/disclosure.
+    """Prefer a code printed in the question, then try keyword matching.
 
     Returns `pillar="UNCATEGORIZED"` with no topic/disclosure and
-    `confidence=0.0` when no keyword in the taxonomy overlaps the question
-    text at all — an honest "we don't know", not a guess.
+    `confidence=0.0` when there is no explicit code or keyword overlap.
 
-    `confidence` is a simple heuristic (matched keyword count, capped),
-    not a calibrated probability — it exists to let a human reviewer
-    triage which mappings need the most scrutiny, nothing more.
+    `confidence` records exact transcription (1.0) or a capped keyword
+    count. It is not a probability or verification against a standard.
     """
+    explicit = _EXPLICIT_CODE_RE.match(question_text)
+    if explicit:
+        topic_code = f"{explicit[1].upper()}{explicit[2]}"
+        disclosure_code = f"{topic_code}.{explicit[3]}"
+        return MappingResult(
+            pillar=topic_code[0],
+            sedg_topic_code=topic_code,
+            sedg_disclosure_code=disclosure_code,
+            rationale=(
+                f"Read {disclosure_code} directly from the questionnaire's question text. "
+                "This supplied code has not been verified against the published SEDG "
+                "standard and needs human review."
+            ),
+            confidence=1.0,
+        )
+
     question_norm = _normalize(question_text)
 
     best_topic: SedgTopic | None = None

@@ -1,4 +1,4 @@
-"""Questionnaire question-identification — backed by the real AI pipeline.
+"""Questionnaire question-identification — deterministic spreadsheet parsing.
 
 Real parsing (`ai_pipeline.parse_document()`, COO-owned, packages/ai-pipeline)
 replaces the earlier JSON/plain-text stub. That package is a pure function:
@@ -16,9 +16,10 @@ traversal order — sheet order, then row order (SPEC-AMD-007) — and is passed
 through unchanged here. It is never re-derived from `external_question_id`,
 `section`, or any other display string.
 
-Pillar/SEDG mapping (Main Spec §17 Phase 3): every parsed question is now
-run through `ai_pipeline.map_question_to_sedg()`, a pure, keyword-based
-function against a representative SEDG taxonomy (see
+Pillar/SEDG mapping (Main Spec §17 Phase 3): every parsed question is
+run through `ai_pipeline.map_question_to_sedg()`, a pure function that
+reads an explicit question code first, then falls back to keywords in a
+representative SEDG taxonomy (see
 packages/ai-pipeline/src/ai_pipeline/sedg_taxonomy.py's honesty caveat --
 it is not a verified transcription of the real published standard). The
 result is a **recommendation** for human review: it is stored in
@@ -87,14 +88,14 @@ def _location_dict(raw_location: str) -> dict:
 
 
 def parse_questionnaire(raw: bytes, filename: str) -> ParsedQuestionnaireResult:
-    """Parse an uploaded questionnaire via the real AI pipeline.
+    """Parse an uploaded questionnaire via the pure spreadsheet parser.
 
     Raises `QuestionnaireParseError` on anything `ai_pipeline.parse_document()`
     rejects (missing headers, empty file, unsupported format).
 
     Each question is additionally run through `ai_pipeline.map_question_to_sedg()`
-    (pure, keyword-based) to produce a draft pillar/topic/disclosure
-    recommendation -- never a verdict, always human-reviewable.
+    (explicit code first, then keyword fallback) to produce a draft
+    pillar/topic/disclosure recommendation, never a verdict.
     """
     try:
         parsed: ParsedQuestionnaire = parse_document(raw, filename)
