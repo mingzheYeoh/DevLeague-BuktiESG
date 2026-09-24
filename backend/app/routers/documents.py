@@ -38,7 +38,7 @@ from app.errors import api_error
 from app.enums import DOCUMENT_DELETABLE_FROM, DOCUMENT_TYPE
 from app.models import Case, Document, DocumentChunk
 from app.schemas import DocumentChunkRecord, DocumentRecord
-from app.services import jobs, storage
+from app.services import extraction_dispatch, jobs, storage
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,7 @@ async def upload_document(
     if existing is not None:
         # Contract §2.2 / §11: duplicate file checksum within one Case
         # returns the existing Document rather than creating a duplicate.
+        await extraction_dispatch.notify_queued_extraction(db, existing.id)
         return DocumentRecord.from_model(existing)
 
     storage_key = storage.storage_key_for(case_id, sha256, file.filename or "upload")
@@ -184,6 +185,7 @@ async def upload_document(
 
     db.commit()
     db.refresh(document)
+    await extraction_dispatch.notify_queued_extraction(db, document.id)
     return DocumentRecord.from_model(document)
 
 
@@ -408,7 +410,7 @@ def delete_document(
     response_model=DocumentRecord,
     status_code=200,
 )
-def retry_document(
+async def retry_document(
     document_id: str,
     case: Case = Depends(require_case),
     db: Session = Depends(get_db),
@@ -444,4 +446,5 @@ def retry_document(
 
     db.commit()
     db.refresh(document)
+    await extraction_dispatch.notify_queued_extraction(db, document.id)
     return DocumentRecord.from_model(document)

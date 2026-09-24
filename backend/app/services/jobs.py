@@ -457,7 +457,9 @@ def _run_evidence_index(db: Session, case: Case, document: Document, data: bytes
 
 
 
-def run_extraction_jobs(db: Session, *, extractor=None, limit: int = 10) -> int:
+def run_extraction_jobs(
+    db: Session, *, extractor=None, limit: int = 10, job_id: str | None = None
+) -> int:
     """Run queued EXTRACT_VALUES jobs. Returns how many were completed.
 
     Called by `worker.py`, and directly by tests with a fake extractor. Takes
@@ -474,13 +476,16 @@ def run_extraction_jobs(db: Session, *, extractor=None, limit: int = 10) -> int:
     if extractor is None:
         extractor = build_extractor(settings)
 
-    jobs = (
+    query = (
         db.query(ProcessingJob)
         .filter(ProcessingJob.job_type == "EXTRACT_VALUES", ProcessingJob.status == "QUEUED")
         .order_by(ProcessingJob.created_at)
-        .limit(limit)
-        .all()
     )
+    if job_id is not None:
+        query = query.filter(ProcessingJob.id == job_id)
+    # Queue delivery is at least once. Skip a row another invocation already
+    # holds, and skip it after the first invocation has committed success.
+    jobs = query.with_for_update(skip_locked=True).limit(limit).all()
 
     completed = 0
     for job in jobs:

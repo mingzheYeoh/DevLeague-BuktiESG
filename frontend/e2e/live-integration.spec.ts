@@ -14,8 +14,8 @@ import { expect, test } from '@playwright/test'
  * default in `app/config.py`.
  *
  *   # terminal 1
- *   cd backend && DATABASE_URL="sqlite:///./buktiesg_live.db" OPENAI_API_KEY="" uv run python scripts/init_dev_db.py
- *   cd backend && DATABASE_URL="sqlite:///./buktiesg_live.db" OPENAI_API_KEY="" COOKIE_SECURE=false uv run uvicorn app.main:app --port 8000
+ *   cd backend && DATABASE_URL="sqlite:///./buktiesg_live.db" OPENROUTER_API_KEY="" uv run python scripts/init_dev_db.py
+ *   cd backend && DATABASE_URL="sqlite:///./buktiesg_live.db" OPENROUTER_API_KEY="" COOKIE_SECURE=false uv run uvicorn app.main:app --port 8000
  *   # terminal 2
  *   cd frontend && BUKTIESG_LIVE_API=1 npx playwright test live-integration --reporter=list
  *

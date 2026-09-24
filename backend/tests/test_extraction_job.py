@@ -100,6 +100,52 @@ def test_running_the_job_writes_the_measurement_onto_the_chunk(client, db_sessio
     assert chunk.extracted_unit == "t"
 
 
+def test_queue_delivery_processes_only_its_job_once(client, db_session, waste_case):
+    from app.models import ProcessingJob
+    from app.services import jobs as jobs_service
+
+    first = _upload(client, waste_case, "a03.txt", b"Total waste: 12.6 tonnes.\n")
+    _upload(client, waste_case, "c01.txt", b"Total waste: 18.4 tonnes.\n")
+    first_job = db_session.query(ProcessingJob).filter(
+        ProcessingJob.document_id == first["id"], ProcessingJob.job_type == "EXTRACT_VALUES"
+    ).one()
+    fake = FakeExtractor({})
+
+    assert jobs_service.run_extraction_jobs(db_session, extractor=fake, job_id=first_job.id) == 1
+    assert jobs_service.run_extraction_jobs(db_session, extractor=fake, job_id=first_job.id) == 0
+    assert len(fake.calls) == 1
+    assert db_session.query(ProcessingJob).filter(
+        ProcessingJob.job_type == "EXTRACT_VALUES", ProcessingJob.status == "QUEUED"
+    ).count() == 1
+
+
+def test_vercel_upload_publishes_the_committed_extraction_job(
+    client, db_session, waste_case, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from app.models import ProcessingJob
+    from app.services import extraction_dispatch
+    from app.services import storage
+    from vercel import queue
+
+    sent = []
+
+    async def fake_send(topic, payload, **kwargs):
+        sent.append((topic, payload, kwargs))
+
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setattr(storage, "using_blob", lambda: False)
+    monkeypatch.setattr(extraction_dispatch, "settings", SimpleNamespace(openrouter_api_key="test"))
+    monkeypatch.setattr(queue, "send", fake_send)
+
+    doc = _upload(client, waste_case, "a03.txt", b"Total waste: 12.6 tonnes.\n")
+    job = db_session.query(ProcessingJob).filter(
+        ProcessingJob.document_id == doc["id"], ProcessingJob.job_type == "EXTRACT_VALUES"
+    ).one()
+    assert sent == [("extract-values", {"job_id": job.id}, {"idempotency_key": job.id})]
+
+
 def test_two_documents_reporting_different_values_make_the_question_conflicting(
     client, db_session, waste_case
 ):

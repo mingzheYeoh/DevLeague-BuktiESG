@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     #
     # Read from the environment or `.env`, never committed: `.gitignore`
     # covers `.env` and `.env.example` carries the name only.
-    openai_api_key: str | None = None
+    openrouter_api_key: str | None = None
 
     app_name: str = "BuktiESG API"
 

@@ -4,7 +4,7 @@ BuktiESG helps teams answer customer ESG questionnaires with traceable documents
 
 ## Try the hosted demo
 
-Open <https://buktiesg.vercel.app/> and sign in with a Vercel account that has access to this project. Then register inside BuktiESG; each new account gets its own organization. For a complete 20-question trial, use the synthetic files and step-by-step [interview demo guide](sample/INTERVIEW_DEMO.md). The hosted demo uses Neon PostgreSQL and private Vercel Blob storage, accepts files up to **4 MiB**, and does not run the optional model extraction worker.
+Open <https://buktiesg.vercel.app/> and sign in with a Vercel account that has access to this project. Then register inside BuktiESG; each new account gets its own organization. For a complete 20-question trial, use the synthetic files and step-by-step [interview demo guide](sample/INTERVIEW_DEMO.md). The hosted demo uses Neon PostgreSQL and private Vercel Blob storage and accepts files up to **4 MiB**. Optional model extraction runs through a Vercel Queue subscriber only when `OPENROUTER_API_KEY` is configured.
 
 ## Run locally
 
@@ -51,7 +51,7 @@ Install Docker Desktop (or Docker Engine with Compose), [uv](https://docs.astral
    uv run python worker.py
    ```
 
-   Without `OPENAI_API_KEY`, no document text is sent to a model provider and no values are extracted. If you add that key to the root `.env` and run the worker, it uses OpenAI `gpt-6-luna` for optional numeric-value extraction. **Upload synthetic documents only**: extracted text is sent to `api.openai.com`. Remove and rotate the key before uploading any real customer document. The hosted Vercel configuration runs only the web and API services; adding a key there alone will not process queued extraction jobs.
+   Without `OPENROUTER_API_KEY`, no document text is sent to a model provider and no values are extracted. If you add that key to the root `.env` and run the worker, it uses OpenRouter `openai/gpt-6-luna` for optional numeric-value extraction. **Upload synthetic documents only**: extracted text is sent to `openrouter.ai` and its selected model provider. Remove and rotate the key before uploading any real customer document. On Vercel, set `OPENROUTER_API_KEY` as a server-side Production environment variable and redeploy; evidence uploads then trigger the queue subscriber. Do not put the key in `NEXT_PUBLIC_` variables or in Git.
 
 Stop the API, web app, and worker with `Ctrl+C`, then run `docker compose stop` from the repository root. This retains the local database.
 

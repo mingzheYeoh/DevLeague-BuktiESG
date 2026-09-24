@@ -28,8 +28,8 @@ from ai_pipeline import Extracted, ExtractionRefused, build_extraction_prompt, p
 
 logger = logging.getLogger(__name__)
 
-OPENAI_BASE_URL = "https://api.openai.com/v1"
-OPENAI_MODEL = "gpt-6-luna"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = "openai/gpt-6-luna"
 
 # Extraction runs in `worker.py`, not in the upload request, so nothing is
 # waiting on this. A timeout yields empty measurements without losing evidence.
@@ -61,15 +61,15 @@ class NullExtractor:
         return [Extracted() for _ in chunk_texts]
 
 
-class OpenAIExtractor:
-    """Extraction through OpenAI's chat completions API."""
+class OpenRouterExtractor:
+    """Extraction through OpenRouter's chat completions API."""
 
     def __init__(
         self,
         api_key: str,
         *,
-        model: str = OPENAI_MODEL,
-        base_url: str = OPENAI_BASE_URL,
+        model: str = OPENROUTER_MODEL,
+        base_url: str = OPENROUTER_BASE_URL,
         timeout: float = REQUEST_TIMEOUT_SECONDS,
     ) -> None:
         self._api_key = api_key
@@ -94,7 +94,7 @@ class OpenAIExtractor:
                 ],
                 "reasoning_effort": "none",
                 "response_format": {"type": "json_object"},
-                "store": False,
+                "provider": {"data_collection": "deny", "require_parameters": True},
             },
             timeout=self._timeout,
         )
@@ -137,16 +137,16 @@ class OpenAIExtractor:
 def build_extractor(settings) -> Extractor:
     """Pick an extractor from configuration.
 
-    A key selects `OpenAIExtractor`; no key selects `NullExtractor`.
+    A key selects `OpenRouterExtractor`; no key selects `NullExtractor`.
     When enabled, extracted document text leaves this deployment. Only use
     synthetic documents for this demo; never put a credential in source code.
     """
-    key = getattr(settings, "openai_api_key", None)
+    key = getattr(settings, "openrouter_api_key", None)
     if not key or not key.strip():
         return NullExtractor()
 
     logger.warning(
-        "OPENAI_API_KEY is set: document chunk text will be sent to "
-        "api.openai.com. Use synthetic documents only."
+        "OPENROUTER_API_KEY is set: document chunk text will be sent to "
+        "openrouter.ai and its selected model provider. Use synthetic documents only."
     )
-    return OpenAIExtractor(api_key=key.strip())
+    return OpenRouterExtractor(api_key=key.strip())
