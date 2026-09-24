@@ -1401,16 +1401,32 @@ h1, h2, h3, p {
 
 .questions-table table {
   table-layout: fixed;
-  min-width: 980px;
+  min-width: 1140px;
 }
 
-.questions-table .col-question { width: 26%; }
-.questions-table .col-topic { width: 11%; }
-.questions-table .col-evidence { width: 12%; }
-.questions-table .col-review { width: 12%; }
-.questions-table .col-reason { width: 28%; min-width: 260px; }
-.questions-table .col-priority { width: 8%; }
+.questions-table .col-question { width: 23%; }
+.questions-table .col-topic { width: 9%; }
+.questions-table .col-evidence { width: 10%; }
+.questions-table .col-matched { width: 17%; }
+.questions-table .col-review { width: 10%; }
+.questions-table .col-reason { width: 25%; min-width: 260px; }
+.questions-table .col-priority { width: 6%; }
 .questions-table .col-action { width: 56px; text-align: right; }
+
+.questions-table .matched-files-cell { vertical-align: top; }
+.questions-table .matched-file {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.questions-table .matched-file small { color: var(--subtle); }
+.questions-table .matched-file small.accepted { color: var(--teal); }
+.questions-table .matched-more { margin-top: 6px; font-size: 12px; }
+.questions-table .matched-more summary { cursor: pointer; color: var(--teal); }
+.questions-table .matched-more > div { display: grid; gap: 6px; margin-top: 8px; }
 
 /* Top-aligned, because a clamped two-line reason next to a single-line
    pill looks wrong centred. */

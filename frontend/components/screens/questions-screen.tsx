@@ -190,6 +190,7 @@ export function QuestionsScreen({
               <th className="col-question">Question</th>
               <th className="col-topic">Topic</th>
               <th className="col-evidence">Evidence</th>
+              <th className="col-matched">Matched files</th>
               <th className="col-review">Review</th>
               <th className="col-reason">Reason</th>
               <th className="col-priority">Priority</th>
@@ -214,6 +215,9 @@ export function QuestionsScreen({
                 </td>
                 <td>
                   <EvidencePill value={q.evidence_status} />
+                </td>
+                <td className="matched-files-cell">
+                  <MatchedFiles matches={q.evidence_matches ?? []} />
                 </td>
                 <td>
                   <ReviewPill value={q.review_status} />
@@ -281,5 +285,32 @@ export function QuestionsScreen({
         ) : null}
       </div>
     </div>
+  )
+}
+
+function MatchedFiles({ matches }: { matches: QuestionListItem['evidence_matches'] }) {
+  if (matches.length === 0) return <small className="muted">No match</small>
+
+  const renderMatch = (match: QuestionListItem['evidence_matches'][number]) => (
+    <div className="matched-file" key={match.document_id}>
+      <span title={match.document_name ?? undefined}>
+        {match.document_name ?? 'Source unavailable'}
+      </span>
+      <small className={match.link_status === 'ACCEPTED' ? 'accepted' : ''}>
+        {match.link_status === 'ACCEPTED' ? 'Accepted' : 'Candidate'}
+      </small>
+    </div>
+  )
+
+  return (
+    <>
+      {renderMatch(matches[0])}
+      {matches.length > 1 ? (
+        <details className="matched-more" onClick={(event) => event.stopPropagation()}>
+          <summary>+{matches.length - 1} more</summary>
+          <div>{matches.slice(1).map(renderMatch)}</div>
+        </details>
+      ) : null}
+    </>
   )
 }

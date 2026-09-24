@@ -182,6 +182,12 @@ class SourceLocation(BaseModel):
     type: str
 
 
+class EvidenceMatchSummary(BaseModel):
+    document_id: str
+    document_name: str | None
+    link_status: str
+
+
 class QuestionListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -225,7 +231,7 @@ class QuestionListItem(BaseModel):
     # (AGENTS.md §3.2).
     mapping_rationale: str | None = None
     # Additive (Main Spec §17 Phase 3 "Question Detail source viewer"): the
-    # excerpt text and claim from the most recent evidence_links candidate
+    # excerpt text and claim from the highest-scoring evidence_links candidate
     # for this question — the actual quoted text, not just its location
     # chip. Same AI-suggestion status as evidence_location: unconfirmed
     # until a human reviews it.
@@ -251,6 +257,9 @@ class QuestionListItem(BaseModel):
     # implies the shown excerpt is the only evidence -- which is routinely
     # false: a question can accumulate one candidate per uploaded document.
     evidence_candidate_count: int = 0
+    # The same live links, ranked for the Questionnaire table. This is a
+    # display list, not a change to the rule engine's evidence verdict.
+    evidence_matches: list[EvidenceMatchSummary] = Field(default_factory=list)
 
     @classmethod
     def from_model(cls, question) -> "QuestionListItem":
@@ -283,6 +292,13 @@ class QuestionListItem(BaseModel):
             for link in (question.evidence_links or [])
             if link.link_status not in ("REJECTED", "INVALIDATED")
         ]
+        links.sort(
+            key=lambda link: (
+                link.match_score if link.match_score is not None else -1.0,
+                link.created_at,
+            ),
+            reverse=True,
+        )
         if links:
             # Rank by how well the matcher scored the link, not by when it was
             # created. `max(..., key=created_at)` meant "the most recently
@@ -292,29 +308,23 @@ class QuestionListItem(BaseModel):
             # created_at stays as the tie-break so the choice is still
             # deterministic, and a link with no score (written before migration
             # 0006) sorts below any scored one rather than winning by accident.
-            latest_link = max(
-                links,
-                key=lambda link: (
-                    link.match_score if link.match_score is not None else -1.0,
-                    link.created_at,
-                ),
-            )
+            best_link = links[0]
             try:
                 evidence_loc = SourceLocation.model_validate(
-                    json.loads(latest_link.location_json)
+                    json.loads(best_link.location_json)
                 )
             except (ValueError, TypeError):
                 evidence_loc = None
-            evidence_excerpt = latest_link.quoted_excerpt
-            evidence_claim_supported = latest_link.claim_supported
-            evidence_document_id = latest_link.document_id
+            evidence_excerpt = best_link.quoted_excerpt
+            evidence_claim_supported = best_link.claim_supported
+            evidence_document_id = best_link.document_id
             # The relationship is declared on the model; guarded anyway so a
             # link whose document row is gone degrades to no name rather than
             # raising inside a response serialiser.
-            document = getattr(latest_link, "document", None)
+            document = getattr(best_link, "document", None)
             evidence_document_name = getattr(document, "original_filename", None)
-            evidence_link_id = latest_link.id
-            evidence_accepted_by = latest_link.accepted_by
+            evidence_link_id = best_link.id
+            evidence_accepted_by = best_link.accepted_by
 
         # Short bullets, derived from the findings the engine already persisted.
         # A malformed or absent status_findings_json degrades to no bullets --
@@ -364,6 +374,14 @@ class QuestionListItem(BaseModel):
             evidence_link_id=evidence_link_id,
             evidence_accepted_by=evidence_accepted_by,
             evidence_candidate_count=len(links),
+            evidence_matches=[
+                EvidenceMatchSummary(
+                    document_id=link.document_id,
+                    document_name=getattr(link.document, "original_filename", None),
+                    link_status=link.link_status,
+                )
+                for link in links
+            ],
             mapping_rationale=question.mapping_rationale,
             evidence_excerpt=evidence_excerpt,
             evidence_claim_supported=evidence_claim_supported,

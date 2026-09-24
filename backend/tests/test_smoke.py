@@ -416,6 +416,13 @@ def test_evidence_citation_names_its_document_and_admits_how_many_candidates(cli
 
     # And it admits it is one of several.
     assert question["evidence_candidate_count"] == 2
+    assert [
+        (match["document_name"], match["link_status"])
+        for match in question["evidence_matches"]
+    ] == [
+        ("electricity-bill.txt", "CANDIDATE"),
+        ("safety-register.txt", "CANDIDATE"),
+    ]
 
     # The excerpt and the named document agree with each other -- whichever
     # link is chosen, the filename describes the excerpt actually shown.
@@ -450,6 +457,7 @@ def test_a_question_with_no_evidence_reports_zero_candidates(client):
     question = client.get(f"/api/v1/cases/{case_id}/questions").json()[0]
 
     assert question["evidence_candidate_count"] == 0
+    assert question["evidence_matches"] == []
     assert question["evidence_document_name"] is None
     assert question["evidence_document_id"] is None
     assert question["evidence_location"] is None

@@ -232,6 +232,13 @@ export interface QuestionListItem {
    * describe exactly one of them, so this has to be shown — otherwise the UI
    * implies the excerpt is the only evidence. */
   evidence_candidate_count: number
+  /** All live matches, highest keyword score first. These are suggestions
+   * until a person accepts the specific evidence link. */
+  evidence_matches: {
+    document_id: string
+    document_name: string | null
+    link_status: EvidenceLinkStatus
+  }[]
 }
 
 /** Response of the review endpoint. Not the same shape as

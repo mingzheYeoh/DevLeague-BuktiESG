@@ -66,6 +66,7 @@ function question(overrides: Record<string, unknown>) {
     evidence_document_id: null,
     evidence_document_name: null,
     evidence_candidate_count: 0,
+    evidence_matches: [],
     ...overrides,
   }
 }
@@ -82,6 +83,23 @@ const QUESTIONS = [
     evidence_document_id: 'doc-safety',
     evidence_document_name: 'safety-incident-register-fy2025.txt',
     evidence_candidate_count: 9,
+    evidence_matches: [
+      {
+        document_id: 'doc-safety',
+        document_name: 'safety-incident-register-fy2025.txt',
+        link_status: 'CANDIDATE',
+      },
+      {
+        document_id: 'doc-electricity',
+        document_name: 'electricity-bill-fy2025.pdf',
+        link_status: 'ACCEPTED',
+      },
+      ...Array.from({ length: 7 }, (_, index) => ({
+        document_id: `doc-other-${index}`,
+        document_name: `other-evidence-${index}.txt`,
+        link_status: 'CANDIDATE',
+      })),
+    ],
     evidence_excerpt: 'Total days lost to work-related injury: 11.',
     evidence_claim_supported: 'Keyword overlap with question terms: total',
     evidence_location: { type: 'paragraph', heading_path: [], paragraph_index: 7 },
@@ -103,6 +121,13 @@ const QUESTIONS = [
     evidence_document_id: 'doc-handbook',
     evidence_document_name: 'employee-handbook-2022.docx',
     evidence_candidate_count: 1,
+    evidence_matches: [
+      {
+        document_id: 'doc-handbook',
+        document_name: 'employee-handbook-2022.docx',
+        link_status: 'CANDIDATE',
+      },
+    ],
     evidence_excerpt: 'Any worker may raise a grievance through the confidential telephone line.',
     evidence_location: {
       type: 'paragraph',
@@ -211,6 +236,25 @@ async function gotoQuestionnaire(page: Page, overrideQuestions?: unknown[]) {
 }
 
 test.describe('Reason column', () => {
+  test('matched files show the best source and expandable alternatives', async ({ page }) => {
+    await gotoQuestionnaire(page)
+
+    await expect(page.getByRole('columnheader', { name: 'Matched files' })).toBeVisible()
+    const row = page.locator('.questions-table tbody tr').first()
+    const matches = row.locator('.matched-files-cell')
+    await expect(matches.getByText('safety-incident-register-fy2025.txt')).toBeVisible()
+    await expect(matches.locator('.matched-file').first().getByText('Candidate')).toBeVisible()
+    await expect(matches.getByText('electricity-bill-fy2025.pdf')).toBeHidden()
+
+    await matches.getByText('+8 more').click()
+    await expect(matches.getByText('electricity-bill-fy2025.pdf')).toBeVisible()
+    await expect(matches.getByText('Accepted')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Customer questionnaire' })).toBeVisible()
+    await expect(page.locator('.questions-table tbody tr').nth(1).locator('.matched-files-cell')).toHaveText(
+      'No match',
+    )
+  })
+
   test('a long reason is clamped to two lines but kept whole in the DOM', async ({ page }) => {
     await gotoQuestionnaire(page)
 
@@ -596,26 +640,34 @@ test.describe('Reason column', () => {
         .locator('td')
         .nth(2)
         .boundingBox()
-      const review = await page
+      const matched = await page
         .locator('.questions-table tbody tr')
         .first()
         .locator('td')
         .nth(3)
         .boundingBox()
-      const reason = await page
+      const review = await page
         .locator('.questions-table tbody tr')
         .first()
         .locator('td')
         .nth(4)
         .boundingBox()
+      const reason = await page
+        .locator('.questions-table tbody tr')
+        .first()
+        .locator('td')
+        .nth(5)
+        .boundingBox()
 
-      expect(evidence && review && reason).toBeTruthy()
-      if (!evidence || !review || !reason) return
+      expect(evidence && matched && review && reason).toBeTruthy()
+      if (!evidence || !matched || !review || !reason) return
 
       // No overlap, in order, and none collapsed to nothing.
-      expect(evidence.x + evidence.width).toBeLessThanOrEqual(review.x + 1)
+      expect(evidence.x + evidence.width).toBeLessThanOrEqual(matched.x + 1)
+      expect(matched.x + matched.width).toBeLessThanOrEqual(review.x + 1)
       expect(review.x + review.width).toBeLessThanOrEqual(reason.x + 1)
       expect(evidence.width).toBeGreaterThan(70)
+      expect(matched.width).toBeGreaterThan(120)
       expect(review.width).toBeGreaterThan(70)
       expect(reason.width).toBeGreaterThanOrEqual(260)
 

@@ -16,7 +16,7 @@ from app.auth import Actor, actor_email, current_actor, require_case
 from app.db import get_db
 from app.errors import api_error
 from app.enums import REVIEW_ACTION
-from app.models import Case, Question, Questionnaire
+from app.models import Case, EvidenceLink, Question, Questionnaire
 from app.schemas import AnswerRecord, QuestionListItem, QuestionReviewRequest
 from app.services import jobs
 from app.services.rules import compute_evidence_status
@@ -36,7 +36,10 @@ def list_questions(
     stmt = (
         select(Question)
         .join(Questionnaire, Question.questionnaire_id == Questionnaire.id)
-        .options(joinedload(Question.answer), joinedload(Question.evidence_links))
+        .options(
+            joinedload(Question.answer),
+            joinedload(Question.evidence_links).joinedload(EvidenceLink.document),
+        )
         .where(Questionnaire.case_id == case.id)
         .order_by(Question.question_order.asc(), Question.id.asc())
     )
