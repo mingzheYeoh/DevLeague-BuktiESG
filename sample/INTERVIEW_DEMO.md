@@ -15,22 +15,33 @@ The goal is to show a complete *human-reviewed* questionnaire response, not to c
 
 Upload the questionnaire **before** the evidence. Matching is performed against questions that exist at upload time; earlier evidence is not automatically rematched when a questionnaire is added later. Keep the `B-`, `C-`, and `reference-` files out of this first run. They are useful for a separate second case that demonstrates incomplete, stale, conflicting, or unreadable material.
 
-## What each technical step means
+## How the system works, step by step
 
-| Step | Plain-English explanation for an interviewer |
-| --- | --- |
-| Sign-in and case boundary | The browser uses a signed-in session. A case, its documents, questions, and reviews belong to one organization, so one customer's evidence is not searched for another customer's questionnaire. |
-| File intake | The original upload is retained. A SHA-256 fingerprint identifies duplicate bytes within a case; a second identical upload reuses the existing document. The hosted demo stores files privately and has a 4 MiB limit per file. |
-| Questionnaire extraction | A spreadsheet reader finds the named columns `external_question_id` and `question_text`, then reads nonblank rows across worksheets. It also reads the section and required flag, preserves row order, and records the source cell. This demo extracts 20 existing rows; it does not ask a language model to invent questions. Missing required headers trigger manual review. |
-| Suggested ESG category | The question's words are compared with a representative ESG disclosure keyword list. The resulting E/S/G category and disclosure suggestion are for reviewer triage, not an authoritative standards classification or a compliance decision. |
-| Evidence extraction | Each format is split at a useful boundary: PDF by page, Word by heading section, spreadsheet by populated row, and plain text by nonblank line. Image-only scans have no OCR fallback and are flagged for manual review. |
-| Indexing | The extracted fragments and their page, sheet/cell, or section/paragraph locations are saved with the case. **Indexed** means the file yielded searchable text; it does **not** mean the contents are true, current, sufficient, or approved. There is no vector database or embedding index in this demo. |
-| Automatic matching | The system compares distinctive words in each question with words in each evidence fragment. Common words receive little weight; the best fragment in each document becomes a candidate. This is weighted keyword retrieval, not semantic search or an LLM verdict. Similar wording can still point at a wrong entity or an incomplete figure. |
-| Citation | A candidate refers to a stored fragment. The server turns that stored record into the displayed filename and source location, so the reviewer can reopen the original and compare it with the extracted text. A short excerpt is a navigation aid, not proof that every part of a question has been answered. |
-| Evidence status | A deterministic rule evaluates the available candidates: no usable source is **Missing**; an unreadable potentially relevant source can mean **Needs manual review**; an unaccepted candidate is normally **Partial**. A dated source can be **Outdated**, and incompatible extracted values can be **Conflicting**. **Verified** requires a suitable candidate accepted by a person. |
-| Human review | **Accept this evidence** records who vouched for a source. **Edit answer** or another review action separately records the response and reviewer. A green evidence status must not be described as independent audit assurance. |
-| Optional value extraction | The architecture can queue a later numeric-value extraction job, but the hosted demo has no DeepSeek key or separate worker. The first-pass question mapping and this full trial work without an LLM. Do not claim that this deployment automatically reconciles all numbers or spots every contradiction. |
-| Readiness and export | Readiness counts confirmed **required** answers, not the total number of questions. The export is assembled in the browser from the loaded case data and discloses unresolved items; it is a draft, not a submission or certification. |
+Think of Q-E-02 as an example: the customer asks for Scope 2 emissions. BuktiESG finds that question in the spreadsheet, finds a passage about Scope 2 in an uploaded emissions record, and shows where the passage came from. A person still checks the calculation and confirms the answer.
+
+1. **Keep each case separate.** You sign in before opening a case. Its questionnaire, files, and review decisions belong to your organization. Matching searches evidence within that case, so another customer's files do not become its sources.
+
+2. **Keep the original file.** On upload, the system stores the original privately. It also calculates a SHA-256 fingerprint, like a file's digital ID: if the exact same bytes are uploaded again to the same case, it reuses the existing document. The hosted demo accepts files up to 4 MiB each.
+
+3. **Read the questionnaire's existing questions.** For a spreadsheet, the reader looks for the `external_question_id` and `question_text` columns. It reads nonblank rows across worksheets and also keeps each question's section, required flag, row order, and source cell. The sample gives 20 questions, 14 required. No AI invents or rewrites them; missing required columns send the file for manual review.
+
+4. **Suggest an ESG label.** The system checks question wording against a small ESG disclosure keyword list and suggests an E, S, or G category and disclosure. This helps a reviewer sort questions. It is a suggestion, not an official standards interpretation or compliance verdict.
+
+5. **Turn evidence into readable pieces.** An uploaded PDF is read page by page; a Word file by heading section; a spreadsheet by populated row; and a text file by nonblank line. **Original file** shows what was uploaded. **Extracted text** shows the pieces the matcher can read. A scanned image without selectable text has no OCR fallback here and needs manual review.
+
+6. **Index those pieces.** The system saves each readable piece with its location, such as a PDF page, spreadsheet sheet and cells, or Word section and paragraph. That saved text is the index searched later. **Indexed** means searchable text was stored; it does not mean the source is accurate, recent, sufficient, or approved. This demo does not use embeddings or a vector database.
+
+7. **Find possible evidence.** The matcher compares words in a question with words in each indexed piece. More distinctive shared words count more than common words. It proposes the strongest piece from each matching document; the question page shows the highest-scoring candidate. This is weighted keyword search, not an AI judgement: a similar phrase can still belong to the wrong company, year, unit, or an incomplete figure.
+
+8. **Show where the claim came from.** Each candidate points back to a stored piece. The page shows its filename, location, and short excerpt so you can open the original and check it. An excerpt helps you find the passage; it does not prove that the whole question has been answered.
+
+9. **Apply evidence rules.** With no usable source, a question can be **Missing**; unreadable relevant material can mean **Needs manual review**; an unaccepted match is usually **Partial**. Dates and reporting periods can make evidence **Outdated**. **Conflicting** requires incompatible values to have been extracted, so the hosted demo cannot be relied on to detect every contradiction. **Verified** requires a suitable source accepted by a person.
+
+10. **Record two human decisions.** **Accept this evidence** records who checked and accepted the source. **Edit answer** separately records the response and its reviewer. A verified source is not the same as a confirmed answer, and neither is an independent audit opinion.
+
+11. **Treat AI value extraction as optional.** The project can queue a later job to extract numeric values, but this hosted deployment has no DeepSeek key or separate worker. Question reading, indexing, keyword matching, and this full trial work without it. The reviewer must reconcile figures and catch contradictions that the current data has not exposed.
+
+12. **Count readiness and export a draft.** The dashboard counts confirmed *required* answers: here, 14 out of 14, even though the questionnaire has 20 questions. The browser builds a marked-up draft and registers from the case data, including unresolved items. Downloading it does not submit anything to the customer or certify the figures.
 
 ## Answer and evidence sheet
 
