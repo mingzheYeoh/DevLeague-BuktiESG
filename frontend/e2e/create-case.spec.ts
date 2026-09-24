@@ -139,10 +139,10 @@ test('create a case then land on an empty case dashboard', async ({ page }) => {
   await page.getByTestId('create-case-submit').click()
 
   await expect(page.getByRole('heading', { name: 'Response readiness' })).toBeVisible()
-  await expect(
-    page.getByText('No required questions yet. Upload the customer questionnaire to identify them.'),
-  ).toBeVisible()
-  await expect(page.getByText('This case is empty')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Upload questionnaire', exact: true })).toBeVisible()
+  await expect(page.locator('.readiness, .dashboard-grid')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Upload questionnaire', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Documents & evidence' })).toBeVisible()
 })
 
 test('a questionnaire with no parsed questions shows the empty state, not a fake list', async ({
@@ -175,4 +175,34 @@ test('the backend being down is reported instead of hidden', async ({ page }) =>
   await page.goto('/')
 
   await expect(page.getByText('Backend unreachable', { exact: false })).toBeVisible()
+})
+
+
+test('creating with a questionnaire also opens Overview', async ({ page }) => {
+  await stubApi(page, { cases: [] })
+  const document = {
+    id: 'questionnaire-upload', case_id: CASE_ID,
+    original_filename: 'questionnaire.xlsx', document_type: 'QUESTIONNAIRE',
+    processing_status: 'INDEXED', created_at: new Date().toISOString(),
+    mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    size_bytes: 4, sha256: 'a'.repeat(64), latest_job_id: null,
+  }
+  await page.route(`**/api/v1/cases/${CASE_ID}/documents`, route => route.fulfill({
+    status: route.request().method() === 'POST' ? 201 : 200,
+    contentType: 'application/json', headers: CORS,
+    body: JSON.stringify(route.request().method() === 'POST' ? document : [document]),
+  }))
+  await page.goto('/')
+  await page.getByTestId('new-case-button').click()
+  await page.getByTestId('case-title-input').fill(CASE_SUMMARY.title)
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-continue').click()
+  // Network stub isolates navigation from workbook parsing.
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'questionnaire.xlsx', mimeType: document.mime_type, buffer: Buffer.from('stub'),
+  })
+  await page.getByTestId('create-case-continue').click()
+  await page.getByTestId('create-case-submit').click()
+  await expect(page.getByRole('heading', { name: 'Response readiness' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Check questionnaire', exact: true })).toBeVisible()
 })

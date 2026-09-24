@@ -74,7 +74,7 @@ const DOCUMENTS = [
   },
 ]
 
-async function gotoOverview(page: Page) {
+async function gotoOverview(page: Page, questions = QUESTIONS, documents = DOCUMENTS) {
   const json = (body: unknown) => ({
     status: 200,
     contentType: 'application/json',
@@ -91,13 +91,13 @@ async function gotoOverview(page: Page) {
   await page.route(`**/api/v1/cases/${CASE_ID}/readiness`, (r) =>
     r.fulfill(json({ confirmed_required_questions: 0, total_required_questions: 14, percentage: 0 })),
   )
-  await page.route(`**/api/v1/cases/${CASE_ID}/questions`, (r) => r.fulfill(json(QUESTIONS)))
-  await page.route(`**/api/v1/cases/${CASE_ID}/documents`, (r) => r.fulfill(json(DOCUMENTS)))
+  await page.route(`**/api/v1/cases/${CASE_ID}/questions`, (r) => r.fulfill(json(questions)))
+  await page.route(`**/api/v1/cases/${CASE_ID}/documents`, (r) => r.fulfill(json(documents)))
   await page.route(`**/api/v1/cases/${CASE_ID}/actions`, (r) => r.fulfill(json([])))
 
   await page.goto('/')
   await page.locator('.table-card').getByText('Coverage case', { exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Evidence coverage' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Response readiness' })).toBeVisible()
 }
 
 test.describe('Evidence coverage panel', () => {
@@ -132,7 +132,8 @@ test.describe('Readiness stats', () => {
     await gotoOverview(page)
 
     const stats = page.locator('.readiness-stats')
-    await expect(stats.getByText('of 14 required', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: '0 of 14 required answers confirmed' })).toBeVisible()
+    await expect(stats.getByText('Confirmed', { exact: true })).toHaveCount(0)
     await expect(stats.getByText('of 20 questions', { exact: true })).toBeVisible()
 
     // The old sub-labels named neither population.
@@ -197,3 +198,49 @@ test.describe('Row menu alignment', () => {
   })
 })
 
+
+
+test('overview points to the next step as the case progresses', async ({ page }) => {
+  await gotoOverview(page, [], [])
+  const next = page.locator('.overview-next')
+  await expect(next.getByRole('button', { name: 'Upload questionnaire' })).toBeVisible()
+  await expect(page.locator('.dashboard-grid')).toHaveCount(0)
+
+  const questionnaire = { ...DOCUMENTS[0], id: 'doc-questionnaire', document_type: 'QUESTIONNAIRE', processing_status: 'INDEXED' }
+  await gotoOverview(page, [], [questionnaire])
+  await expect(next.getByRole('button', { name: 'Check questionnaire' })).toBeVisible()
+
+  const unmatched = QUESTIONS.map(q => ({ ...q, evidence_status: 'MISSING', evidence_candidate_count: 0 }))
+  await gotoOverview(page, unmatched, [questionnaire])
+  await expect(next.getByRole('button', { name: 'Upload evidence' })).toBeVisible()
+
+  const evidence = { ...DOCUMENTS[0], processing_status: 'INDEXED' }
+  await gotoOverview(page, unmatched, [questionnaire, evidence])
+  await expect(next.getByRole('button', { name: 'Open evidence' })).toBeVisible()
+
+  await gotoOverview(page, QUESTIONS, [questionnaire, evidence])
+  await expect(next.getByRole('button', { name: 'Review answers' })).toBeVisible()
+  await expect(page.locator('.priorities > button')).toHaveCount(3)
+  await next.getByRole('button', { name: 'Review answers' }).click()
+  await expect(page.getByRole('heading', { name: 'Customer questionnaire' })).toBeVisible()
+
+  const confirmed = QUESTIONS.map(q => ({ ...q, review_status: 'HUMAN_CONFIRMED', evidence_status: 'VERIFIED' }))
+  await gotoOverview(page, confirmed, [questionnaire, evidence])
+  await expect(next.getByRole('button', { name: 'Open export' })).toBeVisible()
+  await expect(page.locator('.priorities > button')).toHaveCount(0)
+
+  await gotoOverview(page)
+  await expect(next.getByRole('button', { name: 'Inspect files' })).toBeVisible()
+})
+
+test('overview remains readable on desktop and mobile', async ({ page }, testInfo) => {
+  await gotoOverview(page)
+  await expect(page.locator('.priorities > button')).toHaveCount(3)
+  await expect(page.locator('.priorities').getByText('Evidence exists but coverage is incomplete.', { exact: false })).toHaveCount(0)
+  await page.screenshot({ path: testInfo.outputPath('overview-desktop.png'), fullPage: true, animations: 'disabled' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.screenshot({ path: testInfo.outputPath('overview-mobile.png'), fullPage: true, animations: 'disabled' })
+  const overflow = await page.locator('.overview *').evaluateAll(elements => elements.filter(e => e.getBoundingClientRect().right > window.innerWidth).map(e => ({ tag: e.tagName, class: e.className, width: e.getBoundingClientRect().width, text: e.textContent?.slice(0, 90) })))
+  expect(overflow).toEqual([])
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})

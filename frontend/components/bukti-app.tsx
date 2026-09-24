@@ -142,7 +142,7 @@ export default function BuktiApp() {
         await reloadCases()
         setSelectedCaseId(created.id)
         setActiveQuestionId(null)
-        go(questionnaire ? 'intake' : 'overview')
+        go('overview')
       } catch (err) {
         setCreateError(err)
         throw err

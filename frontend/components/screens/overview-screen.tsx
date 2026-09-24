@@ -18,6 +18,7 @@ import {
   errorMessage,
   evidenceTone,
   openActions,
+  isEvidenceGap,
   pillarBreakdown,
   pillarLabel,
   questionStats,
@@ -77,248 +78,284 @@ export function OverviewScreen({
   }).length
 
   const activity = useMemo(() => buildActivity(documents, actions), [documents, actions])
-  const topQuestions = attentionOrder(questions).slice(0, 4)
+  const topQuestions = attentionOrder(questions.filter(
+    (q) => q.review_status !== 'HUMAN_CONFIRMED' || isEvidenceGap(q.evidence_status),
+  )).slice(0, 3)
+  const hasQuestions = questions.length > 0
+  const hasQuestionnaire = documents.some((d) => d.document_type === 'QUESTIONNAIRE')
+  const hasEvidence = documents.some((d) => d.document_type !== 'QUESTIONNAIRE')
+  const hasMatches = questions.some((q) => q.evidence_candidate_count > 0)
+  let nextStep = {
+    title: 'Upload your questionnaire',
+    description: 'Start with the customer questionnaire. Then add evidence and review the answers.',
+    label: 'Upload questionnaire',
+    screen: 'intake' as Screen,
+  }
+  if (attention.length > 0) {
+    nextStep = {
+      title: 'Check files that need attention',
+      description: 'Some files could not be processed. Open Evidence to inspect or retry them.',
+      label: 'Inspect files',
+      screen: 'intake',
+    }
+  } else if (!hasQuestions && hasQuestionnaire) {
+    nextStep = {
+      title: 'Check your questionnaire',
+      description: 'No questions are available yet. Open Evidence to check the upload and its processing result.',
+      label: 'Check questionnaire',
+      screen: 'intake',
+    }
+  } else if (hasQuestions && topQuestions.length === 0) {
+    nextStep = {
+      title: 'Check your export',
+      description: 'Answers are confirmed. Open Export to check any remaining requirements and download your response.',
+      label: 'Open export',
+      screen: 'export',
+    }
+  } else if (hasQuestions && hasMatches) {
+    nextStep = {
+      title: 'Review the matched evidence',
+      description: 'Check the suggested files and confirm the answers they support.',
+      label: 'Review answers',
+      screen: 'questions',
+    }
+  } else if (hasQuestions && hasEvidence) {
+    nextStep = {
+      title: 'Check your evidence',
+      description: 'No files are matched to questions yet. Check processing, then add relevant evidence or recheck matches in Questionnaire.',
+      label: 'Open evidence',
+      screen: 'intake',
+    }
+  } else if (hasQuestions) {
+    nextStep = {
+      title: 'Add evidence for your questions',
+      description: 'Upload policies, reports or records that support the answers.',
+      label: 'Upload evidence',
+      screen: 'intake',
+    }
+  }
 
   if (loading && !caseSummary) return <Loading label="Loading case…" />
 
   return (
-    <div>
+    <div className="overview">
       <PageTitle
         eyebrow={caseSummary?.title ?? 'Response case'}
         title="Response readiness"
-        desc="What is proven, what needs human review, and what has to happen next."
+        desc="Your progress and next steps for this case."
         actions={
-          <>
-            <button className="secondary" type="button" onClick={refresh}>
-              <RefreshCw />
-              Refresh
-            </button>
-            <button className="primary" type="button" onClick={() => go('questions')}>
-              Open questionnaire
-              <ArrowRight />
-            </button>
-          </>
+          <button className="secondary" type="button" onClick={refresh}>
+            <RefreshCw />
+            Refresh
+          </button>
         }
       />
 
       {error ? <ErrorNotice message={errorMessage(error)} onRetry={refresh} /> : null}
 
-      <div className="readiness">
-        <div className="score">
-          <div
-            className="ring"
-            style={{ '--p': stats.readinessPercentage ?? 0 } as CSSProperties}
-          >
-            <div className="ring-inner">
-              <strong>
-                {stats.readinessPercentage === null ? '—' : `${stats.readinessPercentage}%`}
-              </strong>
-              <span>ready</span>
-            </div>
-          </div>
+      {!error && !loading && (
+        <section className="overview-next" aria-labelledby="overview-next-title">
           <div>
-            <Pill tone="warning">{daysLeftLabel(caseSummary?.deadline_at)}</Pill>
-            <h2>
-              {stats.confirmedRequired} of {stats.totalRequiredFromServer} required answers
-              confirmed
-            </h2>
-            <p>
-              {stats.totalRequiredFromServer === 0
-                ? 'No required questions yet. Upload the customer questionnaire to identify them.'
-                : `${
-                    stats.totalRequiredFromServer - stats.confirmedRequired
-                  } required answers still need evidence or human review before export.`}
-            </p>
-            <Meter value={stats.readinessPercentage} />
-            <small className="field-hint">
-              Computed by the server from confirmed required answers. An unconfirmed draft never
-              counts.
-            </small>
+            <span className="field-hint">Next step</span>
+            <h2 id="overview-next-title">{nextStep.title}</h2>
+            <p>{nextStep.description}</p>
           </div>
-        </div>
-        {/* These two count different populations: readiness is required-only,
-            because that is what gates export, while every question still needs
-            a human before it can be sent. Without the denominators the pair
-            reads as 0 + 20 = 20 against a stated total of 14, and the reader
-            is left to work out that the six optional questions are the gap. */}
-        <div className="readiness-stats">
-          <Summary
-            label="Confirmed"
-            value={String(stats.confirmedRequired)}
-            sub={`of ${stats.totalRequiredFromServer} required`}
-          />
-          <Summary
-            label="Awaiting review"
-            value={String(stats.unconfirmedDrafts)}
-            sub={`of ${stats.total} questions`}
-          />
-          <Summary
-            label="Open actions"
-            value={String(open.length)}
-            sub={`${dueThisWeek} due within 7 days`}
-            tone={open.length > 0 ? 'warn-text' : undefined}
-          />
-        </div>
-      </div>
-
-      <div className="dashboard-grid">
-        <section className="panel">
-          <div className="section-head">
-            <div>
-              <h2>Confirmed by pillar</h2>
-              <p>Required questions only</p>
-            </div>
-          </div>
-          {questions.length === 0 ? (
-            <EmptyState icon={<FileText />} title="No questions yet" />
-          ) : (
-            PILLAR_ORDER.map((pillar) => {
-              const b = pillarBreakdown(questions, pillar)
-              if (b.total === 0) return null
-              return (
-                <div className="pillar" key={pillar}>
-                  <div className="pillar-icon">{pillar === 'UNCATEGORIZED' ? '?' : pillar}</div>
-                  <div>
-                    <b>{pillarLabel(pillar)}</b>
-                    <small>
-                      {b.confirmedRequired} of {b.required} required confirmed
-                    </small>
-                  </div>
-                  <Meter value={b.percentage} />
-                  <strong>{b.percentage === null ? '—' : `${b.percentage}%`}</strong>
-                </div>
-              )
-            })
-          )}
-        </section>
-
-        <section className="panel priorities">
-          <div className="section-head">
-            <div>
-              <h2>Needs attention first</h2>
-              <p>Evidence gaps and unconfirmed answers · not a priority score</p>
-            </div>
-            <button className="link" type="button" onClick={() => go('questions')}>
-              View all
-            </button>
-          </div>
-          {topQuestions.length === 0 ? (
-            <EmptyState icon={<FileText />} title="Nothing to review" />
-          ) : (
-            topQuestions.map((q) => (
-              <button key={q.id} type="button" onClick={() => onOpenQuestion(q.id)}>
-                <span className={`priority-dot ${evidenceTone(q.evidence_status)}`} aria-hidden="true" />
-                <div>
-                  <b>{q.question_text}</b>
-                  <small>
-                    {statusLabel(q.evidence_status)} · {statusLabel(q.review_status)}
-                    {q.status_reason ? ` · ${q.status_reason}` : ''}
-                  </small>
-                </div>
-                <ArrowRight />
-              </button>
-            ))
-          )}
-        </section>
-
-        <section className="panel">
-          <div className="section-head">
-            <div>
-              <h2>Evidence coverage</h2>
-              <p>Across all {stats.total} questions</p>
-            </div>
-          </div>
-          <div className="coverage">
-            <div>
-              <span className="supported">{stats.evidenceCounts.VERIFIED}</span>
-              <small>Verified</small>
-            </div>
-            <div>
-              <span className="partial">{stats.evidenceCounts.PARTIAL}</span>
-              <small>Partial</small>
-            </div>
-            <div>
-              <span className="missing">{stats.evidenceCounts.MISSING}</span>
-              <small>Missing</small>
-            </div>
-            <div>
-              <span className="conflict">{stats.evidenceCounts.CONFLICTING}</span>
-              <small>Conflicting</small>
-            </div>
-          </div>
-          {/* Every figure above and below counts QUESTIONS. The warning that
-              follows counts DOCUMENTS. Both were once labelled "needs manual
-              review", so a case with one unreadable file and no question
-              blocked by it showed a 0 directly above a 1 and read as a
-              contradiction — both numbers correct, the panel not. */}
-          <div className="coverage-secondary">
-            <Key label="Outdated" value={stats.evidenceCounts.OUTDATED} />
-            <Key
-              label="Questions blocked by an unreadable file"
-              value={stats.evidenceCounts.NEEDS_MANUAL_REVIEW}
-            />
-            <Key label="Not applicable" value={stats.evidenceCounts.NOT_APPLICABLE} />
-          </div>
-          {attention.length > 0 && (
-            <div className="callout warning">
-              <AlertTriangle />
-              <div>
-                <b>
-                  {attention.length} document{attention.length === 1 ? '' : 's'} could not be
-                  processed
-                </b>
-                <p>
-                  {attention[0].original_filename} could not be read, so nothing in it was
-                  indexed.{' '}
-                  {stats.evidenceCounts.NEEDS_MANUAL_REVIEW === 0
-                    ? 'No question is blocked by it — every question found evidence elsewhere, which is not the same as the file being unnecessary.'
-                    : `${stats.evidenceCounts.NEEDS_MANUAL_REVIEW} question${
-                        stats.evidenceCounts.NEEDS_MANUAL_REVIEW === 1 ? '' : 's'
-                      } above depend on it.`}
-                </p>
-              </div>
-              <button className="link" type="button" onClick={() => go('intake')}>
-                Inspect
-              </button>
-            </div>
-          )}
-        </section>
-
-        <section className="panel activity">
-          <div className="section-head">
-            <div>
-              <h2>Recent updates</h2>
-              <p>From document and action timestamps</p>
-            </div>
-          </div>
-          {activity.length === 0 ? (
-            <EmptyState icon={<ClipboardCheck />} title="Nothing recorded yet" />
-          ) : (
-            activity.map((entry) => (
-              <div key={entry.id}>
-                <span>{entry.initials}</span>
-                <p>
-                  <b>{entry.text}</b>
-                  <small>{entry.time}</small>
-                </p>
-              </div>
-            ))
-          )}
-        </section>
-      </div>
-
-      {questions.length === 0 && documents.length === 0 ? (
-        <div className="callout info">
-          <ArrowRight />
-          <div>
-            <b>This case is empty</b>
-            <p>Upload the customer questionnaire on the Evidence screen to identify questions.</p>
-          </div>
-          <button className="link" type="button" onClick={() => go('intake')}>
-            Go to Evidence
+          <button className="primary" type="button" onClick={() => go(nextStep.screen)}>
+            {nextStep.label}<ArrowRight />
           </button>
-        </div>
-      ) : null}
+        </section>
+      )}
+
+      {hasQuestions && (
+        <>
+          <div className="readiness">
+            <div className="score">
+              <div
+                className="ring"
+                style={{ '--p': stats.readinessPercentage ?? 0 } as CSSProperties}
+              >
+                <div className="ring-inner">
+                  <strong>
+                    {stats.readinessPercentage === null ? '—' : `${stats.readinessPercentage}%`}
+                  </strong>
+                  <span>ready</span>
+                </div>
+              </div>
+              <div>
+                <Pill tone="warning">{daysLeftLabel(caseSummary?.deadline_at)}</Pill>
+                <h2>
+                  {stats.confirmedRequired} of {stats.totalRequiredFromServer} required answers
+                  confirmed
+                </h2>
+                <p>
+                  {stats.totalRequiredFromServer === 0
+                    ? 'This questionnaire has no required questions. You can still review optional answers.'
+                    : 'Only confirmed required answers count toward readiness.'}
+                </p>
+              </div>
+            </div>
+            <div className="readiness-stats">
+              <Summary
+                label="Awaiting review"
+                value={String(stats.unconfirmedDrafts)}
+                sub={`of ${stats.total} questions`}
+              />
+              <Summary
+                label="Open actions"
+                value={String(open.length)}
+                sub={`${dueThisWeek} due within 7 days`}
+                tone={open.length > 0 ? 'warn-text' : undefined}
+              />
+            </div>
+          </div>
+
+          <div className="dashboard-grid">
+            <section className="panel priorities">
+              <div className="section-head">
+                <div>
+                  <h2>Needs attention first</h2>
+                  <p>Up to 3 questions needing evidence or review</p>
+                </div>
+                <button className="link" type="button" onClick={() => go('questions')}>
+                  View all
+                </button>
+              </div>
+              {topQuestions.length === 0 ? (
+                <EmptyState icon={<FileText />} title="Nothing to review" />
+              ) : (
+                topQuestions.map((q) => (
+                  <button key={q.id} type="button" onClick={() => onOpenQuestion(q.id)}>
+                    <span className={`priority-dot ${evidenceTone(q.evidence_status)}`} aria-hidden="true" />
+                    <div>
+                      <b>{q.question_text}</b>
+                      <small>
+                        {statusLabel(q.evidence_status)} · {statusLabel(q.review_status)}
+                      </small>
+                    </div>
+                    <ArrowRight />
+                  </button>
+                ))
+              )}
+            </section>
+
+            <section className="panel">
+              <div className="section-head">
+                <div>
+                  <h2>Evidence coverage</h2>
+                  <p>Across all {stats.total} questions</p>
+                </div>
+              </div>
+              <div className="coverage">
+                <div>
+                  <span className="supported">{stats.evidenceCounts.VERIFIED}</span>
+                  <small>Verified</small>
+                </div>
+                <div>
+                  <span className="partial">{stats.evidenceCounts.PARTIAL}</span>
+                  <small>Partial</small>
+                </div>
+                <div>
+                  <span className="missing">{stats.evidenceCounts.MISSING}</span>
+                  <small>Missing</small>
+                </div>
+                <div>
+                  <span className="conflict">{stats.evidenceCounts.CONFLICTING}</span>
+                  <small>Conflicting</small>
+                </div>
+              </div>
+              {/* Every figure above and below counts QUESTIONS. The warning that
+                  follows counts DOCUMENTS. Both were once labelled "needs manual
+                  review", so a case with one unreadable file and no question
+                  blocked by it showed a 0 directly above a 1 and read as a
+                  contradiction — both numbers correct, the panel not. */}
+              <div className="coverage-secondary">
+                <Key label="Outdated" value={stats.evidenceCounts.OUTDATED} />
+                <Key
+                  label="Questions blocked by an unreadable file"
+                  value={stats.evidenceCounts.NEEDS_MANUAL_REVIEW}
+                />
+                <Key label="Not applicable" value={stats.evidenceCounts.NOT_APPLICABLE} />
+              </div>
+              {attention.length > 0 && (
+                <div className="callout warning">
+                  <AlertTriangle />
+                  <div>
+                    <b>
+                      {attention.length} document{attention.length === 1 ? '' : 's'} could not be
+                      processed
+                    </b>
+                    <p>
+                      {attention[0].original_filename} could not be read, so nothing in it was
+                      indexed.{' '}
+                      {stats.evidenceCounts.NEEDS_MANUAL_REVIEW === 0
+                        ? 'No question is blocked by it. Check whether a readable replacement is needed.'
+                        : `${stats.evidenceCounts.NEEDS_MANUAL_REVIEW} question${
+                            stats.evidenceCounts.NEEDS_MANUAL_REVIEW === 1 ? '' : 's'
+                          } above depend on it.`}
+                    </p>
+                  </div>
+                  <button className="link" type="button" onClick={() => go('intake')}>
+                    Inspect
+                  </button>
+                </div>
+              )}
+            </section>
+
+            <section className="panel">
+              <div className="section-head">
+                <div>
+                  <h2>Confirmed by pillar</h2>
+                  <p>Required questions only</p>
+                </div>
+              </div>
+              {questions.length === 0 ? (
+                <EmptyState icon={<FileText />} title="No questions yet" />
+              ) : (
+                PILLAR_ORDER.map((pillar) => {
+                  const b = pillarBreakdown(questions, pillar)
+                  if (b.total === 0) return null
+                  return (
+                    <div className="pillar" key={pillar}>
+                      <div className="pillar-icon">{pillar === 'UNCATEGORIZED' ? '?' : pillar}</div>
+                      <div>
+                        <b>{pillarLabel(pillar)}</b>
+                        <small>
+                          {b.confirmedRequired} of {b.required} required confirmed
+                        </small>
+                      </div>
+                      <Meter value={b.percentage} />
+                      <strong>{b.percentage === null ? '—' : `${b.percentage}%`}</strong>
+                    </div>
+                  )
+                })
+              )}
+            </section>
+
+            <section className="panel activity">
+              <div className="section-head">
+                <div>
+                  <h2>Recent updates</h2>
+                  <p>Latest file uploads and action changes</p>
+                </div>
+              </div>
+              {activity.length === 0 ? (
+                <EmptyState icon={<ClipboardCheck />} title="Nothing recorded yet" />
+              ) : (
+                activity.map((entry) => (
+                  <div key={entry.id}>
+                    <span>{entry.initials}</span>
+                    <p>
+                      <b>{entry.text}</b>
+                      <small>{entry.time}</small>
+                    </p>
+                  </div>
+                ))
+              )}
+            </section>
+          </div>
+
+        </>
+      )}
     </div>
   )
 }
@@ -362,5 +399,5 @@ function buildActivity(documents: DocumentRecord[], actions: ActionRecord[]): Ac
   return entries
     .filter((e) => Number.isFinite(e.at))
     .sort((a, b) => b.at - a.at)
-    .slice(0, 6)
+    .slice(0, 3)
 }
