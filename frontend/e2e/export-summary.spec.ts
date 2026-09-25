@@ -82,9 +82,9 @@ test('every figure in the summary states what it counts', async ({ page }) => {
   await gotoExport(page)
   await page.getByRole('button', { name: /marked-up draft/ }).click()
 
-  const download = await Promise.race([
+  const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Download package' }).click().then(() => page.waitForEvent('download')),
+    page.getByRole('button', { name: 'Download package' }).click(),
   ])
   expect(download.suggestedFilename()).toBe('customer-response-summary.txt')
 

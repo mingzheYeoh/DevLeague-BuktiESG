@@ -76,6 +76,21 @@ Open **Export → Generate marked-up draft → Download package**. The package c
 
 If an important source is missing or contradictory, show **Create submission action** on the question: assign an owner, next step, and deadline instead of pretending the gap is solved. For a second case, the B- and C- files deliberately demonstrate incomplete, old, wrong-entity, contradictory, or unreadable material.
 
+### Action and export test scenarios
+
+Use a demo case with a questionnaire or document already uploaded.
+
+| Scenario | What to do | Expected result |
+| --- | --- | --- |
+| Create a submission action | Open Actions > New action. Enter title `Collect energy records`, owner `Alex Tan`, next step `Request the monthly electricity bills`, and deadline `2026-12-31`. Select Create action. | The action appears under Submission actions with status Todo. |
+| Required fields | Leave Owner, Next step, or Deadline empty. | Create action stays disabled. |
+| Create an improvement action | Open Improvement actions > New action and enter the same required fields with a different title. | The action appears under Improvement actions. |
+| Reload | Refresh the browser, reopen Actions, and select the appropriate tab. | The saved action and its owner, deadline, and next step are still present. |
+| Complete an action | Open an action and select Completed. Try saving without a completion note, then provide one. | A note is required. If closure evidence is required, a valid evidence link for the linked question is also needed. |
+| Export the action | Open Export > Generate marked-up draft > Download package. Allow multiple downloads if the browser prompts. | Download `customer-response-summary.txt`, `evidence-index.csv`, `action-register.csv`, and `document-register.csv`. The action register includes the new action, owner, next step, deadline, and status. |
+
+Automated browser checks are in `frontend/e2e/actions.spec.ts`: creation of both action types, required fields, reload, failed-save retry, and all four downloads. These use a stateful API stub; backend validation and closure rules are separately covered in `backend/tests/test_phase5_review_and_actions.py`.
+
 ## What happens behind each click
 
 1. **Case separation.** Sign-in identifies your organization. Each case keeps its own questionnaire, evidence, answers, and review decisions. A match cannot silently use another organization's files.
